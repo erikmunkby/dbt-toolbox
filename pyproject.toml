@@ -10,6 +10,10 @@ dependencies = [
     "typer>=0.16.0",
     "yamlium>=0.1.3",
 ]
+description = "Fast, modern yaml parser and manipulator"
+readme = "README.md"
+authors = [{ name = "Erik Munkby", email = "erik.munkby@gmail.com" }]
+license = { file = "LICENSE" }
 
 [project.scripts]
 dt = "dbt_toolbox.cli.main:main"

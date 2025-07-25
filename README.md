@@ -47,11 +47,10 @@ pip install dbt-toolbox
 ```bash
 # Initialize and explore your project
 dt settings                    # View all configuration
-dt clean                      # Clear cache if needed
 
 # Enhanced dbt commands with caching
-dt build --model my_model     # Build with intelligent caching
-dt run --model my_model       # Run with intelligent caching
+dt build                      # Build with intelligent caching
+dt run --model +my_model+     # Support for most dbt selection syntax
 dt build --target prod        # Build against production target
 
 # Analyze cache and dependencies
@@ -101,7 +100,6 @@ The `dt docs` command intelligently inherits column descriptions from:
 
 - [CLI Reference](./CLI.md) - Detailed command documentation and examples
 - [Contributing Guide](./CONTRIBUTING.md) - Development setup and guidelines
-- [Architecture Overview](./CLAUDE.md) - Technical implementation details
 
 ## 🧪 Testing Integration
 
