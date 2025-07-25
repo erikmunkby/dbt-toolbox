@@ -1,0 +1,27 @@
+name: "dbt_ci_testing"
+version: "1.0.0"
+config-version: 2
+
+flags:
+  send_anonymous_usage_stats: false
+
+profile: "dbt_ci_testing"
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+seeds:
+  schema: seeds
+
+models:
+  dbt_ci_testing:
+    +materialized: view

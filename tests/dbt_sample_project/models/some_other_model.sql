@@ -1,0 +1,1 @@
+select {{ simple_macro() }}, 'bob' as static_column

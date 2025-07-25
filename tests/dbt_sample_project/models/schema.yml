@@ -1,0 +1,36 @@
+version: 2
+models:
+  - name: orders
+    description: >
+      A model that transforms raw order data into a clean, standardized format.
+      Includes order details such as customer ID, order date, store ID, and financial
+      information including subtotal, tax, and total amount.
+    columns:
+      - name: order_id
+        description: Unique identifier for each order
+      - name: customer_id
+        description: Foreign key to the customers table
+      - name: ordered_at
+        description: Timestamp when the order was placed
+      - name: store_id
+        description: Identifier for the store where the order was placed
+      - name: subtotal
+        description: Order amount before tax
+      - name: tax_paid
+        description: Tax amount for the order
+      - name: order_total
+        description: Total order amount including tax
+  - name: customers
+    description: >
+      A model that cleans and standardizes customer data from the raw customers table.
+      Transforms basic customer information into a consistent format.
+    columns:
+      - name: customer_id
+        description: Unique identifier for each customer
+      - name: full_name
+        description: Customer's complete name
+
+  - name: some_other_model
+    description: >
+      A simple model that demonstrates the usage of a custom macro.
+      This appears to be a test or example model.

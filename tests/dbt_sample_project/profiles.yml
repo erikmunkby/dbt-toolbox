@@ -1,0 +1,14 @@
+dbt_ci_testing:
+  target: dev
+  outputs:
+    dev: &config
+      type: duckdb
+      path: data.duckdb
+      schema: dev
+      extensions:
+        - parquet
+      threads: 4
+
+    pull-request-ci:
+      <<: *config
+      schema: "pr_{{ env_var('PULL_REQUEST_NBR')}}"

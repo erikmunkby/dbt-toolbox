@@ -1,0 +1,26 @@
+"""Run command that shadows dbt run with custom behavior."""
+
+from dbt_toolbox.cli._dbt_executor import create_dbt_command_function
+
+# Create the run command using the shared function factory
+run = create_dbt_command_function(
+    command_name="run",
+    help_text="""Run dbt models with intelligent cache-based execution.
+
+This command shadows 'dbt run' with smart execution by default - it analyzes
+which models need execution based on cache validity and dependency changes,
+and only runs those models that actually need updating.
+
+Intelligent Execution Features:
+    --analyze:          Show which models need execution without running dbt
+    --disable-smart:    Disable smart execution and run
+                        all selected models (original dbt behavior)
+
+Usage:
+    dt run [OPTIONS]                     # Smart execution (default)
+    dt run --model customers            # Only run customers if needed
+    dt run --select customers+ --analyze  # Show what would be executed
+    dt run --disable-smart --model customers  # Force run customers (bypass cache)
+    dt run --threads 4 --target prod    # Smart execution with target option
+""",
+)
