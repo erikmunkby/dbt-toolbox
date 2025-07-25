@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/erikmunkby/dbt-toolbox/compare/v0.1.1...v0.1.2) (2025-07-25)
+
+
+### Bug Fixes
+
+* pyproject description ([6a85b92](https://github.com/erikmunkby/dbt-toolbox/commit/6a85b92d43ac2d316e5aaa401b01e365250e9529))
+
 ## [0.1.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.1.0...v0.1.1) (2025-07-25)
 
 
