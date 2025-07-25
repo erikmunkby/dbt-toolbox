@@ -190,7 +190,7 @@ class CacheAnalyzer:
         upstream_changes = []
 
         # Check upstream models
-        changed_upstream_models = self.build_analyzer._upstream_models_changed(model)
+        changed_upstream_models = self.build_analyzer.upstream_models_changed(model)
         if changed_upstream_models:
             upstream_changes.append(
                 ExecutionReason(
@@ -200,7 +200,7 @@ class CacheAnalyzer:
             )
 
         # Check upstream macros
-        changed_upstream_macros = self.build_analyzer._upstream_macros_changed(model)
+        changed_upstream_macros = self.build_analyzer.upstream_macros_changed(model)
         if changed_upstream_macros:
             upstream_changes.append(
                 ExecutionReason(
