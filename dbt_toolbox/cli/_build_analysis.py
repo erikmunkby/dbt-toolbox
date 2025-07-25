@@ -122,7 +122,7 @@ class BuildAnalyzer:
         """
         return obj.last_checked == EXECUTION_TIMESTAMP or obj.last_checked < self.cache_expiration
 
-    def _upstream_models_changed(self, model: Model) -> list[str]:
+    def upstream_models_changed(self, model: Model) -> list[str]:
         """Get list of upstream models that have changed."""
         changed_upstream = []
 
@@ -134,7 +134,7 @@ class BuildAnalyzer:
 
         return changed_upstream
 
-    def _upstream_macros_changed(self, model: Model) -> list[str]:
+    def upstream_macros_changed(self, model: Model) -> list[str]:
         """Get list of upstream macros that have changed."""
         changed_upstream = []
 
@@ -169,7 +169,7 @@ class BuildAnalyzer:
             )
 
         # Check condition 3: Upstream models changed
-        changed_upstream_models = self._upstream_models_changed(model)
+        changed_upstream_models = self.upstream_models_changed(model)
         if changed_upstream_models:
             reasons.append(
                 ExecutionReason(
@@ -179,7 +179,7 @@ class BuildAnalyzer:
             )
 
         # Check condition 4: Upstream macros changed
-        changed_upstream_macros = self._upstream_macros_changed(model)
+        changed_upstream_macros = self.upstream_macros_changed(model)
         if changed_upstream_macros:
             reasons.append(
                 ExecutionReason(
