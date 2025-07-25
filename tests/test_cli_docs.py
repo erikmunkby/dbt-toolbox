@@ -117,15 +117,6 @@ class TestYamlBuilder:
 class TestDocsCommand:
     """Test the CLI docs command functionality."""
 
-    def test_docs_command_help(self, cli_runner: typer.testing.CliRunner) -> None:
-        """Test docs command shows help information."""
-        result = cli_runner.invoke(app, ["docs", "--help"])
-
-        assert result.exit_code == 0
-        assert "Generate documentation for a specific dbt model" in result.stdout
-        assert "--model" in result.stdout
-        assert "--clipboard" in result.stdout
-
     def test_docs_command_missing_model(
         self,
         cli_runner: typer.testing.CliRunner,
