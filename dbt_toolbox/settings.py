@@ -6,7 +6,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any, NamedTuple
 
-import tomllib
+import tomli
 import yamlium
 
 from dbt_toolbox.utils.printer import cprint
@@ -60,7 +60,7 @@ def _find_toml_settings(filename: str = "pyproject.toml") -> tuple[dict, Path | 
     for parent in [current, *list(current.parents)]:
         p = parent / filename
         if p.exists():
-            toml = tomllib.loads(p.read_text())
+            toml = tomli.loads(p.read_text())
             toml_path = p
             break
     if toml:

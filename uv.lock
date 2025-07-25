@@ -392,6 +392,7 @@ dependencies = [
     { name = "jinja2" },
     { name = "loguru" },
     { name = "sqlglot", extra = ["rs"] },
+    { name = "tomli" },
     { name = "typer" },
     { name = "yamlium" },
 ]
@@ -410,6 +411,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "sqlglot", extras = ["rs"], specifier = ">=26.25.3" },
+    { name = "tomli", specifier = ">=2.2.1" },
     { name = "typer", specifier = ">=0.16.0" },
     { name = "yamlium", specifier = ">=0.1.3" },
 ]
