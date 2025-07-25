@@ -27,7 +27,7 @@ A powerful CLI toolkit that supercharges your dbt development workflow with inte
 - Node type tracking and statistics
 - Perfect for impact analysis and refactoring
 
-**Advanced Configuration**
+**Configuration**
 - Multi-source settings hierarchy (env vars > TOML > dbt profiles > defaults)
 - Dynamic dbt profile and target integration
 - Source tracking for all configuration values
@@ -35,10 +35,8 @@ A powerful CLI toolkit that supercharges your dbt development workflow with inte
 ## 🛠️ Installation
 
 ```bash
-# Install from source (recommended for development)
-git clone https://github.com/your-org/dbt-toolbox
-cd dbt-toolbox
-uv sync --group dev
+# Using uv
+uv add dbt-toolbox
 
 # Or install with pip
 pip install dbt-toolbox
@@ -114,7 +112,9 @@ from dbt_toolbox.testing import check_column_documentation
 
 def test_model_documentation():
     """Ensure all model columns are documented."""
-    check_column_documentation("my_model")
+    result = check_column_documentation()
+    if result:
+        pytest.fail(result)
 ```
 
 ## 🤝 Contributing
