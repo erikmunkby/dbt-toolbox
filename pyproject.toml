@@ -10,7 +10,7 @@ dependencies = [
     "typer>=0.16.0",
     "yamlium>=0.1.3",
 ]
-description = "Fast, modern yaml parser and manipulator"
+description = "Productivity, warehous cost and QoL improvements for your dbt development"
 readme = "README.md"
 authors = [{ name = "Erik Munkby", email = "erik.munkby@gmail.com" }]
 license = { file = "LICENSE" }
