@@ -1,0 +1,53 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-release:
+    name: Build release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Release Please
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          release-type: python
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+  upload-artifacts:
+    name: Upload artifacts
+    runs-on: ubuntu-latest
+    needs: [build-release]
+    # Will only run if a release was created
+    if: needs.build-release.outputs.release_created == 'true'
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build artifacts
+        run: uv build
+
+      - name: Upload build artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for f in dist/*; do
+            echo "Uploading $f"
+            gh release upload ${{ needs.build-release.outputs.tag_name }} "$f"
+          done
+
+      # - name: PyPI publish
+      #   uses: pypa/gh-action-pypi-publish@release/v1
