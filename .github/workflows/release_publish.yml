@@ -49,5 +49,5 @@ jobs:
             gh release upload ${{ needs.build-release.outputs.tag_name }} "$f"
           done
 
-      # - name: PyPI publish
-      #   uses: pypa/gh-action-pypi-publish@release/v1
+      - name: PyPI publish
+        uses: pypa/gh-action-pypi-publish@release/v1
