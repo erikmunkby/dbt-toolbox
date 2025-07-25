@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.1.0...v0.1.1) (2025-07-25)
+
+
+### Bug Fixes
+
+* link description to pypi ([bb4f629](https://github.com/erikmunkby/dbt-toolbox/commit/bb4f6294f04ab30c3474beba0ea0756f95f5c634))
+
 ## 0.1.0 (2025-07-25)
 
 
