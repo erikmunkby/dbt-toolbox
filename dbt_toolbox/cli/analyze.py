@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from dbt_toolbox.cli._analyze_columns import analyze_column_references
 from dbt_toolbox.cli._build_analysis import BuildAnalyzer, ExecutionReason
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.data_models import Model
@@ -286,6 +287,70 @@ class CacheAnalyzer:
         return f"{days} days"
 
 
+def print_column_analysis_results(models: dict[str, Model]) -> None:
+    """Print column reference analysis results.
+
+    Args:
+        models: Dictionary of model name to Model objects
+
+    """
+    console = Console()
+    analysis = analyze_column_references(models)
+
+    # Check if there are any issues to report
+    if not analysis.non_existent_columns and not analysis.referenced_non_existent_models:
+        printer.cprint("✅ All column references are valid!", color="green")
+        return
+
+    printer.cprint("📊 Column Reference Analysis", color="cyan")
+    print()  # noqa: T201 blankline
+
+    # Non-existent columns section
+    if analysis.non_existent_columns:
+        total_missing_cols = sum(len(cols) for cols in analysis.non_existent_columns.values())
+        printer.cprint(
+            f"❌ Non-existent Columns ({total_missing_cols}):",
+            color="red",
+        )
+        table = Table(show_header=True, header_style="bold red")
+        table.add_column("Model", style="red")
+        table.add_column("Referenced Model", style="yellow")
+        table.add_column("Missing Columns", style="white")
+
+        for model_name, referenced_models in analysis.non_existent_columns.items():
+            for referenced_model, missing_columns in referenced_models.items():
+                table.add_row(
+                    model_name,
+                    referenced_model,
+                    ", ".join(missing_columns),
+                )
+
+        console.print(table)
+        print()  # noqa: T201 blankline
+
+    # Referenced non-existent models section
+    if analysis.referenced_non_existent_models:
+        total_missing_models = sum(
+            len(models) for models in analysis.referenced_non_existent_models.values()
+        )
+        printer.cprint(
+            f"❌ Referenced Non-existent Models ({total_missing_models}):",
+            color="red",
+        )
+        table = Table(show_header=True, header_style="bold red")
+        table.add_column("Model", style="red")
+        table.add_column("Non-existent Referenced Models", style="white")
+
+        for model_name, non_existent_models in analysis.referenced_non_existent_models.items():
+            table.add_row(
+                model_name,
+                ", ".join(set(non_existent_models)),
+            )
+
+        console.print(table)
+        print()  # noqa: T201 blankline
+
+
 def print_analysis_results(analysis: CacheAnalysis) -> None:  # noqa: C901
     """Print cache analysis results in a formatted way.
 
@@ -393,17 +458,29 @@ def analyze_command(
         help="Analyze specific models (dbt selection syntax)",
     ),
 ) -> None:
-    """Analyze cache state without manipulating it.
+    """Analyze cache state and column references without manipulating them.
 
-    Shows outdated models, ID mismatches, and failed models that need re-execution.
+    Shows outdated models, ID mismatches, failed models that need re-execution,
+    and column reference issues.
     """
-    printer.cprint("🔍 Analyzing model cache state...", color="cyan")
+    printer.cprint("🔍 Analyzing model cache state and column references...", color="cyan")
 
-    # Perform analysis
+    # Perform cache analysis
     analysis = cache_analyzer.analyze_all_models(model)
 
-    # Print results
+    # Print cache analysis results
     print_analysis_results(analysis)
+
+    # Perform column analysis on available models
+    models = dbt_parser.list_built_models
+
+    # Filter models if selection is provided
+    if model:
+        target_models = cache_analyzer.build_analyzer.parse_dbt_selection(model)
+        models = {name: model_obj for name, model_obj in models.items() if name in target_models}
+
+    # Print column analysis results
+    print_column_analysis_results(models)
 
     # Summary
     if analysis.models_needing_execution:
