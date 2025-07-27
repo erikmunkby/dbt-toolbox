@@ -84,6 +84,7 @@ This module is NOT tests for the project itself, but helper functions for users 
 **`dt build`** - Enhanced dbt build wrapper with intelligent execution
 - Shadows `dbt build` with smart cache-based execution by default
 - Analyzes which models need execution based on cache validity and dependency changes
+- **Lineage validation**: Validates lineage references before execution (configurable)
 - Supports common dbt options: `--model`, `--select`, `--full-refresh`, `--threads`, `--target`, `--vars`
 - Special options: `--analyze` (show analysis only), `--disable-smart` (force all models)
 - Enhanced output with colored progress indicators and execution analysis
@@ -91,6 +92,7 @@ This module is NOT tests for the project itself, but helper functions for users 
 **`dt run`** - Enhanced dbt run wrapper with intelligent execution
 - Shadows `dbt run` with smart cache-based execution by default
 - Analyzes which models need execution based on cache validity and dependency changes
+- **Lineage validation**: Validates lineage references before execution (configurable)
 - Supports common dbt options: `--model`, `--select`, `--full-refresh`, `--threads`, `--target`, `--vars`
 - Special options: `--analyze` (show analysis only), `--disable-smart` (force all models)
 - Enhanced output with colored progress indicators and execution analysis
@@ -139,6 +141,7 @@ This module is NOT tests for the project itself, but helper functions for users 
 - `DBT_TOOLBOX_CACHE_PATH` - Custom cache directory
 - `DBT_TOOLBOX_SKIP_PLACEHOLDER` - Skip placeholder descriptions
 - `DBT_TOOLBOX_PLACEHOLDER_DESCRIPTION` - Custom placeholder text
+- `DBT_TOOLBOX_ENFORCE_LINEAGE_VALIDATION` - Enable/disable lineage validation (default: true)
 
 ### TOML Configuration (`pyproject.toml`)
 ```toml
@@ -148,6 +151,7 @@ debug = false
 cache_path = ".dbt_toolbox"
 skip_placeholder = false
 placeholder_description = "TODO: PLACEHOLDER"
+enforce_lineage_validation = true
 ```
 
 ### Settings Precedence

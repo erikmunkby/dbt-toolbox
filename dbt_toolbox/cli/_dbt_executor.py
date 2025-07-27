@@ -7,11 +7,78 @@ from typing import Annotated
 
 import typer
 
+from dbt_toolbox.cli._analyze_columns import analyze_column_references
 from dbt_toolbox.cli._build_analysis import build_analyzer
 from dbt_toolbox.cli._dbt_output_parser import dbt_output_parser
 from dbt_toolbox.dbt_parser import dbt_parser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import printer
+
+
+def _validate_lineage_references(models_to_check: list[str] | None = None) -> bool:
+    """Validate lineage references for models before execution.
+
+    Args:
+        models_to_check: List of model names to validate. If None, validates all models.
+
+    Returns:
+        True if all lineage references are valid, False otherwise.
+
+    """
+    if not settings.enforce_lineage_validation:
+        return True
+
+    printer.cprint("🔍 Validating lineage references...", color="cyan")
+
+    # Get all models and sources
+    models = dbt_parser.list_built_models
+    sources = dbt_parser.sources
+
+    # Filter models if specific models are requested
+    if models_to_check:
+        models = {name: model for name, model in models.items() if name in models_to_check}
+
+    # Perform column analysis
+    analysis = analyze_column_references(models, sources)
+
+    # Check if there are any issues
+    if not analysis.non_existent_columns and not analysis.referenced_non_existent_models:
+        return True
+
+    # Print validation errors
+    printer.cprint("❌ Lineage validation failed!", color="red")
+    print()  # noqa: T201
+
+    # Show non-existent columns
+    if analysis.non_existent_columns:
+        total_missing_cols = sum(len(cols) for cols in analysis.non_existent_columns.values())
+        printer.cprint(f"Missing columns ({total_missing_cols}):", color="red")
+        for model_name, referenced_models in analysis.non_existent_columns.items():
+            for referenced_model, missing_columns in referenced_models.items():
+                printer.cprint(
+                    f"  • {model_name} → {referenced_model}: {', '.join(missing_columns)}",
+                    color="yellow",
+                )
+
+    # Show non-existent referenced models/sources
+    if analysis.referenced_non_existent_models:
+        total_missing_models = sum(
+            len(models) for models in analysis.referenced_non_existent_models.values()
+        )
+        printer.cprint(f"Non-existent references ({total_missing_models}):", color="red")
+        for model_name, non_existent_models in analysis.referenced_non_existent_models.items():
+            printer.cprint(
+                f"  • {model_name} → {', '.join(set(non_existent_models))}",
+                color="yellow",
+            )
+
+    print()  # noqa: T201
+    printer.cprint(
+        "💡 Tip: You can disable lineage validation by setting "
+        "'enforce_lineage_validation = false' in your configuration",
+        color="cyan",
+    )
+    return False
 
 
 def _stream_process_output(process: subprocess.Popen) -> list[str]:
@@ -145,6 +212,8 @@ def execute_dbt_with_smart_selection(  # noqa: C901, PLR0912, PLR0913
         disable_smart: Disable smart execution and run all selected models
 
     """
+    if not disable_smart and not _validate_lineage_references():
+        sys.exit(1)
     # Start building the dbt command
     dbt_command = ["dbt", command_name]
 
