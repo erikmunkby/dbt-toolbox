@@ -88,6 +88,27 @@ class ColumnChanges:
 
 
 @dataclass
+class Source:
+    """A dbt source table."""
+
+    name: str
+    source_name: str
+    description: str | None
+    path: Path
+    columns: list[ColDocs]
+
+    @property
+    def full_name(self) -> str:
+        """Get the full source name as source_name__table_name."""
+        return f"{self.source_name}__{self.name}"
+
+    @property
+    def compiled_columns(self) -> list[str]:
+        """Get list of column names."""
+        return [col.name for col in self.columns]
+
+
+@dataclass
 class YamlDocs:
     """Documentation from a model yaml."""
 
@@ -117,8 +138,8 @@ class Model(ModelBase):
         if not self.optimized_glot_code:
             return result
         for c in self.optimized_glot_code.selects:
-            result[c.alias_or_name] = (
-                c.this.table.split("__")[-2] if hasattr(c.this, "table") else None
+            result[c.this.name] = (
+                c.this.table.split("___")[-2] if hasattr(c.this, "table") else None
             )
         return result
 

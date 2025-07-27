@@ -7,7 +7,7 @@ with orders as (
     tax_paid,
     {{ simple_macro() }} as col,
     order_total
-    from {{ ref("raw_orders") }}
+    from {{ source("raw_data", "raw_orders") }}
 )
 -- my_comment, xxx
 select * from orders
