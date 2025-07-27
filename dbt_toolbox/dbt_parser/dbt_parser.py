@@ -156,6 +156,11 @@ class dbtParser:  # noqa: N801
         return {m.name: m for m in fetch_models()}
 
     @cached_property
+    def list_built_models(self) -> dict[str, Model]:
+        """Get a dictionary of all models with their built dataclass."""
+        return {m.name: _build_model(m) for m in fetch_models()}
+
+    @cached_property
     def models(self) -> dict[str, Model]:
         """Fetch all available models, prioritizing cache if valid.
 
