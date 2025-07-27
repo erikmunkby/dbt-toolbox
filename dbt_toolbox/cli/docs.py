@@ -63,6 +63,14 @@ class YamlBuilder:
             for upstream_col in dbt_parser.models[upstream_model].column_descriptions:
                 if col == upstream_col.name:
                     return {_NAME: col, _DESC: upstream_col.description}  # type: ignore
+
+        # Upstream source docs
+        for upstream_source in self.model.upstream.sources:
+            if upstream_source not in dbt_parser.sources:
+                continue
+            for upstream_col in dbt_parser.sources[upstream_source].columns:
+                if col == upstream_col.name and upstream_col.description:
+                    return {_NAME: col, _DESC: upstream_col.description}
         if settings.skip_placeholders:
             return None
 

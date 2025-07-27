@@ -15,6 +15,7 @@ from dbt_toolbox.data_models import (
     MacroBase,
     Model,
     ModelBase,
+    Source,
     YamlDocs,
 )
 from dbt_toolbox.dbt_parser._cache import Cache, cache
@@ -85,8 +86,11 @@ def _build_model(m: ModelBase, /) -> Model:
                     deps.models.append(node.args[0].value)  # type: ignore
                 # When we find {{ source() }}
                 elif node_name == "source":
-                    # TODO: Implement support for sources
-                    continue
+                    min_source_args = 2  # source('source_name', 'table_name')
+                    if len(node.args) >= min_source_args:
+                        source_name = node.args[0].value  # type: ignore
+                        table_name = node.args[1].value  # type: ignore
+                        deps.sources.append(f"{source_name}__{table_name}")
                 # When we find any other e.g. {{ my_macro() }}
                 else:
                     deps.macros.append(node_name)
@@ -131,6 +135,29 @@ class dbtParser:  # noqa: N801
                         for c in m.get("columns", [])
                     ],
                 )
+        return result
+
+    @cached_property
+    def sources(self) -> dict[str, Source]:
+        """Get all sources defined in the project."""
+        result = {}
+        for path in utils.model_yaml_paths:
+            sources: list[dict] = yamlium.parse(path).to_dict().get("sources", [])  # type: ignore
+            for source in sources:
+                source_name = source["name"]
+                for table in source.get("tables", []):
+                    table_name = table["name"]
+                    full_name = f"{source_name}__{table_name}"
+                    result[full_name] = Source(
+                        name=table_name,
+                        source_name=source_name,
+                        description=table.get("description"),
+                        path=path,
+                        columns=[
+                            ColDocs(name=c.get("name"), description=c.get("description"))
+                            for c in table.get("columns", [])
+                        ],
+                    )
         return result
 
     @cached_property

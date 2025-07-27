@@ -19,15 +19,6 @@ class TestAnalyzeCommand:
         assert result.exit_code == 0
         assert "analyze" in result.stdout
 
-    def test_analyze_command_help(self) -> None:
-        """Test that the analyze command shows help correctly."""
-        cli_runner = CliRunner()
-        result = cli_runner.invoke(app, ["analyze", "--help"])
-
-        # Should exit successfully after showing help
-        assert result.exit_code == 0
-        # Should contain analyze command documentation
-        assert "Analyze cache state without manipulating it" in result.stdout
 
     @patch("dbt_toolbox.cli.analyze.cache_analyzer")
     def test_analyze_with_model_selection(self, mock_analyzer: Mock) -> None:

@@ -56,12 +56,12 @@ class VarsFetcher:
 
 def _ref(x) -> str:  # noqa: ANN001
     """Mock implementation of dbt ref() function."""
-    return f"__ref__{x}__"
+    return f"___ref___{x}___"
 
 
-def _source(x, y) -> str:  # noqa: ANN001, ARG001
+def _source(x, y) -> str:  # noqa: ANN001
     """Mock implementation of dbt source() function."""
-    return f"__source__{x}__"
+    return f"___source___{x}__{y}___"
 
 
 def _config(**kwargs) -> Literal[""]:  # noqa: ANN003, ARG001

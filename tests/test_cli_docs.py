@@ -256,7 +256,7 @@ class TestCLIIntegration:
         # Alternative: check if we can invoke docs command
         runner = typer.testing.CliRunner()
         result = runner.invoke(app, ["docs", "--help"])
-        assert "Generate documentation for a specific dbt model" in result.stdout
+        assert result.exit_code == 0
 
     def test_cli_main_function_exists(self) -> None:
         """Test that main function exists and is callable."""

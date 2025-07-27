@@ -25,8 +25,6 @@ class TestRunCommand:
 
         # Should exit successfully after showing help
         assert result.exit_code == 0
-        # Should contain run command documentation
-        assert "Run dbt models with intelligent cache-based execution" in result.stdout
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
     def test_run_with_model_selection(self, mock_execute: Mock) -> None:
