@@ -39,7 +39,7 @@ class YamlBuilder:
         self.yml = yml
         self.yaml_docs = {c[_NAME]: c for c in self.yml.get("columns", [])}
 
-    def _get_column_description(self, col: str, /) -> dict[str, str] | None:
+    def _get_column_description(self, col: str, /) -> dict[str, str] | None:  # noqa: C901
         """Fetch column description for an individual column.
 
         Using the priority:

@@ -297,6 +297,15 @@ class Settings:
         """The cache validity in minutes, default 1440 (one day)."""
         return int(self._cache_validity_minutes.value)
 
+    @cached_property
+    def _enforce_lineage_validation(self) -> Setting:
+        return _get_bool_setting("enforce_lineage_validation", "true")
+
+    @cached_property
+    def enforce_lineage_validation(self) -> bool:
+        """Whether to enforce lineage validation before running dbt build/run."""
+        return self._enforce_lineage_validation.value
+
     def path(self, path: str | Path, /) -> Path:
         """Construct a path relative to the dbt project directory.
 
@@ -327,6 +336,7 @@ class Settings:
                 "placeholder_description",
                 "sql_dialect",
                 "cache_validity_minutes",
+                "enforce_lineage_validation",
             ]
         }
 
