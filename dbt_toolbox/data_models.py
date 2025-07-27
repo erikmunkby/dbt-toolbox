@@ -111,6 +111,18 @@ class Model(ModelBase):
     last_checked: datetime = EXECUTION_TIMESTAMP
 
     @cached_property
+    def selected_columns(self) -> dict[str, str | None]:
+        """List all selected column from each upstream model."""
+        result = {}
+        if not self.optimized_glot_code:
+            return result
+        for c in self.optimized_glot_code.selects:
+            result[c.alias_or_name] = (
+                c.this.table.split("__")[-2] if hasattr(c.this, "table") else None
+            )
+        return result
+
+    @cached_property
     def compiled_columns(self) -> list[str]:
         """The selected columns compiled from sql code."""
         cols = (

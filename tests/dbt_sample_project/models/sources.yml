@@ -1,0 +1,23 @@
+version: 2
+
+sources:
+  - name: raw_data
+    description: Raw data sources including CSV seeds
+    tables:
+      - name: raw_orders
+        description: Raw order data from CSV seed file
+        columns:
+          - name: id
+            description: Unique identifier for each order
+          - name: customer
+            description: Customer identifier
+          - name: ordered_at
+            description: Timestamp when the order was placed
+          - name: store_id
+            description: Identifier for the store where the order was placed
+          - name: subtotal
+            description: Order amount before tax
+          - name: tax_paid
+            description: Tax amount for the order
+          - name: order_total
+            description: Total order amount including tax
