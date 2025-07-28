@@ -83,18 +83,22 @@ This module is NOT tests for the project itself, but helper functions for users 
 
 **`dt build`** - Enhanced dbt build wrapper with intelligent execution
 - Shadows `dbt build` with smart cache-based execution by default
-- Analyzes which models need execution based on cache validity and dependency changes
-- **Lineage validation**: Validates lineage references before execution (configurable)
+- **Smart mode features**:
+  - Analyzes which models need execution based on cache validity and dependency changes
+  - **Lineage validation**: Validates column and model references before execution (configurable)
+  - Only executes models that actually need to be rebuilt
 - Supports common dbt options: `--model`, `--select`, `--full-refresh`, `--threads`, `--target`, `--vars`
-- Special options: `--analyze` (show analysis only), `--disable-smart` (force all models)
+- Special options: `--analyze` (show analysis only), `--disable-smart` (force all models, skip lineage validation)
 - Enhanced output with colored progress indicators and execution analysis
 
 **`dt run`** - Enhanced dbt run wrapper with intelligent execution
 - Shadows `dbt run` with smart cache-based execution by default
-- Analyzes which models need execution based on cache validity and dependency changes
-- **Lineage validation**: Validates lineage references before execution (configurable)
+- **Smart mode features**:
+  - Analyzes which models need execution based on cache validity and dependency changes
+  - **Lineage validation**: Validates column and model references before execution (configurable)
+  - Only executes models that actually need to be rebuilt
 - Supports common dbt options: `--model`, `--select`, `--full-refresh`, `--threads`, `--target`, `--vars`
-- Special options: `--analyze` (show analysis only), `--disable-smart` (force all models)
+- Special options: `--analyze` (show analysis only), `--disable-smart` (force all models, skip lineage validation)
 - Enhanced output with colored progress indicators and execution analysis
 
 **`dt docs`** - YAML documentation generator
