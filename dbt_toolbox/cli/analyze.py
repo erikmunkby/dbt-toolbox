@@ -11,7 +11,7 @@ from rich.table import Table
 from dbt_toolbox.cli._analyze_columns import analyze_column_references
 from dbt_toolbox.cli._build_analysis import BuildAnalyzer, ExecutionReason
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
-from dbt_toolbox.data_models import Model, Source
+from dbt_toolbox.data_models import Model, Seed, Source
 from dbt_toolbox.dbt_parser.dbt_parser import dbt_parser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import printer
@@ -287,16 +287,21 @@ class CacheAnalyzer:
         return f"{days} days"
 
 
-def print_column_analysis_results(models: dict[str, Model], sources: dict[str, "Source"]) -> None:
+def print_column_analysis_results(
+    models: dict[str, Model],
+    sources: dict[str, "Source"],
+    seeds: dict[str, "Seed"],
+) -> None:
     """Print column reference analysis results.
 
     Args:
         models: Dictionary of model name to Model objects
         sources: Dictionary of source full_name to Source objects
+        seeds: Dictionary of seed name to Seed objects
 
     """
     console = Console()
-    analysis = analyze_column_references(models, sources)
+    analysis = analyze_column_references(models, sources, seeds)
 
     # Check if there are any issues to report
     if not analysis.non_existent_columns and not analysis.referenced_non_existent_models:
@@ -472,9 +477,10 @@ def analyze_command(
     # Print cache analysis results
     print_analysis_results(analysis)
 
-    # Perform column analysis on available models and sources
+    # Perform column analysis on available models, sources, and seeds
     models = dbt_parser.list_built_models
     sources = dbt_parser.sources
+    seeds = dbt_parser.seeds
 
     # Filter models if selection is provided
     if model:
@@ -482,7 +488,7 @@ def analyze_command(
         models = {name: model_obj for name, model_obj in models.items() if name in target_models}
 
     # Print column analysis results
-    print_column_analysis_results(models, sources)
+    print_column_analysis_results(models, sources, seeds)
 
     # Summary
     if analysis.models_needing_execution:
