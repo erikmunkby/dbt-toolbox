@@ -436,3 +436,46 @@ class TestColumnResolver:
         # Check reference types and resolution status
         for ref in expected_refs:
             assert ref in column_refs
+
+    def test_mixed_star_cte(self) -> None:
+        """Test the new detailed column reference API."""
+        sql = """
+        with my_cte as(
+            select
+                hey,
+                *,
+                yo
+            from tbl
+            )
+        select hey, a, b from my_cte
+        """
+
+        parsed = sqlglot.parse_one(sql, dialect="duckdb")
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        expected_refs = [
+            ColumnReference(
+                "hey", table_reference="tbl", reference_type=ReferenceType.EXTERNAL, resolved=None
+            ),
+            ColumnReference(
+                "yo", table_reference="tbl", reference_type=ReferenceType.EXTERNAL, resolved=None
+            ),
+            ColumnReference(
+                "hey", table_reference="my_cte", reference_type=ReferenceType.CTE, resolved=True
+            ),
+            ColumnReference(
+                "a",
+                table_reference="tbl",
+                reference_type=ReferenceType.EXTERNAL,
+                resolved=None,
+            ),
+            ColumnReference(
+                "b",
+                table_reference="tbl",
+                reference_type=ReferenceType.EXTERNAL,
+                resolved=None,
+            ),
+        ]
+
+        # Check reference types and resolution status
+        for ref in expected_refs:
+            assert ref in column_refs

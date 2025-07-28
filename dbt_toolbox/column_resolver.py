@@ -55,7 +55,7 @@ def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # n
     if not glot_code or not isinstance(glot_code, sqlglot.expressions.Select):
         return []
 
-    result = []
+    result: list[ColumnReference] = []
     seen_column_refs = set()  # Track (column_name, table_reference) pairs to avoid duplicates
 
     # Collect all CTE names from the entire query (including subqueries)
@@ -159,20 +159,19 @@ def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # n
                             col_name, source_table, cte_available_columns, select_star_sources
                         )
                     result.append(ref)
-
-    return result
+    # Remove all * columns
+    return [r for r in result if r.column_name != "*"]
 
 
 def _handle_cte_column_reference(
     col_name: str,
     source_table: str,
     cte_available_columns: dict[str, set[str]],
-    select_star_sources: dict[str, str | None]
+    select_star_sources: dict[str, str | None],
 ) -> ColumnReference:
     """Handle column reference to a CTE with proper SELECT * tracing."""
     cte_has_column = (
-        source_table in cte_available_columns
-        and col_name in cte_available_columns[source_table]
+        source_table in cte_available_columns and col_name in cte_available_columns[source_table]
     )
 
     if cte_has_column:
@@ -183,15 +182,19 @@ def _handle_cte_column_reference(
             reference_type=ReferenceType.CTE,
             resolved=True,  # Resolved within CTE
         )
-    if select_star_sources.get(source_table):
-        # CTE is SELECT * from external table - trace to source
+
+    # Check if CTE has SELECT * source for unresolved columns
+    star_source = select_star_sources.get(source_table)
+    if star_source:
+        # CTE has SELECT * from external table - trace to source
         return ColumnReference(
             column_name=col_name,
-            table_reference=select_star_sources[source_table],
+            table_reference=star_source,
             reference_type=ReferenceType.EXTERNAL,
             resolved=None,  # External validation needed
         )
-    # Column does not exist in CTE output - invalid reference
+
+    # Column does not exist in CTE output and no SELECT * source - invalid reference
     return ColumnReference(
         column_name=col_name,
         table_reference=source_table,
@@ -214,8 +217,20 @@ def _build_cte_available_columns(glot_code: Select, cte_names: set[str]) -> CteC
     cte_columns = {}
     select_star_sources = {}
 
+    # Process CTEs from main query and all subqueries
+    all_ctes = []
+
+    # Collect CTEs from the main query
     if hasattr(glot_code, "ctes") and glot_code.ctes:
-        for cte in glot_code.ctes:
+        all_ctes.extend(glot_code.ctes)
+
+    # Recursively collect CTEs from all subqueries
+    subqueries = glot_code.find_all(sqlglot.expressions.Subquery)
+    for subquery in subqueries:
+        if hasattr(subquery.this, "ctes") and subquery.this.ctes:
+            all_ctes.extend(subquery.this.ctes)
+
+    for cte in all_ctes:
             cte_name = cte.alias
             available_columns = set()
             has_select_star = False
@@ -231,8 +246,8 @@ def _build_cte_available_columns(glot_code: Select, cte_names: set[str]) -> CteC
 
             cte_columns[cte_name] = available_columns
 
-            # If this CTE has SELECT * and no other columns, try to find the source
-            if has_select_star and len(available_columns) == 0:
+            # If this CTE has SELECT *, try to find the source (regardless of other columns)
+            if has_select_star:
                 alias_to_table = _build_alias_mapping(cte.this)
 
                 # Get the FROM table (should be exactly one for simple SELECT *)
@@ -246,10 +261,7 @@ def _build_cte_available_columns(glot_code: Select, cte_names: set[str]) -> CteC
                 else:
                     select_star_sources[cte_name] = None
 
-    return CteColumnInfo(
-        available_columns=cte_columns,
-        select_star_sources=select_star_sources
-    )
+    return CteColumnInfo(available_columns=cte_columns, select_star_sources=select_star_sources)
 
 
 def _build_subquery_column_mapping(

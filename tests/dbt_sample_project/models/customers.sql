@@ -5,8 +5,7 @@ with source as (
 cleaned as (
     select
         id as customer_id,
-        name as full_name,
-        nonexistant_column
+        name as full_name
     from source
 )
 
