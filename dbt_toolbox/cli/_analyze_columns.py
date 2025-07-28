@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from dbt_toolbox.data_models import Model, Source
+    from dbt_toolbox.data_models import Model, Seed, Source
 
 
 @dataclass
@@ -20,19 +20,26 @@ def _check_column_in_reference(
     referenced_model: str,
     models: dict[str, "Model"],
     sources: dict[str, "Source"],
+    seeds: dict[str, "Seed"],
 ) -> bool:
-    """Check if a column exists in the referenced model or source.
+    """Check if a column exists in the referenced model, source, or seed.
 
     Args:
         column_name: Name of the column to check
-        referenced_model: Name of the referenced model or source
+        referenced_model: Name of the referenced model, source, or seed
         models: Dictionary of model name to Model objects
         sources: Dictionary of source full_name to Source objects
+        seeds: Dictionary of seed name to Seed objects
 
     Returns:
-        True if column exists in the referenced model/source, False otherwise
+        True if column exists in referenced model/source or if referenced model is a seed,
+        False otherwise
 
     """
+    if referenced_model in seeds:
+        # For seeds, we can't validate columns since we don't parse CSV headers
+        # We just assume the reference is valid if the seed exists
+        return True
     if referenced_model in models:
         return column_name in models[referenced_model].compiled_columns
     if referenced_model in sources:
@@ -44,6 +51,7 @@ def _analyze_model_column_references(
     model: "Model",
     models: dict[str, "Model"],
     sources: dict[str, "Source"],
+    seeds: dict[str, "Seed"],
 ) -> tuple[dict[str, list[str]], list[str]]:
     """Analyze column references for a single model.
 
@@ -51,6 +59,7 @@ def _analyze_model_column_references(
         model: Model to analyze
         models: Dictionary of model name to Model objects
         sources: Dictionary of source full_name to Source objects
+        seeds: Dictionary of seed name to Seed objects
 
     Returns:
         Tuple of (non_existent_columns, non_existent_references)
@@ -63,9 +72,13 @@ def _analyze_model_column_references(
         if referenced_model is None:
             continue
 
-        if referenced_model not in models and referenced_model not in sources:
+        if (
+            referenced_model not in models
+            and referenced_model not in sources
+            and referenced_model not in seeds
+        ):
             model_non_existent_refs.append(referenced_model)
-        elif not _check_column_in_reference(column_name, referenced_model, models, sources):
+        elif not _check_column_in_reference(column_name, referenced_model, models, sources, seeds):
             if referenced_model not in model_non_existent_cols:
                 model_non_existent_cols[referenced_model] = []
             model_non_existent_cols[referenced_model].append(column_name)
@@ -74,13 +87,16 @@ def _analyze_model_column_references(
 
 
 def analyze_column_references(
-    models: dict[str, "Model"], sources: dict[str, "Source"],
+    models: dict[str, "Model"],
+    sources: dict[str, "Source"],
+    seeds: dict[str, "Seed"],
 ) -> ColumnAnalysis:
-    """Analyze all models and find columns that don't exist in their referenced models or sources.
+    """Analyze all models and find columns that don't exist in their referenced objects.
 
     Args:
         models: Dictionary of model name to Model objects
         sources: Dictionary of source full_name to Source objects
+        seeds: Dictionary of seed name to Seed objects
 
     Returns:
         ColumnAnalysis containing:
@@ -93,7 +109,10 @@ def analyze_column_references(
 
     for model_name, model in models.items():
         model_non_existent_cols, model_non_existent_refs = _analyze_model_column_references(
-            model, models, sources,
+            model,
+            models,
+            sources,
+            seeds,
         )
 
         if model_non_existent_cols:

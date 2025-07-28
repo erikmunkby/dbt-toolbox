@@ -43,6 +43,10 @@ class _DbtProject:
     def docs_paths(self) -> list[str]:
         return self.parsed.get("docs-paths", ["docs"])
 
+    @property
+    def seed_paths(self) -> list[str]:
+        return self.parsed.get("seed-paths", ["seeds"])
+
 
 class _DbtProfile:
     """Represents a dbt profile configuration with dynamic properties."""

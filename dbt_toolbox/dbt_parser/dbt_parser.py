@@ -15,6 +15,7 @@ from dbt_toolbox.data_models import (
     MacroBase,
     Model,
     ModelBase,
+    Seed,
     Source,
     YamlDocs,
 )
@@ -157,6 +158,24 @@ class dbtParser:  # noqa: N801
                             ColDocs(name=c.get("name"), description=c.get("description"))
                             for c in table.get("columns", [])
                         ],
+                    )
+        return result
+
+    @cached_property
+    def seeds(self) -> dict[str, Seed]:
+        """Get all seeds (CSV files) defined in the project."""
+        result = {}
+        dbt_project = utils.dbt_project
+        project_dir = settings.dbt_project_dir
+
+        for seed_path in dbt_project.seed_paths:
+            seed_dir = project_dir / seed_path
+            if seed_dir.exists():
+                for csv_file in seed_dir.glob("*.csv"):
+                    seed_name = csv_file.stem  # filename without .csv extension
+                    result[seed_name] = Seed(
+                        name=seed_name,
+                        path=csv_file,
                     )
         return result
 

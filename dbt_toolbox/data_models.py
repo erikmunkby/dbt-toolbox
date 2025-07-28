@@ -109,6 +109,20 @@ class Source:
 
 
 @dataclass
+class Seed:
+    """A dbt seed CSV file."""
+
+    name: str
+    path: Path
+
+    @property
+    def id(self) -> str:
+        """Get id as name+hash of file modification time."""
+        stat = self.path.stat()
+        return self.name + md5(str(stat.st_mtime).encode()).hexdigest()[:5]  # noqa: S324
+
+
+@dataclass
 class YamlDocs:
     """Documentation from a model yaml."""
 

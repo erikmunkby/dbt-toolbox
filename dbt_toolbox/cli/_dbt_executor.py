@@ -30,16 +30,17 @@ def _validate_lineage_references(models_to_check: list[str] | None = None) -> bo
 
     printer.cprint("🔍 Validating lineage references...", color="cyan")
 
-    # Get all models and sources
+    # Get all models, sources, and seeds
     models = dbt_parser.list_built_models
     sources = dbt_parser.sources
+    seeds = dbt_parser.seeds
 
     # Filter models if specific models are requested
     if models_to_check:
         models = {name: model for name, model in models.items() if name in models_to_check}
 
     # Perform column analysis
-    analysis = analyze_column_references(models, sources)
+    analysis = analyze_column_references(models, sources, seeds)
 
     # Check if there are any issues
     if not analysis.non_existent_columns and not analysis.referenced_non_existent_models:
