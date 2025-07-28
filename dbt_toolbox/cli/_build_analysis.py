@@ -44,7 +44,7 @@ class BuildAnalyzer:
         """Get the current cache validity delta."""
         return EXECUTION_TIMESTAMP - timedelta(minutes=settings.cache_validity_minutes)
 
-    def parse_dbt_selection(self, selection: str | None) -> set[str]:  # noqa: C901
+    def parse_dbt_selection(self, selection: str | None) -> set[str]:
         """Parse dbt model selection syntax to get target models.
 
         Args:

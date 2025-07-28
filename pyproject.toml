@@ -55,6 +55,8 @@ ignore = [
     "TD003", # TODOs
     "FIX002", # TODOs
     "FBT001", # bools in function params
+    "C901", # Function too complex
+    "COM812",
 ]
 
 [tool.dbt_toolbox]

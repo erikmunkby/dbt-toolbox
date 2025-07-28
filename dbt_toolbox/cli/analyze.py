@@ -357,7 +357,7 @@ def print_column_analysis_results(
         print()  # noqa: T201 blankline
 
 
-def print_analysis_results(analysis: CacheAnalysis) -> None:  # noqa: C901
+def print_analysis_results(analysis: CacheAnalysis) -> None:
     """Print cache analysis results in a formatted way.
 
     Args:
