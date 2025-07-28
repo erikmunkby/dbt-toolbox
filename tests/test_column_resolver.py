@@ -99,7 +99,7 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="athena")
-        result = resolve_column_lineage(parsed)
+        result = resolve_column_lineage(parsed)  # type: ignore
 
         expected = {
             "id": "inventory__products",  # First column ref found in expression
@@ -123,7 +123,7 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)
+        result = resolve_column_lineage(parsed)  # type: ignore
 
         expected = {
             "customer_id": "customers",
@@ -144,17 +144,17 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)
+        result = resolve_column_lineage(parsed)  # type: ignore
 
         expected = {
             "name": "employees",
         }
         assert result == expected
 
-    def test_columns_without_table_prefix(self):
+    def test_columns_without_table_prefix(self) -> None:
         """Test columns without explicit table prefix in join context."""
         sql = """
-        SELECT 
+        SELECT
             customer_id,  -- Ambiguous column
             c.name,
             o.order_total
@@ -163,7 +163,7 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)
+        result = resolve_column_lineage(parsed)  # type: ignore
 
         expected = {
             "customer_id": None,  # Can't resolve ambiguous column
@@ -172,12 +172,12 @@ class TestColumnResolver:
         }
         assert result == expected
 
-    def test_empty_select(self):
+    def test_empty_select(self) -> None:
         """Test empty or None SQLGlot object."""
         result = resolve_column_lineage(None)
         assert result == {}
 
-    def test_select_star(self):
+    def test_select_star(self) -> None:
         """Test SELECT * query."""
         sql = """
         SELECT *
@@ -186,33 +186,57 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)
+        result = resolve_column_lineage(parsed)  # type: ignore
 
         # SELECT * creates a Star expression, not individual columns
         expected = {}  # Can't resolve SELECT *
         assert result == expected
 
-    def test_subquery_in_from(self):
+    def test_subquery_in_from(self) -> None:
         """Test subquery in FROM clause."""
         sql = """
-        SELECT 
+        SELECT
             sub.customer_id,
             sub.order_count,
             c.name
         FROM (
-            SELECT customer_id, COUNT(*) as order_count 
-            FROM orders 
+            SELECT customer_id, COUNT(*) as order_count
+            FROM orders
             GROUP BY customer_id
         ) sub
         LEFT JOIN customers c ON sub.customer_id = c.customer_id
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)
+        result = resolve_column_lineage(parsed)  # type: ignore
 
         expected = {
             "customer_id": "sub",  # From subquery alias
             "order_count": "sub",
             "name": "customers",
+        }
+        assert result == expected
+
+    def test_cte_columns(self) -> None:
+        """Test subquery from within a CTE."""
+        sql = """
+        with my_cte as (
+            select
+                a,
+                b
+            from tbl
+        )
+        select
+            c,
+            d
+        from my_cte
+        """
+
+        parsed = sqlglot.parse_one(sql, dialect="duckdb")
+        result = resolve_column_lineage(parsed)  # type: ignore
+
+        expected = {
+            "a": "tbl",
+            "b": "tbl",
         }
         assert result == expected

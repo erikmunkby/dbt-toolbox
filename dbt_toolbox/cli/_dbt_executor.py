@@ -190,7 +190,7 @@ def execute_dbt_command(base_command: list[str]) -> None:
         sys.exit(1)
 
 
-def execute_dbt_with_smart_selection(  # noqa: C901, PLR0912, PLR0913
+def execute_dbt_with_smart_selection(  # noqa: PLR0912, PLR0913
     command_name: str,
     model: str | None = None,
     full_refresh: bool = False,
