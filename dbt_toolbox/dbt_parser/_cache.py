@@ -8,8 +8,8 @@ from typing import Any
 
 from loguru import logger
 
-from dbt_toolbox.data_models import MacroBase
-from dbt_toolbox.dbt_parser._file_fetcher import fetch_macros
+from dbt_toolbox.data_models import MacroBase, Model
+from dbt_toolbox.dbt_parser._file_fetcher import read_macros
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import utils
 
@@ -95,6 +95,8 @@ class Cache:
         """Clear the cache."""
         shutil.rmtree(self.cache_path)
         self.cache_path.mkdir()
+        # Ensure models subdirectory is created
+        self.cache_models_path.mkdir(exist_ok=True)
         if settings.debug:
             logger.debug(f"Cleared cache at {self.cache_path}")
 
@@ -108,18 +110,9 @@ class Cache:
             True if model was found and removed from cache, False otherwise.
 
         """
-        # Get current cached models
-        if not self.cache_models.exists():
-            return False
-
-        cached_models = self.cache_models.read()
-        if not isinstance(cached_models, dict):
-            return False
-
-        # Remove the specific model from cache
-        if model_name in cached_models:
-            del cached_models[model_name]
-            self.cache_models.write(cached_models)
+        cache_handler = self.get_model_cache(model_name)
+        if cache_handler.exists():
+            cache_handler.clear()
             if settings.debug:
                 logger.debug(f"Cleared cache for model: {model_name}")
             return True
@@ -136,51 +129,6 @@ class Cache:
 
         """
         return [model_name for model_name in model_names if self.clear_model_cache(model_name)]
-
-    def track_failed_models(self, failed_models: list[str]) -> None:
-        """Track models that failed execution for analyze command.
-
-        Args:
-            failed_models: List of model names that failed execution.
-
-        """
-        # Load existing failed models
-        existing_failed = set()
-        if self.cache_failed_models.exists():
-            existing_failed = self.cache_failed_models.read()
-        # Add new failed models
-        existing_failed.update(failed_models)
-        # Write updated failed models
-        self.cache_failed_models.write(existing_failed)
-
-    def clear_failed_models(self, model_names: list[str] | None = None) -> None:
-        """Clear failed model tracking for specific models or all models.
-
-        Args:
-            model_names: List of model names to clear from failed tracking,
-                        or None to clear all failed models.
-
-        """
-        if not self.cache_failed_models.exists():
-            return
-
-        if model_names is None:
-            # Clear all failed models
-            self.cache_failed_models.clear()
-            return
-
-        # Load existing failed models
-        existing_failed: set = self.cache_failed_models.read()
-
-        # Remove specified models from failed set
-        for model_name in model_names:
-            existing_failed.discard(model_name)
-
-        # Write updated failed models (or remove file if empty)
-        if existing_failed:
-            self.cache_failed_models.write(existing_failed)
-        else:
-            self.cache_failed_models.clear()
 
     @cached_property
     def cache_path(self) -> Path:
@@ -209,14 +157,73 @@ class Cache:
         return _ByteCache(self.cache_path / "jinja_env.cache")
 
     @cached_property
-    def cache_failed_models(self) -> _ByteCache:
-        """Cache handler for failed models."""
-        return _ByteCache(self.cache_path / "failed_models.cache")
+    def cache_models_path(self) -> Path:
+        """Path to the models cache directory."""
+        models_path = self.cache_path / "models"
+        if not models_path.exists():
+            models_path.mkdir()
+        return models_path
 
-    @cached_property
-    def cache_models(self) -> _ByteCache:
-        """Cache handler for dbt models."""
-        return _ByteCache(self.cache_path / "models.cache")
+    def get_model_cache(self, model_name: str) -> _ByteCache:
+        """Get cache handler for a specific model.
+
+        Args:
+            model_name: Name of the model to get cache for.
+
+        Returns:
+            Cache handler for the specific model.
+
+        """
+        return _ByteCache(self.cache_models_path / f"{model_name}.cache")
+
+    def get_cached_model(self, model_name: str) -> Model | None:
+        """Get a specific cached model.
+
+        Args:
+            model_name: Name of the model to retrieve.
+
+        Returns:
+            Cached model or None if not found.
+
+        """
+        cache_handler = self.get_model_cache(model_name)
+        if cache_handler.exists():
+            return cache_handler.read()
+        return None
+
+    def cache_model(self, model: Model) -> None:
+        """Cache a specific model.
+
+        Args:
+            model: Model to cache.
+
+        """
+        cache_handler = self.get_model_cache(model.name)
+        cache_handler.write(model)
+
+    def get_all_cached_models(self) -> dict[str, Model]:
+        """Get all cached models from individual cache files.
+
+        Returns:
+            Dictionary mapping model names to cached models.
+
+        """
+        result = {}
+        if not self.cache_models_path.exists():
+            return result
+
+        for cache_file in self.cache_models_path.glob("*.cache"):
+            model_name = cache_file.stem
+            try:
+                cache_handler = _ByteCache(cache_file)
+                model = cache_handler.read()
+                if isinstance(model, Model):
+                    result[model_name] = model
+            except Exception:  # noqa: BLE001, S112
+                # Skip corrupted cache files
+                continue
+
+        return result
 
     @cached_property
     def cache_macros(self) -> _ByteCache:
@@ -266,7 +273,7 @@ class Cache:
     @cached_property
     def macros_dict(self) -> dict[str, list[MacroBase]]:
         """List all currently available macros."""
-        return fetch_macros()
+        return read_macros()
 
     @cached_property
     def macros_list(self) -> list[MacroBase]:

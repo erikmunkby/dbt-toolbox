@@ -147,8 +147,8 @@ class Utils:
 
         Args:
             msg: Message to log.
-            level: Log level (INFO, DEBUG, WARN). DEBUG messages only show
-                   when debug mode is enabled in settings.
+            level:  Log level (INFO, DEBUG, WARN). DEBUG messages only show
+                    when debug mode is enabled in settings.
 
         """
         if settings.debug and level == "DEBUG":

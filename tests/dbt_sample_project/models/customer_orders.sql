@@ -1,5 +1,5 @@
 with customers as (
-    select * from {{ ref("customers") }}
+    select customer_id, full_name from {{ ref("customers") }}
 ),
 
 orders as (

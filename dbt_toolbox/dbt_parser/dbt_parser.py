@@ -8,6 +8,7 @@ from jinja2.nodes import Call, Output
 from sqlglot import ParseError, parse_one
 from sqlglot.optimizer import optimize
 
+from dbt_toolbox.column_resolver import resolve_column_lineage
 from dbt_toolbox.data_models import (
     ColDocs,
     DependsOn,
@@ -20,7 +21,7 @@ from dbt_toolbox.data_models import (
     YamlDocs,
 )
 from dbt_toolbox.dbt_parser._cache import Cache, cache
-from dbt_toolbox.dbt_parser._file_fetcher import fetch_macros, fetch_models
+from dbt_toolbox.dbt_parser._file_fetcher import read_macro, read_macros, read_models
 from dbt_toolbox.dbt_parser._jinja_handler import jinja
 from dbt_toolbox.graph.dependency_graph import DependencyGraph, NodeNotFoundError
 from dbt_toolbox.settings import settings
@@ -44,19 +45,6 @@ def _build_macro(m: MacroBase, /) -> Macro:
         raw_code=m.raw_code,
         macro_path=m.macro_path,
     )
-
-
-def _get_all_macro_bases() -> list[MacroBase]:
-    """Get all MacroBase objects from all sources.
-
-    Returns:
-        List of all MacroBase objects from custom and package sources.
-
-    """
-    all_macros = []
-    for macro_list in fetch_macros().values():
-        all_macros.extend(macro_list)
-    return all_macros
 
 
 def _build_model(m: ModelBase, /) -> Model:
@@ -97,11 +85,11 @@ def _build_model(m: ModelBase, /) -> Model:
                     deps.macros.append(node_name)
     rendered_code = jinja.render(m.raw_code)
     glot_code = parse_one(rendered_code, dialect=settings.sql_dialect)  # type: ignore
-
     try:
-        optmized_glot_code = optimize(glot_code, dialect=settings.sql_dialect)
-    except Exception:  # noqa: BLE001
-        optmized_glot_code = None
+        optimized_glot_code = optimize(glot_code, dialect=settings.sql_dialect)
+    except:  # noqa: E722
+        optimized_glot_code = None
+
     return Model(
         name=m.name,
         raw_code=m.raw_code,
@@ -109,7 +97,8 @@ def _build_model(m: ModelBase, /) -> Model:
         rendered_code=rendered_code,
         upstream=deps,
         glot_code=glot_code,  # type: ignore
-        optimized_glot_code=optmized_glot_code,  # type: ignore
+        optimized_glot_code=optimized_glot_code,  # type: ignore
+        column_references=resolve_column_lineage(glot_code),
     )
 
 
@@ -190,21 +179,9 @@ class dbtParser:  # noqa: N801
         return result
 
     @cached_property
-    def cached_models(self) -> dict[str, Model]:
-        """Get cached models."""
-        if cache.cache_models.exists():
-            return cache.cache_models.read()
-        return {}
-
-    @cached_property
     def list_raw_models(self) -> dict[str, ModelBase]:
         """List all raw models."""
-        return {m.name: m for m in fetch_models()}
-
-    @cached_property
-    def list_built_models(self) -> dict[str, Model]:
-        """Get a dictionary of all models with their built dataclass."""
-        return {m.name: _build_model(m) for m in fetch_models()}
+        return {m.name: m for m in read_models()}
 
     @cached_property
     def models(self) -> dict[str, Model]:
@@ -212,17 +189,17 @@ class dbtParser:  # noqa: N801
 
         This call will also update the cache.
         """
-        cached_models = self.cached_models
+        cached_models = cache.get_all_cached_models()
         final_models: dict[str, Model] = {}
-        for name, raw_model in self.list_raw_models.items():
+        for name, model in self.list_raw_models.items():
             cached_model = cached_models.get(name)
-            if not cached_model or raw_model.hash != cached_model.hash:
+            if not cached_model or model.hash != cached_model.hash:
                 try:
-                    final_models[raw_model.name] = _build_model(raw_model)
+                    final_models[model.name] = _build_model(model)
                 except ParseError:
                     printer.cprint(
                         "Failed to parse model",
-                        raw_model.name,
+                        model.name,
                         highlight_idx=1,
                         color="yellow",
                     )
@@ -231,9 +208,14 @@ class dbtParser:  # noqa: N801
 
         # Enrich with yaml docs if exists
         yaml_docs = self.yaml_docs
-        for name, raw_model in final_models.items():
-            raw_model.yaml_docs = yaml_docs.get(name)
-        cache.cache_models.write(final_models)
+        for name, model in final_models.items():
+            model.yaml_docs = yaml_docs.get(name)
+
+            # Only cache newly built models (preserve existing cache for others)
+            if name not in cached_models or model.hash != cached_models[name].hash:
+                # This is a newly built model, cache it with built_successfully = None
+                # since we haven't attempted to build it via dbt yet
+                cache.cache_model(model)
         return final_models
 
     @cached_property
@@ -243,16 +225,32 @@ class dbtParser:  # noqa: N801
         cached_macros: dict[str, Macro] = macro_cache if macro_cache else {}
         final_macros: dict[str, Macro] = {}
 
-        for m in _get_all_macro_bases():
-            if not m.is_test:  # Exclude test macros
-                cm = cached_macros.get(m.name)
-                if not cm or m.id != cm.id:
-                    final_macros[m.name] = _build_macro(m)
-                else:
-                    final_macros[m.name] = cm
+        for macro_list in read_macros().values():
+            for m in macro_list:
+                if not m.is_test:  # Exclude test macros
+                    cm = cached_macros.get(m.name)
+                    if not cm or m.id != cm.id:
+                        final_macros[m.name] = _build_macro(m)
+                    else:
+                        final_macros[m.name] = cm
 
         cache.cache_macros.write(final_macros)
         return final_macros
+
+    def macro_changed(self, macro_name: str, /) -> bool:
+        """Check whether macro code has changed.
+
+        Args:
+            macro_name: The name of the macro to check.
+
+        """
+        cached_macro = self.macros.get(macro_name)
+        if cached_macro is None:
+            return True
+        new_macro = read_macro(macro_name, path=cached_macro.macro_path)
+        if new_macro is None:
+            return True
+        return new_macro.id != cached_macro.id
 
     @cached_property
     def dependency_graph(self) -> DependencyGraph:

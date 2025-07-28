@@ -142,24 +142,21 @@ class TestCacheAnalyzer:
     @patch("dbt_toolbox.cli.analyze.dbt_parser")
     def test_analyze_with_failed_model_tracking(self, mock_dbt_parser: Mock) -> None:
         """Test analyzing with failed model tracking."""
-        # Mock a model
+        # Mock a model with last_build_failed = True
         mock_model = Mock()
         mock_model.name = "test_model"
         mock_model.hash = "test_hash"
-        mock_model.last_checked = Mock()  # Will be mocked as recent
+        mock_model.last_built = Mock()  # Will be mocked as recent
+        mock_model.last_build_failed = True  # Mark as failed
+        mock_model.is_fresh = True  # This doesn't matter since failed takes precedence
+
+        # Mock upstream dependencies to avoid iteration error
+        mock_upstream = Mock()
+        mock_upstream.models = []  # Empty list to avoid iteration issues
+        mock_upstream.macros = []
+        mock_model.upstream = mock_upstream
 
         mock_dbt_parser.models = {"test_model": mock_model}
-        mock_dbt_parser.cached_models = {"test_model": mock_model}
-        mock_dbt_parser.list_raw_models = {"test_model": mock_model}
-
-        # Mock the cache_failed_models property directly
-        mock_cache_failed_models = Mock()
-        mock_cache_failed_models.exists.return_value = True
-        mock_cache_failed_models.read.return_value = {"test_model"}
-
-        mock_cache = Mock()
-        mock_cache.cache_failed_models = mock_cache_failed_models
-        mock_dbt_parser.cache = mock_cache
 
         analysis = cache_analyzer.analyze_all_models()
 

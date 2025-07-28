@@ -9,7 +9,7 @@ from dbt_toolbox.data_models import MacroBase, ModelBase
 from dbt_toolbox.utils import utils
 
 
-def _parse_macros_from_file(file_path: Path) -> list[tuple[str, str]]:
+def _parse_macros_from_file(file_path: Path) -> dict[str, MacroBase]:
     """Parse individual macros from a SQL file.
 
     Args:
@@ -19,6 +19,8 @@ def _parse_macros_from_file(file_path: Path) -> list[tuple[str, str]]:
         List of tuples containing (macro_name, macro_code) for each macro found.
 
     """
+    if not file_path.exists():
+        return {}
     content = file_path.read_text()
 
     # Regex to match macro definitions
@@ -29,11 +31,16 @@ def _parse_macros_from_file(file_path: Path) -> list[tuple[str, str]]:
         re.DOTALL | re.IGNORECASE,
     )
 
-    macros = []
+    macros = {}
     for match in macro_pattern.finditer(content):
         macro_name = match.group(1)
         macro_code = match.group(0)  # Full macro including {% macro %} and {% endmacro %}
-        macros.append((macro_name, macro_code))
+        macros[macro_name] = MacroBase(
+            file_name=file_path.stem,
+            name=macro_name,
+            raw_code=macro_code,
+            macro_path=file_path,
+        )
 
     return macros
 
@@ -53,22 +60,18 @@ def _fetch_macros_from_source(folder: Path, source: str) -> list[MacroBase]:
     macros = []
 
     for path in utils.list_files(folder, ".sql"):
-        file_macros = _parse_macros_from_file(path)
-        for macro_name, macro_code in file_macros:
-            macros.append(
-                MacroBase(
-                    file_name=path.stem,
-                    name=macro_name,
-                    raw_code=macro_code,
-                    macro_path=path,
-                    source=source,
-                ),
-            )
+        for macro in _parse_macros_from_file(path).values():
+            macro.source = source
+            macros.append(macro)
 
     return macros
 
 
-def fetch_macros() -> dict[str, list[MacroBase]]:
+def read_macro(macro_name: str, path: Path) -> MacroBase | None:
+    return _parse_macros_from_file(path).get(macro_name)
+
+
+def read_macros() -> dict[str, list[MacroBase]]:
     """Get all macros of the project from custom and package sources.
 
     Scans both the project's macro paths and any installed dbt packages
@@ -98,7 +101,7 @@ def fetch_macros() -> dict[str, list[MacroBase]]:
     return macros
 
 
-def fetch_models() -> list[ModelBase]:
+def read_models() -> list[ModelBase]:
     """Fetch all dbt model files from the project.
 
     Scans all configured model paths in the dbt project to collect

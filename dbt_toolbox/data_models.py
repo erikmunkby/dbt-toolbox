@@ -1,7 +1,7 @@
 """Module collecting all data models."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cached_property
 from hashlib import md5
 from pathlib import Path
@@ -9,19 +9,20 @@ from pathlib import Path
 import yamlium
 from sqlglot.expressions import Select
 
-from dbt_toolbox.column_resolver import ReferenceType, resolve_column_lineage
+from dbt_toolbox.column_resolver import ColumnReference, ReferenceType, resolve_column_lineage
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
+from dbt_toolbox.settings import settings
 
 
 @dataclass
 class MacroBase:
     """A macro with name and raw code."""
 
-    source: str
     file_name: str
     name: str
     raw_code: str
     macro_path: Path
+    source: str | None = None
 
     @property
     def is_test(self) -> bool:
@@ -43,9 +44,9 @@ class MacroBase:
 class Macro(MacroBase):
     """Macro storage class."""
 
-    # This flag will show when the model was last checked.
+    # This flag will show when the macro was last built.
     # Used to check when to invalidate cache and execute model.
-    last_checked: datetime = EXECUTION_TIMESTAMP
+    last_built: datetime = EXECUTION_TIMESTAMP
 
 
 @dataclass
@@ -139,12 +140,43 @@ class Model(ModelBase):
     rendered_code: str
     glot_code: Select
     upstream: DependsOn
+    column_references: list[ColumnReference] | None = None
     optimized_glot_code: Select | None = None
     yaml_docs: YamlDocs | None = None
     _yaml_docs_index: int | None = None
-    # This flag will show when the model was last checked.
+    # This flag will show when the model was last built.
     # Used to check when to invalidate cache and execute model.
-    last_checked: datetime = EXECUTION_TIMESTAMP
+    last_built: datetime | None = None
+    # Flag indicating whether the most recent build was successful
+    # None = never attempted, True = successful, False = failed
+    last_build_failed: bool | None = None
+
+    @property
+    def _cache_timed_out(self) -> bool:
+        """Check whether the cache has timed out or not."""
+        if self.last_built is None:
+            return True
+        return (
+            self.last_built + timedelta(minutes=settings.cache_validity_minutes)
+            < EXECUTION_TIMESTAMP
+        )
+
+    @property
+    def is_fresh(self) -> bool:
+        """Check if the cache is fresh and the model was built successfully.
+
+        Returns:
+            True if the model was built successfully and cache is recent.
+            False if never built (None) or failed (False) or cache is stale.
+
+        """
+        # Check if build was successful (None = never built, False = failed)
+        if self.last_build_failed is None or self.last_built is None:
+            return False
+        if self.last_build_failed:
+            return False
+
+        return not self._cache_timed_out
 
     @cached_property
     def selected_columns(self) -> dict[str, str | None]:

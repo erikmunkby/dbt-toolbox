@@ -10,6 +10,7 @@ import typer
 from dbt_toolbox.cli._analyze_columns import analyze_column_references
 from dbt_toolbox.cli._build_analysis import build_analyzer
 from dbt_toolbox.cli._dbt_output_parser import dbt_output_parser
+from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.dbt_parser import dbt_parser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import printer
@@ -31,7 +32,7 @@ def _validate_lineage_references(models_to_check: list[str] | None = None) -> bo
     printer.cprint("🔍 Validating lineage references...", color="cyan")
 
     # Get all models, sources, and seeds
-    models = dbt_parser.list_built_models
+    models = dbt_parser.models
     sources = dbt_parser.sources
     seeds = dbt_parser.seeds
 
@@ -107,7 +108,7 @@ def _stream_process_output(process: subprocess.Popen) -> list[str]:
     return captured_output
 
 
-def execute_dbt_command(base_command: list[str]) -> None:
+def execute_dbt_command(base_command: list[str]) -> None:  # noqa: PLR0912
     """Execute a dbt command with standard project and profiles directories.
 
     Args:
@@ -145,24 +146,36 @@ def execute_dbt_command(base_command: list[str]) -> None:
             combined_output = "".join(captured_output)
             execution_result = dbt_output_parser.parse_output(combined_output)
 
-            # Clear failed model tracking for successful models
-            if execution_result.successful_models:
-                dbt_parser.cache.clear_failed_models(execution_result.successful_models)
+            # Update build success flags for all models based on execution results
+            all_models = dbt_parser.models  # Get all models to update their build status
 
-            # Handle failed models
+            # Mark successful models as built successfully
+            if execution_result.successful_models:
+                for model_name in execution_result.successful_models:
+                    if model_name in all_models:
+                        model = all_models[model_name]
+                        model.last_build_failed = False
+                        model.last_built = EXECUTION_TIMESTAMP
+                        dbt_parser.cache.cache_model(model)
+
+            # Handle failed models - mark as failed and clear from cache
             if execution_result.failed_models and return_code != 0:
                 printer.cprint(
-                    f"🧹 Cleaning cache for {len(execution_result.failed_models)} "
-                    "failed models...",
+                    f"🧹 Marking {len(execution_result.failed_models)} models as failed...",
                     color="yellow",
                 )
 
-                # Track failed models for analyze command
-                dbt_parser.cache.track_failed_models(execution_result.failed_models)
+                removed_models = []
+                for model_name in execution_result.failed_models:
+                    if model_name in all_models:
+                        model = all_models[model_name]
+                        model.last_build_failed = True
+                        model.last_built = EXECUTION_TIMESTAMP
+                        dbt_parser.cache.cache_model(model)
 
-                removed_models = dbt_parser.cache.clear_models_cache(
-                    execution_result.failed_models,
-                )
+                    # Also clear the cache to force rebuild next time
+                    if dbt_parser.cache.clear_model_cache(model_name):
+                        removed_models.append(model_name)
 
                 if removed_models:
                     printer.cprint("   Removed from cache:", color="cyan")
