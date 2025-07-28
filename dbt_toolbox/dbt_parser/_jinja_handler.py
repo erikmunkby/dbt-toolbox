@@ -7,7 +7,7 @@ from typing import Any, Literal
 from jinja2 import Environment, FileSystemBytecodeCache, FileSystemLoader
 from jinja2.nodes import Template
 
-from dbt_toolbox.constants import CUSTOM_MACROS
+from dbt_toolbox.constants import CUSTOM_MACROS, TABLE_REF_SEP
 from dbt_toolbox.utils import utils
 
 from ._cache import cache
@@ -56,12 +56,12 @@ class VarsFetcher:
 
 def _ref(x) -> str:  # noqa: ANN001
     """Mock implementation of dbt ref() function."""
-    return f"___ref___{x}___"
+    return f"{TABLE_REF_SEP}ref{TABLE_REF_SEP}{x}{TABLE_REF_SEP}"
 
 
 def _source(x, y) -> str:  # noqa: ANN001
     """Mock implementation of dbt source() function."""
-    return f"___source___{x}__{y}___"
+    return f"{TABLE_REF_SEP}source{TABLE_REF_SEP}{x}__{y}{TABLE_REF_SEP}"
 
 
 def _config(**kwargs) -> Literal[""]:  # noqa: ANN003, ARG001

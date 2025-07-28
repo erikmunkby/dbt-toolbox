@@ -19,7 +19,6 @@ class TestAnalyzeCommand:
         assert result.exit_code == 0
         assert "analyze" in result.stdout
 
-
     @patch("dbt_toolbox.cli.analyze.cache_analyzer")
     def test_analyze_with_model_selection(self, mock_analyzer: Mock) -> None:
         """Test analyze command with model selection."""

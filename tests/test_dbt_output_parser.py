@@ -1,6 +1,5 @@
 """Tests for the dbt output parser."""
 
-
 from dbt_toolbox.cli._dbt_output_parser import DbtExecutionResult, ModelResult, dbt_output_parser
 
 

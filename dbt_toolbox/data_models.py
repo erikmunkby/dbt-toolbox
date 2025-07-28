@@ -9,6 +9,7 @@ from pathlib import Path
 import yamlium
 from sqlglot.expressions import Select
 
+from dbt_toolbox.column_resolver import resolve_column_lineage
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 
 
@@ -147,15 +148,9 @@ class Model(ModelBase):
 
     @cached_property
     def selected_columns(self) -> dict[str, str | None]:
-        """List all selected column from each upstream model."""
-        result = {}
-        if not self.optimized_glot_code:
-            return result
-        for c in self.optimized_glot_code.selects:
-            result[c.this.name] = (
-                c.this.table.split("___")[-2] if hasattr(c.this, "table") else None
-            )
-        return result
+        """List all selected column from each upstream model with proper join resolution."""
+        glot_code = self.optimized_glot_code or self.glot_code
+        return resolve_column_lineage(glot_code)
 
     @cached_property
     def compiled_columns(self) -> list[str]:
