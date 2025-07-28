@@ -7,7 +7,7 @@ from dbt_toolbox.testing.column_tests import check_column_documentation
 
 def get_all_models() -> dict[str, Model]:
     """Fetch a dictionary containing all models in the dbt project."""
-    return dbt_parser.list_built_models
+    return dbt_parser.models
 
 
 __all__ = ["check_column_documentation", "get_all_models"]

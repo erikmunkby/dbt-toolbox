@@ -76,20 +76,17 @@ class CacheAnalyzer:
             Complete cache analysis results
 
         """
-        # Get cached models (read-only, no cache updates)
-        cached_models = dbt_parser.cached_models
+        # Get all models (this will cache them automatically)
+        all_models = dbt_parser.models
 
-        # Get all raw models that exist in the project
-        raw_models = dbt_parser.list_raw_models
-
-        # Get target models - include both cached and raw models
+        # Get target models
         if model_selection:
             target_models = self.build_analyzer.parse_dbt_selection(model_selection)
             # Filter to only models that exist in the project
-            target_models = target_models.intersection(raw_models.keys())
+            target_models = target_models.intersection(all_models.keys())
         else:
             # Get all models that exist in the project
-            target_models = set(raw_models.keys())
+            target_models = set(all_models.keys())
 
         # Initialize result lists
         outdated_models = []
@@ -99,31 +96,7 @@ class CacheAnalyzer:
         valid_models = []
 
         for model_name in sorted(target_models):
-            # Check if model failed first (even if not in cache)
-            if self._is_model_failed(model_name):
-                failed_models.append(
-                    CacheAnalysisResult(
-                        model_name=model_name,
-                        status="failed",
-                        issue_description="Model failed in last execution and needs re-run",
-                        timestamp_info=None,
-                    ),
-                )
-                continue
-
-            # If model is not in cache, it needs execution
-            if model_name not in cached_models:
-                outdated_models.append(
-                    CacheAnalysisResult(
-                        model_name=model_name,
-                        status="outdated",
-                        issue_description="Model not found in cache",
-                        timestamp_info=None,
-                    ),
-                )
-                continue
-
-            model = cached_models[model_name]
+            model = all_models[model_name]
             analysis = self._analyze_single_model(model)
 
             if analysis.status == "outdated":
@@ -155,8 +128,8 @@ class CacheAnalyzer:
             Cache analysis result for the model
 
         """
-        # Check if model was marked as failed
-        if self._is_model_failed(model.name):
+        # Check if model build failed (last_build_failed = True)
+        if model.last_build_failed is True:
             return CacheAnalysisResult(
                 model_name=model.name,
                 status="failed",
@@ -164,20 +137,18 @@ class CacheAnalyzer:
                 timestamp_info=None,
             )
 
-        # Check for ID mismatch (model has been modified)
-        cached_hash = self._get_cached_model_hash(model.name)
-        if cached_hash and cached_hash != model.hash:
+        # Check if model was never built (last_built = None)
+        if model.last_built is None:
             return CacheAnalysisResult(
                 model_name=model.name,
-                status="id_mismatch",
-                issue_description="Model code has been modified since last cache",
+                status="outdated",
+                issue_description="Model has never been built",
                 timestamp_info=None,
             )
 
-        # Check if cache is outdated
-        cache_expiration = EXECUTION_TIMESTAMP - timedelta(minutes=settings.cache_validity_minutes)
-        if model.last_checked < cache_expiration:
-            age_delta = EXECUTION_TIMESTAMP - model.last_checked
+        # Check if model is not fresh (using the is_fresh property)
+        if not model.is_fresh:
+            age_delta = EXECUTION_TIMESTAMP - model.last_built
             age_description = self._format_time_delta(age_delta)
 
             return CacheAnalysisResult(
@@ -221,7 +192,7 @@ class CacheAnalyzer:
             )
 
         # Model cache is valid
-        age_delta = EXECUTION_TIMESTAMP - model.last_checked
+        age_delta = EXECUTION_TIMESTAMP - model.last_built
         age_description = self._format_time_delta(age_delta)
 
         return CacheAnalysisResult(
@@ -241,27 +212,12 @@ class CacheAnalyzer:
             True if model is marked as failed
 
         """
-        # Check if model is in the failed models cache
-        if dbt_parser.cache.cache_failed_models.exists():
-            return model_name in dbt_parser.cache.cache_failed_models.read()
+        # Check if model has last_build_failed flag set to True (failed)
+        # None = never attempted, False = successful, True = failed
+        model = dbt_parser.models.get(model_name)
+        if model:
+            return model.last_build_failed is True
         return False
-
-    def _get_cached_model_hash(self, model_name: str) -> str | None:
-        """Get the cached hash for a model.
-
-        Args:
-            model_name: Name of the model
-
-        Returns:
-            Cached model hash or None if not found
-
-        """
-        if dbt_parser.cache.cache_models.exists():
-            cached_models = dbt_parser.cache.cache_models.read()
-            model = cached_models.get(model_name)
-            if model:
-                return model.hash
-        return None
 
     def _format_time_delta(self, delta: timedelta) -> str:
         """Format a time delta in human-readable format.
@@ -478,7 +434,7 @@ def analyze_command(
     print_analysis_results(analysis)
 
     # Perform column analysis on available models, sources, and seeds
-    models = dbt_parser.list_built_models
+    models = dbt_parser.models
     sources = dbt_parser.sources
     seeds = dbt_parser.seeds
 

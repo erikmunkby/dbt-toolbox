@@ -7,9 +7,8 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import tomli
+import typer
 import yamlium
-
-from dbt_toolbox.utils.printer import cprint
 
 
 class Setting(NamedTuple):
@@ -280,7 +279,7 @@ class Settings:
                 source="dbt",
                 location=str(self.dbt_profiles_yaml_path),
             )
-        cprint("dbt dialect must be set.", highlight_idx=1, color="red")
+        typer.secho("dbt dialect must be set.", fg=typer.colors.RED)
         sys.exit(1)
 
     @cached_property

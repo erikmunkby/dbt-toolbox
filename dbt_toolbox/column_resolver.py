@@ -26,10 +26,10 @@ class ColumnReference:
     column_name: str
     table_reference: str | None  # The table/alias name being referenced
     reference_type: ReferenceType
-    resolved: bool | None  # True if resolved, False if not, None if external (can't decide)
+    resolved: bool | None  # True if resolved, False if not, None if external (undecided)
 
 
-def resolve_column_lineage(glot_code: Select) -> list[ColumnReference]:  # noqa: PLR0912, PLR0915
+def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # noqa: PLR0912, PLR0915
     """Resolve column lineage through joins, identifying reference types and resolution status.
 
     Args:
@@ -44,7 +44,7 @@ def resolve_column_lineage(glot_code: Select) -> list[ColumnReference]:  # noqa:
         - resolved: True if resolved internally, False if not, None if external validation needed
 
     """
-    if not glot_code:
+    if not glot_code or not isinstance(glot_code, sqlglot.expressions.Select):
         return []
 
     result = []

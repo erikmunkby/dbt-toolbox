@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import NamedTuple
 
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
-from dbt_toolbox.data_models import Macro, Model
+from dbt_toolbox.data_models import Model
 from dbt_toolbox.dbt_parser.dbt_parser import dbt_parser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import printer
@@ -115,36 +115,21 @@ class BuildAnalyzer:
 
         return target_models
 
-    def _object_stale(self, obj: Model | Macro, /) -> bool:
-        """Check if the model needs to be rebuilt.
-
-        Will return True if model needs to be rebuilt (stale) otherwise False.
-        """
-        return obj.last_checked == EXECUTION_TIMESTAMP or obj.last_checked < self.cache_expiration
-
     def upstream_models_changed(self, model: Model) -> list[str]:
         """Get list of upstream models that have changed."""
-        changed_upstream = []
-
-        for upstream_model_name in model.upstream.models:
-            if upstream_model_name in dbt_parser.models:
-                upstream_model = dbt_parser.models[upstream_model_name]
-                if self._object_stale(upstream_model):
-                    changed_upstream.append(upstream_model_name)
-
-        return changed_upstream
+        return [
+            m
+            for m in model.upstream.models
+            if m in dbt_parser.models and not dbt_parser.models[m].is_fresh
+        ]
 
     def upstream_macros_changed(self, model: Model) -> list[str]:
         """Get list of upstream macros that have changed."""
-        changed_upstream = []
-
-        for macro_name in model.upstream.macros:
-            if macro_name in dbt_parser.macros:
-                macro = dbt_parser.macros[macro_name]
-                if self._object_stale(macro):
-                    changed_upstream.append(macro_name)
-
-        return changed_upstream
+        return [
+            macro_name
+            for macro_name in model.upstream.macros
+            if dbt_parser.macro_changed(macro_name)
+        ]
 
     def analyze_model_execution(self, model: Model) -> ModelExecutionAnalysis:
         """Analyze if a model needs execution and why.
@@ -159,7 +144,7 @@ class BuildAnalyzer:
         reasons = []
 
         # Check condition 1: Model itself has changed
-        if self._object_stale(model):
+        if not model.is_fresh:
             reasons.append(
                 ExecutionReason(
                     code="MODEL_STALE",
@@ -252,8 +237,14 @@ class BuildAnalyzer:
             printer.cprint("\n⏭️  Models with valid cache (skipping):", color="green")
             for model_name, analysis in analyses.items():
                 if not analysis.needs_execution:
+                    model_checked = analysis.model.last_built
+
+                    # Skip models that were never built
+                    if model_checked is None:
+                        printer.cprint(f"  • {model_name} (never built)")
+                        continue
+
                     now = datetime.now(timezone.utc)
-                    model_checked = analysis.model.last_checked
 
                     # Handle timezone-naive datetimes by assuming UTC
                     if model_checked.tzinfo is None:
