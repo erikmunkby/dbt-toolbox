@@ -2,7 +2,16 @@
 
 import sqlglot
 
-from dbt_toolbox.column_resolver import resolve_column_lineage
+from dbt_toolbox.column_resolver import ColumnReference, ReferenceType, resolve_column_lineage
+
+
+def _convert_to_legacy_dict(column_refs: list[ColumnReference]) -> dict[str, str | None]:
+    """Convert new ColumnReference list to legacy dict format for existing tests."""
+    result = {}
+    for ref in column_refs:
+        if ref.reference_type == ReferenceType.EXTERNAL:
+            result[ref.column_name] = ref.table_reference
+    return result
 
 
 class TestColumnResolver:
@@ -19,7 +28,8 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)  # type: ignore
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
 
         expected = {
             "customer_id": "customers",
@@ -41,7 +51,8 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)  # type: ignore
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
 
         expected = {
             "customer_id": "customers",
@@ -67,7 +78,8 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)  # type: ignore
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
 
         expected = {
             "id": "inventory__products",
@@ -99,7 +111,8 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="athena")
-        result = resolve_column_lineage(parsed)  # type: ignore
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
 
         expected = {
             "id": "inventory__products",  # First column ref found in expression
@@ -123,7 +136,8 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)  # type: ignore
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
 
         expected = {
             "customer_id": "customers",
@@ -144,7 +158,8 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)  # type: ignore
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
 
         expected = {
             "name": "employees",
@@ -163,10 +178,10 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)  # type: ignore
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
 
         expected = {
-            "customer_id": None,  # Can't resolve ambiguous column
             "name": "customers",
             "order_total": "orders",
         }
@@ -174,7 +189,8 @@ class TestColumnResolver:
 
     def test_empty_select(self) -> None:
         """Test empty or None SQLGlot object."""
-        result = resolve_column_lineage(None)
+        column_refs = resolve_column_lineage(None)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
         assert result == {}
 
     def test_select_star(self) -> None:
@@ -186,7 +202,8 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)  # type: ignore
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
 
         # SELECT * creates a Star expression, not individual columns
         expected = {}  # Can't resolve SELECT *
@@ -208,11 +225,11 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)  # type: ignore
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
 
         expected = {
-            "customer_id": "sub",  # From subquery alias
-            "order_count": "sub",
+            "customer_id": "orders",  # From subquery alias
             "name": "customers",
         }
         assert result == expected
@@ -233,10 +250,122 @@ class TestColumnResolver:
         """
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
-        result = resolve_column_lineage(parsed)  # type: ignore
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
 
         expected = {
             "a": "tbl",
             "b": "tbl",
         }
         assert result == expected
+
+    def test_subquery_cte_columns(self) -> None:
+        """Test subquery from within a CTE."""
+        sql = """
+        select
+            order,
+            (
+                with my_cte as (
+                    select customer
+                    from tbl
+                )
+                select renamed from my_cte
+            ) as final_name,
+            more_data
+        from tbl
+        """
+
+        parsed = sqlglot.parse_one(sql, dialect="duckdb")
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        result = _convert_to_legacy_dict(column_refs)
+
+        expected = {
+            "order": "tbl",
+            "customer": "tbl",
+            "more_data": "tbl",
+        }
+        assert result == expected
+
+    def test_new_api_detailed_column_references(self) -> None:
+        """Test the new detailed column reference API."""
+        sql = """
+        SELECT
+            sub.customer_id,
+            sub.order_count,
+            c.name,
+            (
+                with my_cte as (
+                    select customer
+                    from tbl
+                )
+                select customer from my_cte
+            ) as cte_customer
+        FROM (
+            SELECT customer_id, COUNT(*) as order_count
+            FROM orders
+            GROUP BY customer_id
+        ) sub
+        LEFT JOIN customers c ON sub.customer_id = c.customer_id
+        """
+
+        parsed = sqlglot.parse_one(sql, dialect="duckdb")
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+
+        # Check we have the expected columns
+        column_names = [ref.column_name for ref in column_refs]
+        assert "customer_id" in column_names
+        assert "order_count" in column_names
+        assert "name" in column_names
+        assert "customer" in column_names
+
+        # Check reference types and resolution status
+        for ref in column_refs:
+            if ref.column_name == "customer_id":
+                assert ref.reference_type == ReferenceType.EXTERNAL
+                assert ref.table_reference == "orders"
+                assert ref.resolved is None  # External validation needed
+            elif ref.column_name == "order_count":
+                assert ref.reference_type == ReferenceType.SUBQUERY
+                assert ref.table_reference == "sub"
+                assert ref.resolved is True  # Resolved internally
+            elif ref.column_name == "name":
+                assert ref.reference_type == ReferenceType.EXTERNAL
+                assert ref.table_reference == "customers"
+                assert ref.resolved is None  # External validation needed
+            elif ref.column_name == "customer":
+                assert ref.reference_type == ReferenceType.EXTERNAL
+                assert ref.table_reference == "tbl"
+                assert ref.resolved is None  # External validation needed
+
+    def test_invalid_cte_reference(self) -> None:
+        """Test the new detailed column reference API."""
+        sql = """
+        with my_cte as (
+            select a, b from tbl
+        )
+        select c, b from my_cte
+        """
+
+        parsed = sqlglot.parse_one(sql, dialect="duckdb")
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+
+        # Check we have the expected columns
+        column_names = [ref.column_name for ref in column_refs]
+        assert "a" in column_names
+        assert "b" in column_names
+        assert "c" in column_names
+
+        # Check reference types and resolution status
+        for ref in column_refs:
+            if ref.column_name == "a":
+                assert ref.reference_type == ReferenceType.EXTERNAL
+                assert ref.table_reference == "tbl"
+                assert ref.resolved is None  # External validation needed
+            if ref.column_name == "b":
+                assert ref.reference_type == ReferenceType.EXTERNAL
+                assert ref.table_reference == "tbl"
+                assert ref.resolved is None  # External validation needed
+            if ref.column_name == "c":
+                assert ref.reference_type == ReferenceType.CTE
+                assert ref.table_reference == "my_cte"
+                assert not ref.resolved
