@@ -9,7 +9,7 @@ from pathlib import Path
 import yamlium
 from sqlglot.expressions import Select
 
-from dbt_toolbox.column_resolver import resolve_column_lineage
+from dbt_toolbox.column_resolver import ReferenceType, resolve_column_lineage
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 
 
@@ -150,7 +150,14 @@ class Model(ModelBase):
     def selected_columns(self) -> dict[str, str | None]:
         """List all selected column from each upstream model with proper join resolution."""
         glot_code = self.optimized_glot_code or self.glot_code
-        return resolve_column_lineage(glot_code)
+        column_refs = resolve_column_lineage(glot_code)
+
+        # Convert to legacy dict format - only include external references
+        result = {}
+        for ref in column_refs:
+            if ref.reference_type == ReferenceType.EXTERNAL:
+                result[ref.column_name] = ref.table_reference
+        return result
 
     @cached_property
     def compiled_columns(self) -> list[str]:

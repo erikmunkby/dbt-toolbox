@@ -166,5 +166,5 @@ enforce_lineage_validation = true
 
 ## General instructions
 
-- Always run `ruff check --fix` after every finished implementation.
+- Always run `ruff check --fix --unsafe-fixes` after every finished implementation.
 - When running tests, use `uv run pytest -x`
