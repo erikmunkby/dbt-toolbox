@@ -310,32 +310,48 @@ class TestColumnResolver:
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
         column_refs = resolve_column_lineage(parsed)  # type: ignore
-
-        # Check we have the expected columns
-        column_names = [ref.column_name for ref in column_refs]
-        assert "customer_id" in column_names
-        assert "order_count" in column_names
-        assert "name" in column_names
-        assert "customer" in column_names
+        expected_refs = [
+            ColumnReference(
+                "customer_id",
+                table_reference="sub",
+                reference_type=ReferenceType.SUBQUERY,
+                resolved=True,
+            ),
+            ColumnReference(
+                "order_count",
+                table_reference="sub",
+                reference_type=ReferenceType.SUBQUERY,
+                resolved=True,
+            ),
+            ColumnReference(
+                "name",
+                table_reference="customers",
+                reference_type=ReferenceType.EXTERNAL,
+                resolved=None,
+            ),
+            ColumnReference(
+                "customer",
+                table_reference="my_cte",
+                reference_type=ReferenceType.CTE,
+                resolved=True,
+            ),
+            ColumnReference(
+                "customer",
+                table_reference="tbl",
+                reference_type=ReferenceType.EXTERNAL,
+                resolved=None,
+            ),
+            ColumnReference(
+                "customer_id",
+                table_reference="orders",
+                reference_type=ReferenceType.EXTERNAL,
+                resolved=None,
+            ),
+        ]
 
         # Check reference types and resolution status
-        for ref in column_refs:
-            if ref.column_name == "customer_id":
-                assert ref.reference_type == ReferenceType.EXTERNAL
-                assert ref.table_reference == "orders"
-                assert ref.resolved is None  # External validation needed
-            elif ref.column_name == "order_count":
-                assert ref.reference_type == ReferenceType.SUBQUERY
-                assert ref.table_reference == "sub"
-                assert ref.resolved is True  # Resolved internally
-            elif ref.column_name == "name":
-                assert ref.reference_type == ReferenceType.EXTERNAL
-                assert ref.table_reference == "customers"
-                assert ref.resolved is None  # External validation needed
-            elif ref.column_name == "customer":
-                assert ref.reference_type == ReferenceType.EXTERNAL
-                assert ref.table_reference == "tbl"
-                assert ref.resolved is None  # External validation needed
+        for ref in expected_refs:
+            assert ref in column_refs
 
     def test_invalid_cte_reference(self) -> None:
         """Test the new detailed column reference API."""
@@ -348,24 +364,75 @@ class TestColumnResolver:
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
         column_refs = resolve_column_lineage(parsed)  # type: ignore
-
-        # Check we have the expected columns
-        column_names = [ref.column_name for ref in column_refs]
-        assert "a" in column_names
-        assert "b" in column_names
-        assert "c" in column_names
+        expected_refs = [
+            ColumnReference(
+                "c",
+                table_reference="my_cte",
+                reference_type=ReferenceType.CTE,
+                resolved=False,
+            ),
+            ColumnReference(
+                "b",
+                table_reference="my_cte",
+                reference_type=ReferenceType.CTE,
+                resolved=True,
+            ),
+            ColumnReference(
+                "a",
+                table_reference="tbl",
+                reference_type=ReferenceType.EXTERNAL,
+                resolved=None,
+            ),
+            ColumnReference(
+                "b",
+                table_reference="tbl",
+                reference_type=ReferenceType.EXTERNAL,
+                resolved=None,
+            ),
+        ]
 
         # Check reference types and resolution status
-        for ref in column_refs:
-            if ref.column_name == "a":
-                assert ref.reference_type == ReferenceType.EXTERNAL
-                assert ref.table_reference == "tbl"
-                assert ref.resolved is None  # External validation needed
-            if ref.column_name == "b":
-                assert ref.reference_type == ReferenceType.EXTERNAL
-                assert ref.table_reference == "tbl"
-                assert ref.resolved is None  # External validation needed
-            if ref.column_name == "c":
-                assert ref.reference_type == ReferenceType.CTE
-                assert ref.table_reference == "my_cte"
-                assert not ref.resolved
+        for ref in expected_refs:
+            assert ref in column_refs
+
+    def test_invalid_nested_cte_reference(self) -> None:
+        """Test the new detailed column reference API."""
+        sql = """
+        with my_cte as (
+            select a, b from tbl
+        ),
+        second_cte as (
+            select b from my_cte
+        )
+        select d, b from second_cte
+        """
+
+        parsed = sqlglot.parse_one(sql, dialect="duckdb")
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        expected_refs = [
+            ColumnReference(
+                "a", table_reference="tbl", reference_type=ReferenceType.EXTERNAL, resolved=None
+            ),
+            ColumnReference(
+                "b", table_reference="tbl", reference_type=ReferenceType.EXTERNAL, resolved=None
+            ),
+            ColumnReference(
+                "b", table_reference="my_cte", reference_type=ReferenceType.CTE, resolved=True
+            ),
+            ColumnReference(
+                "b",
+                table_reference="second_cte",
+                reference_type=ReferenceType.CTE,
+                resolved=True,
+            ),
+            ColumnReference(
+                "d",
+                table_reference="second_cte",
+                reference_type=ReferenceType.CTE,
+                resolved=False,
+            ),
+        ]
+
+        # Check reference types and resolution status
+        for ref in expected_refs:
+            assert ref in column_refs

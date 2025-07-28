@@ -9,7 +9,7 @@ from pathlib import Path
 import yamlium
 from sqlglot.expressions import Select
 
-from dbt_toolbox.column_resolver import ColumnReference, ReferenceType, resolve_column_lineage
+from dbt_toolbox.column_resolver import ColumnReference
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.settings import settings
 
@@ -140,6 +140,8 @@ class Model(ModelBase):
     rendered_code: str
     glot_code: Select
     upstream: DependsOn
+    # Column references are ALL selects within the model
+    # along with their origins.
     column_references: list[ColumnReference] | None = None
     optimized_glot_code: Select | None = None
     yaml_docs: YamlDocs | None = None
@@ -179,21 +181,12 @@ class Model(ModelBase):
         return not self._cache_timed_out
 
     @cached_property
-    def selected_columns(self) -> dict[str, str | None]:
-        """List all selected column from each upstream model with proper join resolution."""
-        glot_code = self.optimized_glot_code or self.glot_code
-        column_refs = resolve_column_lineage(glot_code)
+    def final_columns(self) -> list[str]:
+        """The final selected columns or "output" of the model.
 
-        # Convert to legacy dict format - only include external references
-        result = {}
-        for ref in column_refs:
-            if ref.reference_type == ReferenceType.EXTERNAL:
-                result[ref.column_name] = ref.table_reference
-        return result
-
-    @cached_property
-    def compiled_columns(self) -> list[str]:
-        """The selected columns compiled from sql code."""
+        Not to be confused with .column_references which consists
+        of all selects within the model, and their origins.
+        """
         cols = (
             self.optimized_glot_code.selects
             if self.optimized_glot_code
@@ -216,12 +209,12 @@ class Model(ModelBase):
     @property
     def columns_missing_description(self) -> list[str]:
         """Columns that are missing a description."""
-        return [c for c in self.compiled_columns if c not in self.documented_columns]
+        return [c for c in self.final_columns if c not in self.documented_columns]
 
     @property
     def superfluent_column_descriptions(self) -> list[str]:
         """Columns that are described but not in model."""
-        return [c for c in self.documented_columns if c not in self.compiled_columns]
+        return [c for c in self.documented_columns if c not in self.final_columns]
 
     @cached_property
     def load_yaml(self) -> yamlium.Mapping | None:

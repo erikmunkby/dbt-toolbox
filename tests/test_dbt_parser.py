@@ -7,4 +7,4 @@ def test_load_models() -> None:
     """."""
     dbt = dbtParser()
     assert dbt.models["customers"].name == "customers"
-    assert dbt.models["customers"].compiled_columns == ["customer_id", "full_name"]
+    assert dbt.models["customers"].final_columns == ["customer_id", "full_name"]

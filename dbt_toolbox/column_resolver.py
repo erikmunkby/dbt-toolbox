@@ -29,7 +29,15 @@ class ColumnReference:
     resolved: bool | None  # True if resolved, False if not, None if external (undecided)
 
 
-def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # noqa: PLR0912, PLR0915
+@dataclass
+class CteColumnInfo:
+    """Information about CTE columns and SELECT * sources."""
+
+    available_columns: dict[str, set[str]]  # cte_name -> set of column names
+    select_star_sources: dict[str, str | None]  # cte_name -> source table for SELECT * CTEs
+
+
+def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # noqa: PLR0912
     """Resolve column lineage through joins, identifying reference types and resolution status.
 
     Args:
@@ -48,7 +56,7 @@ def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # n
         return []
 
     result = []
-    seen_columns = set()  # Track column names to avoid duplicates
+    seen_column_refs = set()  # Track (column_name, table_reference) pairs to avoid duplicates
 
     # Collect all CTE names from the entire query (including subqueries)
     cte_names = _collect_all_cte_names(glot_code)
@@ -57,7 +65,9 @@ def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # n
     subquery_column_sources = _build_subquery_column_mapping(glot_code, cte_names)
 
     # Build mapping from CTE names to their available columns
-    cte_available_columns = _build_cte_available_columns(glot_code)
+    cte_info = _build_cte_available_columns(glot_code, cte_names)
+    cte_available_columns = cte_info.available_columns
+    select_star_sources = cte_info.select_star_sources
 
     # Process the main SELECT statement first
     alias_to_table = _build_alias_mapping(glot_code)
@@ -70,9 +80,11 @@ def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # n
         column_refs = _extract_all_column_references(select_expr, alias_to_table, cte_names)
 
         for col_name, source_table in column_refs.items():
-            if col_name in seen_columns:
+            # Create unique key for this column reference
+            ref_key = (col_name, source_table)
+            if ref_key in seen_column_refs:
                 continue  # Skip duplicates
-            seen_columns.add(col_name)
+            seen_column_refs.add(ref_key)
 
             # Determine reference type and resolution status
             if source_table is None:
@@ -84,70 +96,18 @@ def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # n
                     resolved=False,
                 )
             elif source_table in cte_names:
-                # Reference to CTE - check if column is available in CTE output
-                cte_has_column = (
-                    source_table in cte_available_columns
-                    and col_name in cte_available_columns[source_table]
+                # Reference to CTE - handle with helper function
+                ref = _handle_cte_column_reference(
+                    col_name, source_table, cte_available_columns, select_star_sources
                 )
-                if cte_has_column:
-                    # Column exists in CTE - trace it back to source if possible
-                    has_source_mapping = (
-                        source_table in subquery_column_sources
-                        and col_name in subquery_column_sources[source_table]
-                    )
-                    if has_source_mapping:
-                        ultimate_source = subquery_column_sources[source_table][col_name]
-                        if ultimate_source:
-                            # Successfully traced to base table
-                            ref = ColumnReference(
-                                column_name=col_name,
-                                table_reference=ultimate_source,
-                                reference_type=ReferenceType.EXTERNAL,
-                                resolved=None,  # External validation needed
-                            )
-                        else:
-                            # Could not trace (computed column in CTE)
-                            ref = ColumnReference(
-                                column_name=col_name,
-                                table_reference=source_table,
-                                reference_type=ReferenceType.CTE,
-                                resolved=True,  # Resolved within CTE
-                            )
-                    else:
-                        # CTE column exists but no tracing info
-                        ref = ColumnReference(
-                            column_name=col_name,
-                            table_reference=source_table,
-                            reference_type=ReferenceType.CTE,
-                            resolved=True,  # Resolved within CTE
-                        )
-                else:
-                    # Column does not exist in CTE output - invalid reference
-                    ref = ColumnReference(
-                        column_name=col_name,
-                        table_reference=source_table,
-                        reference_type=ReferenceType.CTE,
-                        resolved=False,  # Invalid CTE reference
-                    )
             elif source_table in subquery_column_sources:
-                # Reference to subquery - trace to ultimate source
-                ultimate_source = subquery_column_sources[source_table].get(col_name)
-                if ultimate_source:
-                    # Successfully traced to base table
-                    ref = ColumnReference(
-                        column_name=col_name,
-                        table_reference=ultimate_source,
-                        reference_type=ReferenceType.EXTERNAL,
-                        resolved=None,  # External validation needed
-                    )
-                else:
-                    # Could not trace (computed column)
-                    ref = ColumnReference(
-                        column_name=col_name,
-                        table_reference=source_table,
-                        reference_type=ReferenceType.SUBQUERY,
-                        resolved=True,
-                    )
+                # Reference to subquery - keep as subquery reference (don't trace back)
+                ref = ColumnReference(
+                    column_name=col_name,
+                    table_reference=source_table,
+                    reference_type=ReferenceType.SUBQUERY,
+                    resolved=True,
+                )
             else:
                 # Reference to external table
                 ref = ColumnReference(
@@ -167,10 +127,9 @@ def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # n
 
         alias_to_table = _build_alias_mapping(select_stmt)
 
-        # Only process if this SELECT doesn't reference any CTEs
-        has_cte_references = any(alias in cte_names for alias in alias_to_table)
-        if has_cte_references:
-            continue
+        # Always process CTEs that reference other CTEs to capture the full lineage
+        # (Previously this was only done when main query had SELECT *)
+        # Skip only if it would create duplicates with main query processing
 
         for select_expr in select_stmt.selects:
             if isinstance(select_expr, sqlglot.expressions.Star):
@@ -179,43 +138,92 @@ def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # n
             column_refs = _extract_all_column_references(select_expr, alias_to_table, cte_names)
 
             for col_name, source_table in column_refs.items():
-                if col_name in seen_columns:
+                # Create unique key for this column reference
+                ref_key = (col_name, source_table)
+                if ref_key in seen_column_refs:
                     continue  # Skip duplicates
-                seen_columns.add(col_name)
+                seen_column_refs.add(ref_key)
 
-                if source_table and source_table not in cte_names:
-                    ref = ColumnReference(
-                        column_name=col_name,
-                        table_reference=source_table,
-                        reference_type=ReferenceType.EXTERNAL,
-                        resolved=None,
-                    )
+                if source_table:
+                    if source_table not in cte_names:
+                        # External reference
+                        ref = ColumnReference(
+                            column_name=col_name,
+                            table_reference=source_table,
+                            reference_type=ReferenceType.EXTERNAL,
+                            resolved=None,
+                        )
+                    else:
+                        # CTE reference - handle with helper function
+                        ref = _handle_cte_column_reference(
+                            col_name, source_table, cte_available_columns, select_star_sources
+                        )
                     result.append(ref)
 
     return result
 
 
-def _build_cte_available_columns(glot_code: Select) -> dict[str, set[str]]:
-    """Build mapping from CTE names to their available output columns.
+def _handle_cte_column_reference(
+    col_name: str,
+    source_table: str,
+    cte_available_columns: dict[str, set[str]],
+    select_star_sources: dict[str, str | None]
+) -> ColumnReference:
+    """Handle column reference to a CTE with proper SELECT * tracing."""
+    cte_has_column = (
+        source_table in cte_available_columns
+        and col_name in cte_available_columns[source_table]
+    )
+
+    if cte_has_column:
+        # Column exists in CTE - keep as CTE reference (don't trace back)
+        return ColumnReference(
+            column_name=col_name,
+            table_reference=source_table,
+            reference_type=ReferenceType.CTE,
+            resolved=True,  # Resolved within CTE
+        )
+    if select_star_sources.get(source_table):
+        # CTE is SELECT * from external table - trace to source
+        return ColumnReference(
+            column_name=col_name,
+            table_reference=select_star_sources[source_table],
+            reference_type=ReferenceType.EXTERNAL,
+            resolved=None,  # External validation needed
+        )
+    # Column does not exist in CTE output - invalid reference
+    return ColumnReference(
+        column_name=col_name,
+        table_reference=source_table,
+        reference_type=ReferenceType.CTE,
+        resolved=False,  # Invalid CTE reference
+    )
+
+
+def _build_cte_available_columns(glot_code: Select, cte_names: set[str]) -> CteColumnInfo:
+    """Build mapping from CTE names to their available output columns and SELECT * sources.
 
     Args:
         glot_code: SQLGlot parsed SELECT statement
+        cte_names: Set of all CTE names
 
     Returns:
-        Dictionary mapping cte_name -> set of available column names
+        CteColumnInfo containing available columns and SELECT * source mappings
 
     """
     cte_columns = {}
+    select_star_sources = {}
 
     if hasattr(glot_code, "ctes") and glot_code.ctes:
         for cte in glot_code.ctes:
             cte_name = cte.alias
             available_columns = set()
+            has_select_star = False
 
             # Get all selected columns from the CTE
             for select_expr in cte.this.selects:
                 if isinstance(select_expr, sqlglot.expressions.Star):
-                    # TODO: Handle SELECT * in CTEs - would need table schema
+                    has_select_star = True
                     continue
 
                 column_name = select_expr.alias_or_name
@@ -223,7 +231,25 @@ def _build_cte_available_columns(glot_code: Select) -> dict[str, set[str]]:
 
             cte_columns[cte_name] = available_columns
 
-    return cte_columns
+            # If this CTE has SELECT * and no other columns, try to find the source
+            if has_select_star and len(available_columns) == 0:
+                alias_to_table = _build_alias_mapping(cte.this)
+
+                # Get the FROM table (should be exactly one for simple SELECT *)
+                if len(alias_to_table) == 1:
+                    source_table = next(iter(alias_to_table.values()))
+                    # Only map if source is not another CTE
+                    if source_table not in cte_names:
+                        select_star_sources[cte_name] = source_table
+                    else:
+                        select_star_sources[cte_name] = None
+                else:
+                    select_star_sources[cte_name] = None
+
+    return CteColumnInfo(
+        available_columns=cte_columns,
+        select_star_sources=select_star_sources
+    )
 
 
 def _build_subquery_column_mapping(
@@ -276,7 +302,7 @@ def _build_subquery_column_mapping(
 
             # If this expression references exactly one column from a base table, record it
             if len(col_refs) == 1:
-                ref_col, ref_table = next(iter(col_refs.items()))
+                _, ref_table = next(iter(col_refs.items()))
                 column_mapping[select_alias][column_name] = ref_table
             else:
                 # Complex expression or multiple references - can't trace

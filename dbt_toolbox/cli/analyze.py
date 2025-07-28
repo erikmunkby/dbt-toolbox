@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 import typer
 from rich.console import Console
@@ -21,7 +21,7 @@ class CacheAnalysisResult(NamedTuple):
     """Result of cache analysis for a model."""
 
     model_name: str
-    status: str  # "outdated", "id_mismatch", "failed", "valid", "upstream_changed"
+    status: Literal["outdated", "id_mismatch", "failed", "valid", "upstream_changed"]
     issue_description: str
     timestamp_info: str | None = None
     upstream_changes: list[ExecutionReason] | None = None
@@ -260,7 +260,11 @@ def print_column_analysis_results(
     analysis = analyze_column_references(models, sources, seeds)
 
     # Check if there are any issues to report
-    if not analysis.non_existent_columns and not analysis.referenced_non_existent_models:
+    if (
+        not analysis.non_existent_columns
+        and not analysis.referenced_non_existent_models
+        and not analysis.cte_column_issues
+    ):
         printer.cprint("✅ All column references are valid!", color="green")
         return
 
@@ -284,6 +288,33 @@ def print_column_analysis_results(
                 table.add_row(
                     model_name,
                     referenced_model,
+                    ", ".join(missing_columns),
+                )
+
+        console.print(table)
+        print()  # noqa: T201 blankline
+
+    # CTE column issues section
+    if analysis.cte_column_issues:
+        total_cte_issues = sum(
+            len(cols)
+            for cte_dict in analysis.cte_column_issues.values()
+            for cols in cte_dict.values()
+        )
+        printer.cprint(
+            f"🔶 CTE Column Issues ({total_cte_issues}):",
+            color="yellow",
+        )
+        table = Table(show_header=True, header_style="bold yellow")
+        table.add_column("Model", style="yellow")
+        table.add_column("CTE Name", style="blue")
+        table.add_column("Missing Columns", style="white")
+
+        for model_name, cte_issues in analysis.cte_column_issues.items():
+            for cte_name, missing_columns in cte_issues.items():
+                table.add_row(
+                    model_name,
+                    cte_name,
                     ", ".join(missing_columns),
                 )
 

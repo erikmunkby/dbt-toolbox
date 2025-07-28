@@ -109,7 +109,7 @@ class YamlBuilder:
         """
         final_columns = []
         missing_column_docs = []
-        for c in self.model.compiled_columns:
+        for c in self.model.final_columns:
             desc = self._get_column_description(c)
             if desc is None:
                 missing_column_docs.append(c)
