@@ -27,8 +27,11 @@ class TestRunCommand:
         assert result.exit_code == 0
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    def test_run_with_model_selection(self, mock_execute: Mock) -> None:
+    @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
+    def test_run_with_model_selection(self, mock_validate: Mock, mock_execute: Mock) -> None:
         """Test run command with model selection."""
+        # Mock lineage validation to pass
+        mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
         cli_runner = CliRunner()
 
@@ -45,8 +48,11 @@ class TestRunCommand:
         assert "customers" in called_args
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    def test_run_with_select_option(self, mock_execute: Mock) -> None:
+    @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
+    def test_run_with_select_option(self, mock_validate: Mock, mock_execute: Mock) -> None:
         """Test run command with --select option."""
+        # Mock lineage validation to pass
+        mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
         cli_runner = CliRunner()
 
@@ -62,8 +68,11 @@ class TestRunCommand:
         assert "orders" in called_args
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    def test_run_without_model_selection(self, mock_execute: Mock) -> None:
+    @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
+    def test_run_without_model_selection(self, mock_validate: Mock, mock_execute: Mock) -> None:
         """Test run command without model selection."""
+        # Mock lineage validation to pass
+        mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
         cli_runner = CliRunner()
 
@@ -77,8 +86,11 @@ class TestRunCommand:
         assert called_args[:2] == ["dbt", "run"]
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    def test_run_with_additional_args(self, mock_execute: Mock) -> None:
+    @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
+    def test_run_with_additional_args(self, mock_validate: Mock, mock_execute: Mock) -> None:
         """Test that additional arguments are passed through."""
+        # Mock lineage validation to pass
+        mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
         cli_runner = CliRunner()
 
@@ -95,8 +107,11 @@ class TestRunCommand:
         assert "--full-refresh" in called_args
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    def test_run_with_target_option(self, mock_execute: Mock) -> None:
+    @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
+    def test_run_with_target_option(self, mock_validate: Mock, mock_execute: Mock) -> None:
         """Test run command with --target option."""
+        # Mock lineage validation to pass
+        mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
         cli_runner = CliRunner()
 
@@ -114,8 +129,11 @@ class TestRunCommand:
         assert "customers" in called_args
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    def test_run_without_target_option(self, mock_execute: Mock) -> None:
+    @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
+    def test_run_without_target_option(self, mock_validate: Mock, mock_execute: Mock) -> None:
         """Test run command without --target option."""
+        # Mock lineage validation to pass
+        mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
         cli_runner = CliRunner()
 
@@ -132,8 +150,11 @@ class TestRunCommand:
         assert "customers" in called_args
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    def test_run_dbt_not_found(self, mock_execute: Mock) -> None:
+    @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
+    def test_run_dbt_not_found(self, mock_validate: Mock, mock_execute: Mock) -> None:
         """Test error handling when dbt command is not found."""
+        # Mock lineage validation to pass
+        mock_validate.return_value = True
         mock_execute.side_effect = SystemExit(1)
         cli_runner = CliRunner()
 
@@ -154,8 +175,11 @@ class TestRunCommand:
         assert result.exit_code == 2
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    def test_run_keyboard_interrupt(self, mock_execute: Mock) -> None:
+    @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
+    def test_run_keyboard_interrupt(self, mock_validate: Mock, mock_execute: Mock) -> None:
         """Test handling of keyboard interrupt."""
+        # Mock lineage validation to pass
+        mock_validate.return_value = True
         mock_execute.side_effect = SystemExit(130)
         cli_runner = CliRunner()
 

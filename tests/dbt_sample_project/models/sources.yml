@@ -21,3 +21,12 @@ sources:
             description: Tax amount for the order
           - name: order_total
             description: Total order amount including tax
+      - name: raw_customers
+        description: Raw customer data from CSV seed file
+        columns:
+          - name: id
+            description: Unique identifier for each customer
+          - name: first_name
+            description: Customer's first name
+          - name: last_name
+            description: Customer's last name

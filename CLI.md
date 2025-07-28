@@ -23,8 +23,8 @@ dbt-toolbox currently has no global options. All options are command-specific.
 
 | Command | Purpose | Key Features |
 |---------|---------|--------------|
-| `build` | Enhanced dbt build | Smart caching, intelligent execution, analysis mode, optimized selection |
-| `run` | Enhanced dbt run | Smart caching, intelligent execution, analysis mode, optimized selection |
+| `build` | Enhanced dbt build | Smart caching, lineage validation, intelligent execution, analysis mode, optimized selection |
+| `run` | Enhanced dbt run | Smart caching, lineage validation, intelligent execution, analysis mode, optimized selection |
 | `docs` | YAML generation | Column inheritance from upstream models, change detection, clipboard support |
 | `analyze` | Cache analysis | Non-destructive inspection, cache validity status, dependency analysis |
 | `clean` | Cache management | Complete cache clearing with detailed file reporting |
@@ -34,7 +34,7 @@ dbt-toolbox currently has no global options. All options are command-specific.
 
 ## `dt build`
 
-Enhanced dbt build command with intelligent caching that analyzes which models need execution based on cache validity, only running models that have changed or are invalidated. Dramatically reduces build times while maintaining dependency relationships.
+Enhanced dbt build command with intelligent caching that analyzes which models need execution based on cache validity, validates lineage references, and only runs models that have changed or are invalidated. Dramatically reduces build times while maintaining dependency relationships.
 
 ### Options
 
@@ -43,7 +43,7 @@ Enhanced dbt build command with intelligent caching that analyzes which models n
 | `--model` | `-m`, `-s` | Select specific models to build |
 | `--target` | `-t` | Which target to load for the given profile |
 | `--analyze` | | Show execution analysis without running |
-| `--disable-smart` | | Disable intelligent execution |
+| `--disable-smart` | | Disable intelligent execution and lineage validation |
 
 Plus standard dbt options: `--full-refresh`, `--threads`, `--vars`, etc.
 
@@ -74,7 +74,7 @@ dt build --analyze
 
 ## `dt run`
 
-Enhanced dbt run command with intelligent caching. Same features as `dt build` but runs models without tests. Supports all the same options and smart execution behavior.
+Enhanced dbt run command with intelligent caching and lineage validation. Same features as `dt build` but runs models without tests. Supports all the same options and smart execution behavior.
 
 ```bash
 # Smart execution - only runs models that need updating
@@ -236,6 +236,7 @@ cache_path:
 | `DBT_TOOLBOX_CACHE_PATH` | Custom cache directory | `.cache` |
 | `DBT_TOOLBOX_SKIP_PLACEHOLDER` | Skip placeholder descriptions | `true` |
 | `DBT_TOOLBOX_PLACEHOLDER_DESCRIPTION` | Custom placeholder text | `"TODO: Add docs"` |
+| `DBT_TOOLBOX_ENFORCE_LINEAGE_VALIDATION` | Enable/disable lineage validation | `true` |
 
 ### TOML Configuration
 
@@ -248,6 +249,7 @@ debug = false
 cache_path = ".dbt_toolbox"  
 skip_placeholder = false
 placeholder_description = "TODO: PLACEHOLDER"
+enforce_lineage_validation = true
 ```
 
 ### dbt Profile Integration
