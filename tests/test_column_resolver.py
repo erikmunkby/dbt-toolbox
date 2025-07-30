@@ -2,16 +2,44 @@
 
 import sqlglot
 
-from dbt_toolbox.column_resolver import ColumnReference, ReferenceType, resolve_column_lineage
+from dbt_toolbox.column_resolver import ColumnReference, TableType, resolve_column_lineage
 
 
 def _convert_to_legacy_dict(column_refs: list[ColumnReference]) -> dict[str, str | None]:
     """Convert new ColumnReference list to legacy dict format for existing tests."""
     result = {}
     for ref in column_refs:
-        if ref.reference_type == ReferenceType.EXTERNAL:
-            result[ref.column_name] = ref.table_reference
+        if ref.reference_type == TableType.EXTERNAL:
+            result[ref.name] = ref.table
     return result
+
+
+def _assert_column_references_match(
+    actual_refs: list[ColumnReference], expected_refs: list[ColumnReference]
+) -> None:
+    """Assert that two lists of column references match, ignoring context_path."""
+
+    # Create comparable tuples that exclude context_path
+    def to_comparable(ref: ColumnReference) -> tuple:
+        return (ref.name, ref.table, ref.reference_type, ref.resolved)
+
+    actual_set = {to_comparable(ref) for ref in actual_refs}
+    expected_set = {to_comparable(ref) for ref in expected_refs}
+
+    # Check that we have the same number of references
+    assert len(actual_refs) == len(expected_refs), (
+        f"Different number of references: got {len(actual_refs)}, expected {len(expected_refs)}"
+    )
+
+    # Check that all expected references are present
+    for expected_ref in expected_refs:
+        expected_tuple = to_comparable(expected_ref)
+        assert expected_tuple in actual_set, f"Missing expected reference: {expected_ref}"
+
+    # Check that no unexpected references are present
+    for actual_ref in actual_refs:
+        actual_tuple = to_comparable(actual_ref)
+        assert actual_tuple in expected_set, f"Unexpected reference found: {actual_ref}"
 
 
 class TestColumnResolver:
@@ -52,15 +80,40 @@ class TestColumnResolver:
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
         column_refs = resolve_column_lineage(parsed)  # type: ignore
-        result = _convert_to_legacy_dict(column_refs)
 
-        expected = {
-            "customer_id": "customers",
-            "full_name": "customers",
-            "order_id": "orders",
-            "ordered_at": "orders",
-        }
-        assert result == expected
+        expected_refs = [
+            ColumnReference(
+                id=1,
+                name="customer_id",
+                table="customers",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+            ),
+            ColumnReference(
+                id=2,
+                name="full_name",
+                table="customers",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+            ),
+            ColumnReference(
+                id=3,
+                name="order_id",
+                table="orders",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+            ),
+            ColumnReference(
+                id=4,
+                name="ordered_at",
+                table="orders",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+            ),
+        ]
+
+        # Check reference types and resolution status
+        _assert_column_references_match(column_refs, expected_refs)
 
     def test_complex_join_with_dbt_naming(self) -> None:
         """Test complex join with dbt naming convention."""
@@ -277,14 +330,43 @@ class TestColumnResolver:
 
         parsed = sqlglot.parse_one(sql, dialect="duckdb")
         column_refs = resolve_column_lineage(parsed)  # type: ignore
-        result = _convert_to_legacy_dict(column_refs)
+        expected_refs = [
+            ColumnReference(
+                id=1,
+                name="order",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+                context=["root"],
+            ),
+            ColumnReference(
+                id=2,
+                name="customer",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+                context=["root"],
+            ),
+            ColumnReference(
+                id=3,
+                name="more_data",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+                context=["root"],
+            ),
+            ColumnReference(
+                id=4,
+                name="renamed",
+                table="my_cte",
+                reference_type=TableType.CTE,
+                resolved=False,
+                context=["root"],
+            ),
+        ]
 
-        expected = {
-            "order": "tbl",
-            "customer": "tbl",
-            "more_data": "tbl",
-        }
-        assert result == expected
+        # Check reference types and resolution status using helper
+        _assert_column_references_match(column_refs, expected_refs)
 
     def test_new_api_detailed_column_references(self) -> None:
         """Test the new detailed column reference API."""
@@ -312,46 +394,57 @@ class TestColumnResolver:
         column_refs = resolve_column_lineage(parsed)  # type: ignore
         expected_refs = [
             ColumnReference(
-                "customer_id",
-                table_reference="sub",
-                reference_type=ReferenceType.SUBQUERY,
+                id=1,
+                name="customer_id",
+                table="sub",
+                reference_type=TableType.SUBQUERY,
                 resolved=True,
+                context=["root", "sub#0"],
             ),
             ColumnReference(
-                "order_count",
-                table_reference="sub",
-                reference_type=ReferenceType.SUBQUERY,
+                id=2,
+                name="order_count",
+                table="sub",
+                reference_type=TableType.SUBQUERY,
                 resolved=True,
+                context=["root", "sub#0"],
             ),
             ColumnReference(
-                "name",
-                table_reference="customers",
-                reference_type=ReferenceType.EXTERNAL,
+                id=3,
+                name="name",
+                table="customers",
+                reference_type=TableType.EXTERNAL,
                 resolved=None,
+                context=["root"],
             ),
             ColumnReference(
-                "customer",
-                table_reference="my_cte",
-                reference_type=ReferenceType.CTE,
+                id=4,
+                name="customer",
+                table="my_cte",
+                reference_type=TableType.CTE,
                 resolved=True,
+                context=["root", "my_cte"],
             ),
             ColumnReference(
-                "customer",
-                table_reference="tbl",
-                reference_type=ReferenceType.EXTERNAL,
+                id=5,
+                name="customer",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
                 resolved=None,
+                context=["root", "my_cte"],
             ),
             ColumnReference(
-                "customer_id",
-                table_reference="orders",
-                reference_type=ReferenceType.EXTERNAL,
+                id=6,
+                name="customer_id",
+                table="orders",
+                reference_type=TableType.EXTERNAL,
                 resolved=None,
+                context=["root", "my_cte"],
             ),
         ]
 
         # Check reference types and resolution status
-        for ref in expected_refs:
-            assert ref in column_refs
+        _assert_column_references_match(column_refs, expected_refs)
 
     def test_invalid_cte_reference(self) -> None:
         """Test the new detailed column reference API."""
@@ -366,34 +459,41 @@ class TestColumnResolver:
         column_refs = resolve_column_lineage(parsed)  # type: ignore
         expected_refs = [
             ColumnReference(
-                "c",
-                table_reference="my_cte",
-                reference_type=ReferenceType.CTE,
+                id=1,
+                name="c",
+                table="my_cte",
+                reference_type=TableType.CTE,
                 resolved=False,
+                context=["root"],
             ),
             ColumnReference(
-                "b",
-                table_reference="my_cte",
-                reference_type=ReferenceType.CTE,
+                id=2,
+                name="b",
+                table="my_cte",
+                reference_type=TableType.CTE,
                 resolved=True,
+                context=["root"],
             ),
             ColumnReference(
-                "a",
-                table_reference="tbl",
-                reference_type=ReferenceType.EXTERNAL,
+                id=3,
+                name="a",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
                 resolved=None,
+                context=["root", "my_cte"],
             ),
             ColumnReference(
-                "b",
-                table_reference="tbl",
-                reference_type=ReferenceType.EXTERNAL,
+                id=4,
+                name="b",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
                 resolved=None,
+                context=["root", "my_cte"],
             ),
         ]
 
         # Check reference types and resolution status
-        for ref in expected_refs:
-            assert ref in column_refs
+        _assert_column_references_match(column_refs, expected_refs)
 
     def test_invalid_nested_cte_reference(self) -> None:
         """Test the new detailed column reference API."""
@@ -411,31 +511,49 @@ class TestColumnResolver:
         column_refs = resolve_column_lineage(parsed)  # type: ignore
         expected_refs = [
             ColumnReference(
-                "a", table_reference="tbl", reference_type=ReferenceType.EXTERNAL, resolved=None
+                id=1,
+                name="a",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+                context=["root", "my_cte"],
             ),
             ColumnReference(
-                "b", table_reference="tbl", reference_type=ReferenceType.EXTERNAL, resolved=None
+                id=2,
+                name="b",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+                context=["root", "my_cte"],
             ),
             ColumnReference(
-                "b", table_reference="my_cte", reference_type=ReferenceType.CTE, resolved=True
-            ),
-            ColumnReference(
-                "b",
-                table_reference="second_cte",
-                reference_type=ReferenceType.CTE,
+                id=3,
+                name="b",
+                table="my_cte",
+                reference_type=TableType.CTE,
                 resolved=True,
+                context=["root", "second_cte"],
             ),
             ColumnReference(
-                "d",
-                table_reference="second_cte",
-                reference_type=ReferenceType.CTE,
+                id=4,
+                name="b",
+                table="second_cte",
+                reference_type=TableType.CTE,
+                resolved=True,
+                context=["root"],
+            ),
+            ColumnReference(
+                id=5,
+                name="d",
+                table="second_cte",
+                reference_type=TableType.CTE,
                 resolved=False,
+                context=["root"],
             ),
         ]
 
         # Check reference types and resolution status
-        for ref in expected_refs:
-            assert ref in column_refs
+        _assert_column_references_match(column_refs, expected_refs)
 
     def test_mixed_star_cte(self) -> None:
         """Test the new detailed column reference API."""
@@ -454,28 +572,108 @@ class TestColumnResolver:
         column_refs = resolve_column_lineage(parsed)  # type: ignore
         expected_refs = [
             ColumnReference(
-                "hey", table_reference="tbl", reference_type=ReferenceType.EXTERNAL, resolved=None
-            ),
-            ColumnReference(
-                "yo", table_reference="tbl", reference_type=ReferenceType.EXTERNAL, resolved=None
-            ),
-            ColumnReference(
-                "hey", table_reference="my_cte", reference_type=ReferenceType.CTE, resolved=True
-            ),
-            ColumnReference(
-                "a",
-                table_reference="tbl",
-                reference_type=ReferenceType.EXTERNAL,
+                id=1,
+                name="hey",
+                reference_type=TableType.EXTERNAL,
+                table="tbl",
                 resolved=None,
             ),
             ColumnReference(
-                "b",
-                table_reference="tbl",
-                reference_type=ReferenceType.EXTERNAL,
+                id=1,
+                name="yo",
+                reference_type=TableType.EXTERNAL,
+                table="tbl",
+                resolved=None,
+            ),
+            ColumnReference(
+                id=1,
+                name="hey",
+                reference_type=TableType.CTE,
+                table="my_cte",
+                resolved=True,
+            ),
+            ColumnReference(
+                id=1,
+                name="a",
+                reference_type=TableType.CTE,
+                table="my_cte",
+                resolved=None,
+            ),
+            ColumnReference(
+                id=1,
+                name="b",
+                reference_type=TableType.CTE,
+                table="my_cte",
                 resolved=None,
             ),
         ]
 
         # Check reference types and resolution status
-        for ref in expected_refs:
-            assert ref in column_refs
+        _assert_column_references_match(column_refs, expected_refs)
+
+    def test_multi_subquery_cte_same_name(self) -> None:
+        """Test multiple ctes with the same name."""
+        sql = """
+        select
+            a,
+            (
+                with my_cte as (
+                    select
+                        y
+                )
+                select y from my_cte
+            ) as x,
+            (
+                with my_cte as (
+                    select
+                        d
+                )
+                select d from my_cte
+            ) as g
+        from tbl
+        """
+        parsed = sqlglot.parse_one(sql, dialect="duckdb")
+        column_refs = resolve_column_lineage(parsed)  # type: ignore
+        expected_refs = [
+            ColumnReference(
+                id=1,
+                name="a",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+                context=["root"],
+            ),
+            ColumnReference(
+                id=2,
+                name="y",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+                context=["root", "my_cte"],
+            ),
+            ColumnReference(
+                id=3,
+                name="y",
+                table="my_cte",
+                reference_type=TableType.CTE,
+                resolved=True,
+                context=["root"],
+            ),
+            ColumnReference(
+                id=4,
+                name="d",
+                table="tbl",
+                reference_type=TableType.EXTERNAL,
+                resolved=None,
+                context=["root", "sub#0", "my_cte"],
+            ),
+            ColumnReference(
+                id=5,
+                name="d",
+                table="my_cte",
+                reference_type=TableType.CTE,
+                resolved=True,
+                context=["root", "sub#0"],
+            ),
+        ]
+        _assert_column_references_match(column_refs, expected_refs)

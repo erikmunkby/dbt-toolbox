@@ -1,496 +1,232 @@
-"""Module for resolving column lineage through SQL joins."""
+"""Recursively resolve each column and see which are valid."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
-import sqlglot
-import sqlglot.expressions
-from sqlglot.expressions import Expression, Select
+import sqlglot.expressions as expr
 
 from dbt_toolbox.constants import TABLE_REF_SEP
+from dbt_toolbox.settings import settings
+from dbt_toolbox.utils.printer import cprint
 
 
-class ReferenceType(Enum):
-    """Type of table reference."""
+class TableType(Enum):
+    """Different types of tables."""
 
-    EXTERNAL = "external"  # Reference to external table/model
-    CTE = "cte"  # Reference to CTE
-    SUBQUERY = "subquery"  # Reference to subquery alias
-    INTERNAL = "internal"  # Other internal reference
+    EXTERNAL = "external"
+    CTE = "cte"
+    SUBQUERY = "subquery"
+    AMBIGUOUS = "ambiguous"
 
 
 @dataclass
+class _Tbl:
+    """A table reference dataclass."""
+
+    name: str
+    type: TableType
+    available_columns: list[str] = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
 class ColumnReference:
-    """Represents a column reference and its source information."""
+    """Metadata about each column."""
 
-    column_name: str
-    table_reference: str | None  # The table/alias name being referenced
-    reference_type: ReferenceType
-    resolved: bool | None  # True if resolved, False if not, None if external (undecided)
-
-
-@dataclass
-class CteColumnInfo:
-    """Information about CTE columns and SELECT * sources."""
-
-    available_columns: dict[str, set[str]]  # cte_name -> set of column names
-    select_star_sources: dict[str, str | None]  # cte_name -> source table for SELECT * CTEs
+    name: str
+    reference_type: TableType
+    table: str | None = None
+    resolved: bool | None = None
+    context: list[str] | None = None
+    id: int
 
 
-def resolve_column_lineage(glot_code: Expression) -> list[ColumnReference]:  # noqa: PLR0912
-    """Resolve column lineage through joins, identifying reference types and resolution status.
-
-    Args:
-        glot_code: SQLGlot parsed SELECT statement
-
-    Returns:
-        List of ColumnReference objects with detailed information about each column.
-        Each ColumnReference contains:
-        - column_name: The name of the column
-        - table_reference: The table/alias being referenced (None if unresolved)
-        - reference_type: Type of reference (EXTERNAL, CTE, SUBQUERY, INTERNAL)
-        - resolved: True if resolved internally, False if not, None if external validation needed
-
-    """
-    if not glot_code or not isinstance(glot_code, sqlglot.expressions.Select):
-        return []
-
-    result: list[ColumnReference] = []
-    seen_column_refs = set()  # Track (column_name, table_reference) pairs to avoid duplicates
-
-    # Collect all CTE names from the entire query (including subqueries)
-    cte_names = _collect_all_cte_names(glot_code)
-
-    # Build mapping from subquery/CTE aliases to their column sources for lineage tracing
-    subquery_column_sources = _build_subquery_column_mapping(glot_code, cte_names)
-
-    # Build mapping from CTE names to their available columns
-    cte_info = _build_cte_available_columns(glot_code, cte_names)
-    cte_available_columns = cte_info.available_columns
-    select_star_sources = cte_info.select_star_sources
-
-    # Process the main SELECT statement first
-    alias_to_table = _build_alias_mapping(glot_code)
-
-    for select_expr in glot_code.selects:
-        if isinstance(select_expr, sqlglot.expressions.Star):
-            continue
-
-        # Extract all column references from the expression
-        column_refs = _extract_all_column_references(select_expr, alias_to_table, cte_names)
-
-        for col_name, source_table in column_refs.items():
-            # Create unique key for this column reference
-            ref_key = (col_name, source_table)
-            if ref_key in seen_column_refs:
-                continue  # Skip duplicates
-            seen_column_refs.add(ref_key)
-
-            # Determine reference type and resolution status
-            if source_table is None:
-                # Ambiguous or unresolved reference
-                ref = ColumnReference(
-                    column_name=col_name,
-                    table_reference=None,
-                    reference_type=ReferenceType.INTERNAL,
-                    resolved=False,
-                )
-            elif source_table in cte_names:
-                # Reference to CTE - handle with helper function
-                ref = _handle_cte_column_reference(
-                    col_name, source_table, cte_available_columns, select_star_sources
-                )
-            elif source_table in subquery_column_sources:
-                # Reference to subquery - keep as subquery reference (don't trace back)
-                ref = ColumnReference(
-                    column_name=col_name,
-                    table_reference=source_table,
-                    reference_type=ReferenceType.SUBQUERY,
-                    resolved=True,
-                )
-            else:
-                # Reference to external table
-                ref = ColumnReference(
-                    column_name=col_name,
-                    table_reference=source_table,
-                    reference_type=ReferenceType.EXTERNAL,
-                    resolved=None,  # Cannot decide - external validation needed
-                )
-
-            result.append(ref)
-
-    # Also process columns from within CTEs and subqueries that reference base tables
-    all_selects = _collect_all_select_statements(glot_code)
-    for select_stmt in all_selects:
-        if select_stmt == glot_code:
-            continue  # Skip main query, already processed
-
-        alias_to_table = _build_alias_mapping(select_stmt)
-
-        # Always process CTEs that reference other CTEs to capture the full lineage
-        # (Previously this was only done when main query had SELECT *)
-        # Skip only if it would create duplicates with main query processing
-
-        for select_expr in select_stmt.selects:
-            if isinstance(select_expr, sqlglot.expressions.Star):
-                continue
-
-            column_refs = _extract_all_column_references(select_expr, alias_to_table, cte_names)
-
-            for col_name, source_table in column_refs.items():
-                # Create unique key for this column reference
-                ref_key = (col_name, source_table)
-                if ref_key in seen_column_refs:
-                    continue  # Skip duplicates
-                seen_column_refs.add(ref_key)
-
-                if source_table:
-                    if source_table not in cte_names:
-                        # External reference
-                        ref = ColumnReference(
-                            column_name=col_name,
-                            table_reference=source_table,
-                            reference_type=ReferenceType.EXTERNAL,
-                            resolved=None,
-                        )
-                    else:
-                        # CTE reference - handle with helper function
-                        ref = _handle_cte_column_reference(
-                            col_name, source_table, cte_available_columns, select_star_sources
-                        )
-                    result.append(ref)
-    # Remove all * columns
-    return [r for r in result if r.column_name != "*"]
-
-
-def _handle_cte_column_reference(
-    col_name: str,
-    source_table: str,
-    cte_available_columns: dict[str, set[str]],
-    select_star_sources: dict[str, str | None],
-) -> ColumnReference:
-    """Handle column reference to a CTE with proper SELECT * tracing."""
-    cte_has_column = (
-        source_table in cte_available_columns and col_name in cte_available_columns[source_table]
-    )
-
-    if cte_has_column:
-        # Column exists in CTE - keep as CTE reference (don't trace back)
-        return ColumnReference(
-            column_name=col_name,
-            table_reference=source_table,
-            reference_type=ReferenceType.CTE,
-            resolved=True,  # Resolved within CTE
+def _debug_print(col: expr.Column, tables: dict[str, _Tbl], context: list[str]) -> None:
+    cprint("column", col.name, str(context), highlight_idx=1)
+    for name, t in tables.items():
+        p = (
+            f"cte({name})" + " columns: " + ", ".join(t.available_columns)
+            if t.type == TableType.CTE
+            else f"tbl({name}) columns: unknown"
         )
-
-    # Check if CTE has SELECT * source for unresolved columns
-    star_source = select_star_sources.get(source_table)
-    if star_source:
-        # CTE has SELECT * from external table - trace to source
-        return ColumnReference(
-            column_name=col_name,
-            table_reference=star_source,
-            reference_type=ReferenceType.EXTERNAL,
-            resolved=None,  # External validation needed
-        )
-
-    # Column does not exist in CTE output and no SELECT * source - invalid reference
-    return ColumnReference(
-        column_name=col_name,
-        table_reference=source_table,
-        reference_type=ReferenceType.CTE,
-        resolved=False,  # Invalid CTE reference
-    )
-
-
-def _build_cte_available_columns(glot_code: Select, cte_names: set[str]) -> CteColumnInfo:
-    """Build mapping from CTE names to their available output columns and SELECT * sources.
-
-    Args:
-        glot_code: SQLGlot parsed SELECT statement
-        cte_names: Set of all CTE names
-
-    Returns:
-        CteColumnInfo containing available columns and SELECT * source mappings
-
-    """
-    cte_columns = {}
-    select_star_sources = {}
-
-    # Process CTEs from main query and all subqueries
-    all_ctes = []
-
-    # Collect CTEs from the main query
-    if hasattr(glot_code, "ctes") and glot_code.ctes:
-        all_ctes.extend(glot_code.ctes)
-
-    # Recursively collect CTEs from all subqueries
-    subqueries = glot_code.find_all(sqlglot.expressions.Subquery)
-    for subquery in subqueries:
-        if hasattr(subquery.this, "ctes") and subquery.this.ctes:
-            all_ctes.extend(subquery.this.ctes)
-
-    for cte in all_ctes:
-            cte_name = cte.alias
-            available_columns = set()
-            has_select_star = False
-
-            # Get all selected columns from the CTE
-            for select_expr in cte.this.selects:
-                if isinstance(select_expr, sqlglot.expressions.Star):
-                    has_select_star = True
-                    continue
-
-                column_name = select_expr.alias_or_name
-                available_columns.add(column_name)
-
-            cte_columns[cte_name] = available_columns
-
-            # If this CTE has SELECT *, try to find the source (regardless of other columns)
-            if has_select_star:
-                alias_to_table = _build_alias_mapping(cte.this)
-
-                # Get the FROM table (should be exactly one for simple SELECT *)
-                if len(alias_to_table) == 1:
-                    source_table = next(iter(alias_to_table.values()))
-                    # Only map if source is not another CTE
-                    if source_table not in cte_names:
-                        select_star_sources[cte_name] = source_table
-                    else:
-                        select_star_sources[cte_name] = None
-                else:
-                    select_star_sources[cte_name] = None
-
-    return CteColumnInfo(available_columns=cte_columns, select_star_sources=select_star_sources)
-
-
-def _build_subquery_column_mapping(
-    glot_code: Select, cte_names: set[str]
-) -> dict[str, dict[str, str | None]]:
-    """Build mapping from subquery/CTE aliases to their column sources.
-
-    Args:
-        glot_code: SQLGlot parsed SELECT statement
-        cte_names: Set of CTE names
-
-    Returns:
-        Dictionary mapping subquery_alias -> {column_name -> source_table}
-
-    """
-    column_mapping = {}
-    all_selects = _collect_all_select_statements(glot_code)
-
-    for select_stmt in all_selects:
-        if select_stmt == glot_code:
-            continue  # Skip main query
-
-        # Find the alias for this SELECT (from parent subquery or CTE)
-        select_alias = None
-        parent = select_stmt
-        while parent.parent:
-            parent = parent.parent
-            if (isinstance(parent, sqlglot.expressions.Subquery) and parent.alias) or (
-                isinstance(parent, sqlglot.expressions.CTE) and parent.alias
-            ):
-                select_alias = parent.alias
-                break
-
-        if not select_alias:
-            continue
-
-        # Build alias-to-table mapping for this SELECT
-        alias_to_table = _build_alias_mapping(select_stmt)
-        column_mapping[select_alias] = {}
-
-        # Map each column in this SELECT to its source
-        for select_expr in select_stmt.selects:
-            if isinstance(select_expr, sqlglot.expressions.Star):
-                continue
-
-            column_name = select_expr.this.name
-
-            # Extract column references from this expression
-            col_refs = _extract_all_column_references(select_expr, alias_to_table, cte_names)
-
-            # If this expression references exactly one column from a base table, record it
-            if len(col_refs) == 1:
-                _, ref_table = next(iter(col_refs.items()))
-                column_mapping[select_alias][column_name] = ref_table
-            else:
-                # Complex expression or multiple references - can't trace
-                column_mapping[select_alias][column_name] = None
-
-    return column_mapping
-
-
-def _collect_all_cte_names(glot_code: Select) -> set[str]:
-    """Collect all CTE names from the entire query, including subqueries.
-
-    Args:
-        glot_code: SQLGlot parsed SELECT statement
-
-    Returns:
-        Set of all CTE names found in the query
-
-    """
-    cte_names = set()
-
-    # Collect CTEs from the main query
-    if hasattr(glot_code, "ctes") and glot_code.ctes:
-        for cte in glot_code.ctes:
-            cte_names.add(cte.alias)
-
-    # Recursively collect CTEs from all subqueries
-    subqueries = glot_code.find_all(sqlglot.expressions.Subquery)
-    for subquery in subqueries:
-        if hasattr(subquery.this, "ctes") and subquery.this.ctes:
-            for cte in subquery.this.ctes:
-                cte_names.add(cte.alias)
-
-    return cte_names
-
-
-def _collect_all_select_statements(glot_code: Select) -> list[Select]:
-    """Collect all SELECT statements from the entire query, including CTEs and subqueries.
-
-    Args:
-        glot_code: SQLGlot parsed SELECT statement
-
-    Returns:
-        List of all SELECT statements found in the query
-
-    """
-    all_selects = []
-
-    # Process the main SELECT statement
-    _add_select_and_ctes(glot_code, all_selects)
-
-    # Process all subqueries recursively
-    subqueries = glot_code.find_all(sqlglot.expressions.Subquery)
-    for subquery in subqueries:
-        _add_select_and_ctes(subquery.this, all_selects)
-
-    return all_selects
-
-
-def _add_select_and_ctes(select_stmt: Select, all_selects: list[Select]) -> None:
-    """Add a SELECT statement and its CTEs to the list, handling CTE-containing SELECTs properly.
-
-    Args:
-        select_stmt: SELECT statement to process
-        all_selects: List to add SELECT statements to
-
-    """
-    # Always process the main SELECT statement - CTE filtering will handle the rest
-    all_selects.append(select_stmt)
-
-    # If this SELECT has CTEs, also add the CTE definitions
-    if hasattr(select_stmt, "ctes") and select_stmt.ctes:
-        all_selects.extend([cte.this for cte in select_stmt.ctes])
-
-
-def _build_alias_mapping(glot_code: Select) -> dict[str, str]:
-    """Build mapping from table aliases to actual table names.
-
-    Args:
-        glot_code: SQLGlot parsed SELECT statement
-
-    Returns:
-        Dictionary mapping alias -> table_name
-
-    """
-    alias_to_table = {}
-
-    # Get table references from FROM clause
-    from_clause = glot_code.find(sqlglot.expressions.From)
-    if from_clause:
-        from_tables = from_clause.find_all(sqlglot.expressions.Table)
-        for table in from_tables:
-            table_name = table.name
-            alias = table.alias if table.alias else table_name
-
-            # Extract meaningful table name from dbt naming convention
-            if table_name.startswith(TABLE_REF_SEP):
-                clean_name = table_name.strip(TABLE_REF_SEP).split(TABLE_REF_SEP)[-1]
-                alias_to_table[alias] = clean_name
-            else:
-                alias_to_table[alias] = table_name
-
-    # Get table references from JOIN clauses
-    joins = glot_code.find_all(sqlglot.expressions.Join)
-    for join in joins:
-        join_tables = join.find_all(sqlglot.expressions.Table)
-        for table in join_tables:
-            table_name = table.name
-            alias = table.alias if table.alias else table_name
-
-            # Extract meaningful table name from dbt naming convention
-            if table_name.startswith(TABLE_REF_SEP):
-                clean_name = table_name.strip(TABLE_REF_SEP).split(TABLE_REF_SEP)[-1]
-                alias_to_table[alias] = clean_name
-            else:
-                alias_to_table[alias] = table_name
-
-    # Also handle subqueries in FROM and JOINs
-    from_subqueries = []
-    if from_clause:
-        from_subqueries.extend(from_clause.find_all(sqlglot.expressions.Subquery))
-    for join in joins:
-        from_subqueries.extend(join.find_all(sqlglot.expressions.Subquery))
-
-    for subquery in from_subqueries:
-        if subquery.alias:
-            alias_to_table[subquery.alias] = subquery.alias
-
-    return alias_to_table
-
-
-def _extract_all_column_references(
-    select_expr: Expression,
-    alias_to_table: dict[str, str],
-    cte_names: set[str] | None = None,
-) -> dict[str, str | None]:
-    """Extract all column references from a select expression and map them to source tables.
-
-    Args:
-        select_expr: SQLGlot select expression
-        alias_to_table: Mapping from aliases to table names
-        cte_names: Set of CTE names to ignore
-
-    Returns:
-        Dictionary mapping column names to their source table names
-
-    """
-    result = {}
-    cte_names = cte_names or set()
-
-    # Find all column references in the expression, but exclude nested subqueries
-    column_refs = []
-
-    # If this expression contains subqueries, don't extract from within them
-    if select_expr.find(sqlglot.expressions.Subquery):
-        # For expressions with subqueries, skip them - don't extract nested references
-        column_refs = []
+        cprint("  " + p)
+
+
+def _clean_tbl_name(name: str) -> str:
+    if name.startswith(TABLE_REF_SEP):
+        return name.strip(TABLE_REF_SEP).split(TABLE_REF_SEP)[-1]
+    return name
+
+
+def _build_col(
+    col: expr.Column,
+    tables: dict[str, _Tbl],
+    context: list[str],
+    existing_cols: list[ColumnReference],
+) -> ColumnReference | None:
+    col_id = hash(str(col) + str(col.parent))
+    if isinstance(col.this, expr.Star) or col_id in [c.id for c in existing_cols]:
+        return None
+    if settings.debug:
+        _debug_print(col=col, tables=tables, context=context)
+    if col.table:
+        t = tables.get(col.table)
+        if not t:
+            return ColumnReference(
+                id=col_id, name=col.name, reference_type=TableType.EXTERNAL, context=context
+            )
+    elif len(tables) == 1:
+        t = next(iter(tables.values()))
     else:
-        # For simple expressions, get all column references
-        column_refs = list(select_expr.find_all(sqlglot.expressions.Column))
+        # No table reference found, but multiple tables available. Ambiguous column reference.
+        return ColumnReference(
+            id=col_id, name=col.name, reference_type=TableType.AMBIGUOUS, context=context
+        )
+    # Now figure out if column is resolved
+    if col.name in t.available_columns:
+        resolved = True
+    elif "*" in t.available_columns:
+        resolved = None
+    else:
+        resolved = False
 
-    for col_ref in column_refs:
-        column_name = col_ref.name
+    if t.type == TableType.EXTERNAL:
+        return ColumnReference(
+            id=col_id,
+            name=col.name,
+            reference_type=TableType.EXTERNAL,
+            table=_clean_tbl_name(t.name),
+            context=context,
+        )
+    return ColumnReference(
+        id=col_id,
+        name=col.name,
+        reference_type=t.type if t.type else TableType.AMBIGUOUS,
+        table=t.name,
+        resolved=resolved,
+        context=context,
+    )
 
-        # Resolve the source table for this column
-        if hasattr(col_ref, "table") and col_ref.table:
-            table_alias = col_ref.table
 
-            source_table = alias_to_table.get(table_alias)
-        elif len(alias_to_table) == 1:
-            # Single table context
-            table_alias = next(iter(alias_to_table.keys()))
-            source_table = next(iter(alias_to_table.values()))
+def _resolve_from_clause(stmnt: expr.From, ctes: dict[str, _Tbl]) -> dict[str, _Tbl]:
+    if isinstance(stmnt.this, expr.Subquery):
+        subq = stmnt.this
+        subq_select = subq.this
+        return {
+            subq.alias_or_name: _Tbl(
+                name=subq.alias_or_name,
+                type=TableType.SUBQUERY,
+                available_columns=[c.alias_or_name for c in subq_select.selects]
+                if isinstance(subq_select, expr.Select)
+                else [],
+            )
+        }
+    return {
+        stmnt.alias_or_name: ctes[stmnt.name]
+        if stmnt.name in ctes
+        else _Tbl(name=stmnt.name, type=TableType.EXTERNAL)
+    }
+
+
+def _recursive_resolve(
+    select_stmt: expr.Select,
+    context: list[str],
+    tables: dict[str, _Tbl] | None = None,
+    ctes: dict[str, _Tbl] | None = None,
+) -> list[ColumnReference]:
+    if tables is None:
+        tables = {}
+    if ctes is None:
+        ctes = {}
+
+    results: list[ColumnReference] = []
+    # Find all available CTEs
+    for cte in select_stmt.ctes:
+        ctes[cte.alias] = _Tbl(
+            name=cte.alias,
+            available_columns=[c.alias_or_name for c in cte.selects],
+            type=TableType.CTE,
+        )
+        results.extend(
+            _recursive_resolve(
+                cte.this, context=[*context, cte.alias_or_name], tables=tables, ctes=ctes
+            )
+        )
+
+    # Find all available tables (from + joins)
+    from_clause = select_stmt.find(expr.From)
+    if from_clause is not None and from_clause.parent == select_stmt:
+        tables = _resolve_from_clause(from_clause, ctes=ctes)
+        if isinstance(from_clause.this, expr.Subquery):
+            results.extend(
+                _recursive_resolve(
+                    select_stmt=from_clause.this.this, context=[*context, "from_subquery"]
+                )
+            )
+
+    # Find all joined tables
+    for join in select_stmt.find_all(expr.Join):
+        # Only take joins within current context
+        if join.parent != select_stmt:
+            continue
+        join_table = join.find(expr.Table)
+        if join_table is None:
+            continue
+        tables[join_table.alias_or_name] = (
+            ctes[join_table.name]
+            if join_table.name in ctes
+            else _Tbl(name=join_table.name, type=TableType.EXTERNAL)
+        )
+
+    subq_id = 0
+    for obj in select_stmt.selects:
+        col = obj.this if isinstance(obj, expr.Alias) else obj
+        # Resolve any subqueries
+        if isinstance(col, expr.Subquery):
+            results.extend(
+                _recursive_resolve(col.this, context=[*context, f"sub#{subq_id}"], tables=tables)
+            )
+            subq_id += 1
+        # Resolve normal columns
+        if isinstance(col, expr.Column):
+            built_col = _build_col(col=col, tables=tables, context=context, existing_cols=results)
+            if built_col:
+                results.append(built_col)
         else:
-            # Cannot resolve ambiguous column
-            source_table = None
+            # Finally investigate all other columns, unless they have already been investigated.
+            for subcol in col.find_all(expr.Column):
+                built_sub_col = _build_col(
+                    col=subcol, tables=tables, context=context, existing_cols=results
+                )
+                if built_sub_col:
+                    results.append(built_sub_col)
 
-        result[column_name] = source_table
+    return results
 
-    return result
+
+def resolve_column_lineage(glot_code: expr.Expression) -> list[ColumnReference]:
+    """Recursively resolve column references in a SQL expression.
+
+    This function analyzes a SQL expression and returns detailed information about
+    each column reference, including its source table, reference type, resolution
+    status, and context within the SQL query structure.
+
+    Args:
+        glot_code:  A SQLGlot expression, typically a Select statement to analyze.
+                    Other expression types will return an empty list.
+
+    Returns:
+        A list of ColumnReference objects, each containing:
+        - name: The column name
+        - table: The source table name (None if ambiguous)
+        - reference_type: TableType enum value (EXTERNAL, CTE, SUBQUERY, or AMBIGUOUS)
+        - resolved: Boolean indicating if the column exists in the source:
+          - True: Column exists in the referenced table/CTE
+          - False: Column does not exist in the referenced table/CTE
+          - None: Cannot determine (e.g., SELECT * or external table)
+        - context: List of strings showing the query context path (e.g., ["root", "my_cte"])
+
+    """
+    if not isinstance(glot_code, expr.Select):
+        return []
+    # Clean up table names before returning
+    return _recursive_resolve(glot_code, context=["root"])

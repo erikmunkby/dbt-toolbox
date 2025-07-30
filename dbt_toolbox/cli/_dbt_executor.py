@@ -108,7 +108,7 @@ def _stream_process_output(process: subprocess.Popen) -> list[str]:
     return captured_output
 
 
-def execute_dbt_command(base_command: list[str]) -> None:  # noqa: PLR0912
+def execute_dbt_command(base_command: list[str]) -> None:
     """Execute a dbt command with standard project and profiles directories.
 
     Args:
@@ -203,7 +203,7 @@ def execute_dbt_command(base_command: list[str]) -> None:  # noqa: PLR0912
         sys.exit(1)
 
 
-def execute_dbt_with_smart_selection(  # noqa: PLR0912, PLR0913
+def execute_dbt_with_smart_selection(  # noqa: PLR0913
     command_name: str,
     model: str | None = None,
     full_refresh: bool = False,

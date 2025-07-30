@@ -169,3 +169,4 @@ enforce_lineage_validation = true
 - Always run `ruff check --fix --unsafe-fixes` after every finished implementation.
 - When running tests, use `uv run pytest -x`
 - When building complex return statements, instead build a dataclass.
+- Never run code in notebooks when testing, instead either build tests or run as `python -c `.

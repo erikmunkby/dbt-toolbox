@@ -74,6 +74,11 @@ def _return(*args) -> Literal[""]:  # noqa: ANN002, ARG001
     return ""
 
 
+def _run_query(*args, **kwargs) -> None:  # noqa: ANN002, ANN003, ARG001
+    """Mock implementation of dbt run_query() function."""
+    return
+
+
 def _load_sorted_macro_dict() -> dict[str, str]:
     """Load and cache sorted macro dictionary.
 
@@ -123,6 +128,7 @@ def _get_base_env() -> Environment:
         "source": _source,
         "config": _config,
         "return": _return,
+        "run_query": _run_query,
         "target": utils.dbt_profile,
         "adapter": DummyAdapter(),
     }
