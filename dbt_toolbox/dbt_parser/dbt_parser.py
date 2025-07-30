@@ -184,38 +184,51 @@ class dbtParser:  # noqa: N801
         return {m.name: m for m in read_models()}
 
     @cached_property
+    def cached_models(self) -> dict[str, Model]:
+        """Get all cached models."""
+        return cache.get_all_cached_models()
+
+    def get_model(self, model_name: str) -> Model | None:
+        """Get a model by name."""
+        model = self.cached_models.get(model_name)
+        raw_model = self.list_raw_models.get(model_name)
+        if raw_model is None:
+            return None
+        if model and model.hash == raw_model.hash:
+            return model
+        # Model was not found in cache or has changed, build and cache it
+        try:
+            built_model = _build_model(raw_model)
+        except ParseError:
+            printer.cprint(
+                "Failed to parse model",
+                model_name,
+                highlight_idx=1,
+                color="yellow",
+            )
+            return None
+        built_model.yaml_docs = self.yaml_docs.get(model_name)
+        cache.cache_model(model=built_model)
+        return built_model
+
+    @cached_property
     def models(self) -> dict[str, Model]:
         """Fetch all available models, prioritizing cache if valid.
 
         This call will also update the cache.
         """
-        cached_models = cache.get_all_cached_models()
         final_models: dict[str, Model] = {}
-        for name, model in self.list_raw_models.items():
-            cached_model = cached_models.get(name)
-            if not cached_model or model.hash != cached_model.hash:
-                try:
-                    final_models[model.name] = _build_model(model)
-                except ParseError:
-                    printer.cprint(
-                        "Failed to parse model",
-                        model.name,
-                        highlight_idx=1,
-                        color="yellow",
-                    )
+        for name in self.list_raw_models:
+            model = self.get_model(name)
+            if not model:
+                printer.cprint(
+                    "Model not found: " + name,
+                    highlight_idx=1,
+                    color="yellow",
+                )
             else:
-                final_models[name] = cached_model
+                final_models[name] = model
 
-        # Enrich with yaml docs if exists
-        yaml_docs = self.yaml_docs
-        for name, model in final_models.items():
-            model.yaml_docs = yaml_docs.get(name)
-
-            # Only cache newly built models (preserve existing cache for others)
-            if name not in cached_models or model.hash != cached_models[name].hash:
-                # This is a newly built model, cache it with built_successfully = None
-                # since we haven't attempted to build it via dbt yet
-                cache.cache_model(model)
         return final_models
 
     @cached_property

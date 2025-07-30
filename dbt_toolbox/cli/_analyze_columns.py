@@ -1,13 +1,9 @@
 """Module for analyzing column references in models."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
-from dbt_toolbox.column_resolver import ReferenceType
-
-if TYPE_CHECKING:
-    from dbt_toolbox.column_resolver import ColumnReference
-    from dbt_toolbox.data_models import Model, Seed, Source
+from dbt_toolbox.column_resolver import ColumnReference, TableType
+from dbt_toolbox.data_models import Model, Seed, Source
 
 
 @dataclass
@@ -20,10 +16,10 @@ class ColumnAnalysis:
 
 
 def _analyze_model_column_references(
-    model: "Model",
-    models: dict[str, "Model"],
-    sources: dict[str, "Source"],
-    seeds: dict[str, "Seed"],
+    model: Model,
+    models: dict[str, Model],
+    sources: dict[str, Source],
+    seeds: dict[str, Seed],
 ) -> tuple[dict[str, list[str]], list[str], dict[str, list[str]]]:
     """Analyze column references for a single model.
 
@@ -48,14 +44,14 @@ def _analyze_model_column_references(
         return model_non_existent_cols, model_non_existent_refs, model_cte_issues
 
     for col_ref in model.column_references:
-        # Only analyze references that have a table_reference
-        if col_ref.table_reference is None:
+        # Only analyze references that have a table
+        if col_ref.table is None:
             continue
 
-        referenced_model = col_ref.table_reference
+        referenced_model = col_ref.table
 
         # Handle CTE references
-        if col_ref.reference_type == ReferenceType.CTE:
+        if col_ref.reference_type == TableType.CTE:
             available_objects = {"models": models, "sources": sources, "seeds": seeds}
             handled_as_cte = _handle_cte_reference(
                 col_ref, referenced_model, model_cte_issues, available_objects
@@ -67,18 +63,21 @@ def _analyze_model_column_references(
         # Handle external references (models, sources, seeds)
         available_objects = {"models": models, "sources": sources, "seeds": seeds}
         _handle_external_reference(
-            col_ref, referenced_model, available_objects,
-            model_non_existent_cols, model_non_existent_refs
+            col_ref,
+            referenced_model,
+            available_objects,
+            model_non_existent_cols,
+            model_non_existent_refs,
         )
 
     return model_non_existent_cols, model_non_existent_refs, model_cte_issues
 
 
 def _handle_cte_reference(
-    col_ref: "ColumnReference",
+    col_ref: ColumnReference,
     referenced_model: str,
     model_cte_issues: dict[str, list[str]],
-    available_objects: dict
+    available_objects: dict,
 ) -> bool:
     """Handle CTE column reference validation.
 
@@ -94,26 +93,24 @@ def _handle_cte_reference(
 
         # If the referenced_model exists as an external model/source/seed,
         # then this might be a SELECT * CTE that should be validated externally
-        if (referenced_model in models or
-            referenced_model in sources or
-            referenced_model in seeds):
+        if referenced_model in models or referenced_model in sources or referenced_model in seeds:
             return False  # Let it be handled as external reference
 
         # Otherwise, this is a genuine CTE column issue
         if referenced_model not in model_cte_issues:
             model_cte_issues[referenced_model] = []
-        if col_ref.column_name not in model_cte_issues[referenced_model]:
-            model_cte_issues[referenced_model].append(col_ref.column_name)
+        if col_ref.name not in model_cte_issues[referenced_model]:
+            model_cte_issues[referenced_model].append(col_ref.name)
 
     return True  # Handled as CTE issue
 
 
 def _handle_external_reference(
-    col_ref: "ColumnReference",
+    col_ref: ColumnReference,
     referenced_model: str,
     available_objects: dict,
     model_non_existent_cols: dict[str, list[str]],
-    model_non_existent_refs: list[str]
+    model_non_existent_refs: list[str],
 ) -> None:
     """Handle external model/source/seed reference validation."""
     models = available_objects["models"]
@@ -131,22 +128,21 @@ def _handle_external_reference(
         return
 
     # Check if column exists in referenced model
-    column_exists = _check_column_exists(
-        col_ref.column_name, referenced_model, models, sources, seeds
-    )
+    column_exists = _check_column_exists(col_ref.name, referenced_model, models, sources, seeds)
 
     if not column_exists:
         if referenced_model not in model_non_existent_cols:
             model_non_existent_cols[referenced_model] = []
-        if col_ref.column_name not in model_non_existent_cols[referenced_model]:
-            model_non_existent_cols[referenced_model].append(col_ref.column_name)
+        if col_ref.name not in model_non_existent_cols[referenced_model]:
+            model_non_existent_cols[referenced_model].append(col_ref.name)
 
 
 def _check_column_exists(
-    column_name: str, referenced_model: str,
-    models: dict[str, "Model"],
-    sources: dict[str, "Source"],
-    seeds: dict[str, "Seed"]
+    column_name: str,
+    referenced_model: str,
+    models: dict[str, Model],
+    sources: dict[str, Source],
+    seeds: dict[str, Seed],
 ) -> bool:
     """Check if a column exists in the referenced model/source/seed."""
     if referenced_model in seeds:
@@ -160,9 +156,9 @@ def _check_column_exists(
 
 
 def analyze_column_references(
-    models: dict[str, "Model"],
-    sources: dict[str, "Source"],
-    seeds: dict[str, "Seed"],
+    models: dict[str, Model],
+    sources: dict[str, Source],
+    seeds: dict[str, Seed],
 ) -> ColumnAnalysis:
     """Analyze all models and find columns that don't exist in their referenced objects.
 
@@ -183,15 +179,13 @@ def analyze_column_references(
     cte_column_issues = {}
 
     for model_name, model in models.items():
-        (
-            model_non_existent_cols,
-            model_non_existent_refs,
-            model_cte_issues
-        ) = _analyze_model_column_references(
-            model,
-            models,
-            sources,
-            seeds,
+        (model_non_existent_cols, model_non_existent_refs, model_cte_issues) = (
+            _analyze_model_column_references(
+                model,
+                models,
+                sources,
+                seeds,
+            )
         )
 
         if model_non_existent_cols:

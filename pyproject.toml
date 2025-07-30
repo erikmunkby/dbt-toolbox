@@ -57,6 +57,7 @@ ignore = [
     "FBT001", # bools in function params
     "C901", # Function too complex
     "COM812",
+    "PLR0912" # Too complex code (too many branches)
 ]
 
 [tool.dbt_toolbox]

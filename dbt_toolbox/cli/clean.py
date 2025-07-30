@@ -44,18 +44,31 @@ def clean(
         # Collect metadata before clearing
         cache_exists = dbt_parser.cache.cache_path.exists()
         cache_files = []
+        model_cache_files = []
 
         if cache_exists:
             cache_files = list(dbt_parser.cache.cache_path.glob("*.cache"))
+            if dbt_parser.cache.cache_models_path.exists():
+                model_cache_files = list(dbt_parser.cache.cache_models_path.glob("*.cache"))
 
         dbt_parser.cache.clear()
 
         # Display metadata about what was cleaned
         typer.secho("🧹 Cache cleaned successfully!", fg=typer.colors.GREEN)
 
-        if cache_files:
-            typer.secho(f"Removed {len(cache_files)} cache files:", fg=typer.colors.CYAN)
-            for cache_file in cache_files:
-                typer.secho(f"  • {cache_file.name}", fg=typer.colors.BRIGHT_BLACK)
+        if cache_files or model_cache_files:
+            total_files = len(cache_files) + len(model_cache_files)
+            typer.secho(f"Removed {total_files} cache files:", fg=typer.colors.CYAN)
+
+            # Show model caches specifically
+            if model_cache_files:
+                typer.secho(
+                    f"  • {len(model_cache_files)} model caches", fg=typer.colors.BRIGHT_BLACK
+                )
+
+            # Show other cache files
+            if cache_files:
+                for cache_file in cache_files:
+                    typer.secho(f"  • {cache_file.name}", fg=typer.colors.BRIGHT_BLACK)
         else:
             typer.secho("Cache directory was already empty", fg=typer.colors.BRIGHT_BLACK)
