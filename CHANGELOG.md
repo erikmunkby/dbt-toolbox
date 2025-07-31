@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.2.0...v0.2.1) (2025-07-31)
+
+
+### Bug Fixes
+
+* analyze cte columns ([9bef9ca](https://github.com/erikmunkby/dbt-toolbox/commit/9bef9ca89d9031769e9f5a3f044f4d6f619c160b))
+* complex column lineage ([b68e89d](https://github.com/erikmunkby/dbt-toolbox/commit/b68e89de153ffbeb14332cdb7f7ad87df27896c9))
+* handle CTE column references ([e1ffd0b](https://github.com/erikmunkby/dbt-toolbox/commit/e1ffd0b55a0160e767fbbc80dea1888fccca790b))
+* ignore CTEs in lineage validation ([6cb999e](https://github.com/erikmunkby/dbt-toolbox/commit/6cb999e39b39b7b5eb5f03691cfd990b0c2b1eac))
+* mixed select * cte ([aa9eef8](https://github.com/erikmunkby/dbt-toolbox/commit/aa9eef87d75b0334783043500856d5c4166ef32f))
+* recursive column parsing ([7df78eb](https://github.com/erikmunkby/dbt-toolbox/commit/7df78eb8f76d0080d4372afc101a9d737d272bba))
+* refactor model caching ([ba3eabb](https://github.com/erikmunkby/dbt-toolbox/commit/ba3eabb53a186419b0ecb73f995dbb18bd30cab9))
+
 ## [0.2.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.1.2...v0.2.0) (2025-07-28)
 
 
