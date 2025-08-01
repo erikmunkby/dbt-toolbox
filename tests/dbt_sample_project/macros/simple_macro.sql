@@ -1,6 +1,6 @@
 -- A simple literal value
 {% macro simple_macro() %}
-'A simple macro'
+'A modified simple macro'
 {% endmacro %}
 
 -- Another in the same file

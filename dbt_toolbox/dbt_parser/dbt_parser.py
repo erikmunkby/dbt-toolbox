@@ -21,9 +21,9 @@ from dbt_toolbox.data_models import (
     YamlDocs,
 )
 from dbt_toolbox.dbt_parser._cache import Cache, cache
-from dbt_toolbox.dbt_parser._file_fetcher import read_macro, read_macros, read_models
+from dbt_toolbox.dbt_parser._file_fetcher import read_macros, read_models
 from dbt_toolbox.dbt_parser._jinja_handler import jinja
-from dbt_toolbox.graph.dependency_graph import DependencyGraph, NodeNotFoundError
+from dbt_toolbox.graph.dependency_graph import DependencyGraph
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import printer, utils
 
@@ -190,12 +190,12 @@ class dbtParser:  # noqa: N801
 
     def get_model(self, model_name: str) -> Model | None:
         """Get a model by name."""
-        model = self.cached_models.get(model_name)
+        cached_model = self.cached_models.get(model_name)
         raw_model = self.list_raw_models.get(model_name)
         if raw_model is None:
             return None
-        if model and model.hash == raw_model.hash:
-            return model
+        if cached_model and cached_model.code_hash == raw_model.code_hash:
+            return cached_model
         # Model was not found in cache or has changed, build and cache it
         try:
             built_model = _build_model(raw_model)
@@ -207,6 +207,19 @@ class dbtParser:  # noqa: N801
                 color="yellow",
             )
             return None
+
+        # If the model existed in cache, but the code changed, preserve execution history
+        # and mark as code changed
+        if cached_model:
+            built_model.last_built = cached_model.last_built
+            built_model.last_build_failed = cached_model.last_build_failed
+            built_model.code_changed = True
+
+        for macro in built_model.upstream.macros:
+            if self.macro_changed(macro):
+                built_model.upstream_macros_changed = True
+                break
+
         built_model.yaml_docs = self.yaml_docs.get(model_name)
         cache.cache_model(model=built_model)
         return built_model
@@ -232,6 +245,11 @@ class dbtParser:  # noqa: N801
         return final_models
 
     @cached_property
+    def list_raw_macros(self) -> dict[str, list[MacroBase]]:
+        """List all raw macros."""
+        return read_macros()
+
+    @cached_property
     def macros(self) -> dict[str, Macro]:
         """Fetch all available macros, prioritizing cache if valid."""
         macro_cache = cache.cache_macros.read()
@@ -242,13 +260,27 @@ class dbtParser:  # noqa: N801
             for m in macro_list:
                 if not m.is_test:  # Exclude test macros
                     cm = cached_macros.get(m.name)
-                    if not cm or m.id != cm.id:
+                    if not cm or m.code_hash != cm.code_hash:
                         final_macros[m.name] = _build_macro(m)
                     else:
                         final_macros[m.name] = cm
 
         cache.cache_macros.write(final_macros)
         return final_macros
+
+    @cached_property
+    def changed_macros(self) -> dict[str, bool]:
+        """Get a comprehensive dict of all macros, and whether they've changed."""
+        macro_cache = cache.cache_macros.read()
+        cached_macros: dict[str, Macro] = macro_cache if macro_cache else {}
+        results = {}
+        for macro_list in self.list_raw_macros.values():
+            for m in macro_list:
+                if m.name not in cached_macros:
+                    results[m.name] = False
+                else:
+                    results[m.name] = m.code_hash != cached_macros[m.name].code_hash
+        return results
 
     def macro_changed(self, macro_name: str, /) -> bool:
         """Check whether macro code has changed.
@@ -257,13 +289,7 @@ class dbtParser:  # noqa: N801
             macro_name: The name of the macro to check.
 
         """
-        cached_macro = self.macros.get(macro_name)
-        if cached_macro is None:
-            return True
-        new_macro = read_macro(macro_name, path=cached_macro.macro_path)
-        if new_macro is None:
-            return True
-        return new_macro.id != cached_macro.id
+        return self.changed_macros.get(macro_name, False)
 
     @cached_property
     def dependency_graph(self) -> DependencyGraph:
@@ -310,35 +336,64 @@ class dbtParser:  # noqa: N801
             NodeNotFoundError: If the model or macro is not found.
 
         """
-        if not self.dependency_graph.has_node(name):
-            # Provide helpful error message
-            available_models = list(self.models.keys())
-            available_macros = list(self.macros.keys())
-
-            if name in available_models or name in available_macros:
-                # This shouldn't happen, but just in case
-                raise NodeNotFoundError(f"Node '{name}' found in data but not in graph")
-
-            # Check if it's close to any existing names (simple suggestion)
-            close_matches = [
-                n
-                for n in available_models + available_macros
-                if name.lower() in n.lower() or n.lower() in name.lower()
-            ]
-            error_msg = f"Model or macro '{name}' not found"
-            if close_matches:
-                error_msg += f". Did you mean one of: {', '.join(close_matches[:3])}?"
-            raise NodeNotFoundError(error_msg)
-
-        # Get downstream node names
-        downstream_nodes = self.dependency_graph.get_downstream_nodes(name)
-
         # Filter to only return models (not macros) and convert to Model objects
         return [
             self.models[node_name]
-            for node_name in downstream_nodes
+            for node_name in self.dependency_graph.get_downstream_nodes(name)
             if self.dependency_graph.get_node_type(node_name) == "model"
         ]
+
+    def parse_dbt_selection(self, selection: str | None) -> set[str]:
+        """Parse dbt model selection syntax to get target models.
+
+        Args:
+            selection: dbt selection string (e.g., "my_model+", "+my_model", "my_model")
+
+        Returns:
+            Set of model names that would be executed by dbt.
+
+        """
+        if not selection:
+            # No selection means all models
+            return set(self.models.keys())
+
+        target_models = set()
+
+        # Handle multiple selections separated by comma or space
+        selections = re.split(r"[,\s]+", selection.strip())
+
+        for sel in selections:
+            if not sel:
+                continue
+
+            # Parse selection patterns
+            if sel.endswith("+"):
+                # downstream selection: "model+"
+                model_name = sel[:-1].removeprefix("+")
+                if model_name in self.models:
+                    target_models.add(model_name)
+                    # Add all downstream models
+                    downstream_models = self.get_downstream_models(model_name)
+                    target_models.update(m.name for m in downstream_models)
+            if sel.startswith("+"):
+                # upstream selection: "+model"
+                model_name = sel[1:].removesuffix("+")
+                if model_name in self.models:
+                    target_models.add(model_name)
+                    # Add all upstream models
+                    upstream_nodes = self.dependency_graph.get_upstream_nodes(model_name)
+                    # Filter to only models (not macros)
+                    upstream_models = [
+                        node
+                        for node in upstream_nodes
+                        if self.dependency_graph.get_node_type(node) == "model"
+                    ]
+                    target_models.update(upstream_models)
+            # direct model selection
+            if sel in self.models:
+                target_models.add(sel)
+
+        return target_models
 
 
 dbt_parser = dbtParser()

@@ -195,21 +195,6 @@ class TestDbtParserGraphIntegration:
         downstream_names = [model.name for model in downstream_models]
         assert "customer_orders" in downstream_names
 
-    def test_get_downstream_models_nonexistent_node(self, dbt_project_setup: None) -> None:
-        """Test error handling for non-existent nodes."""
-        with pytest.raises(NodeNotFoundError, match="Model or macro 'nonexistent' not found"):
-            dbt_parser.get_downstream_models("nonexistent")
-
-    def test_get_downstream_models_suggestions(self, dbt_project_setup: None) -> None:
-        """Test that error messages include suggestions for similar names."""
-        with pytest.raises(NodeNotFoundError) as exc_info:
-            dbt_parser.get_downstream_models("customer")  # Similar to "customers"
-
-        error_message = str(exc_info.value)
-        assert "customer" in error_message
-        assert "Did you mean one of:" in error_message
-        assert "customers" in error_message
-
     def test_get_downstream_models_empty_result(self, dbt_project_setup: None) -> None:
         """Test getting downstream models for a node with no downstream dependencies."""
         # customer_orders is likely a leaf node (no models depend on it)

@@ -4,8 +4,9 @@ from unittest.mock import Mock, patch
 
 from typer.testing import CliRunner
 
-from dbt_toolbox.cli.analyze import CacheAnalysisResult, cache_analyzer
+from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
 from dbt_toolbox.cli.main import app
+from dbt_toolbox.data_models import Model
 
 
 class TestAnalyzeCommand:
@@ -19,172 +20,129 @@ class TestAnalyzeCommand:
         assert result.exit_code == 0
         assert "analyze" in result.stdout
 
-    @patch("dbt_toolbox.cli.analyze.cache_analyzer")
-    def test_analyze_with_model_selection(self, mock_analyzer: Mock) -> None:
+    @patch("dbt_toolbox.cli.analyze.analyze_model_statuses")
+    def test_analyze_with_model_selection(self, mock_analyze: Mock) -> None:
         """Test analyze command with model selection."""
-        # Mock analysis results
-        mock_analysis = Mock()
-        mock_analysis.total_models = 2
-        mock_analysis.models_needing_execution = []
-        mock_analysis.failed_models = []
-        mock_analysis.id_mismatch_models = []
-        mock_analysis.outdated_models = []
-        mock_analysis.upstream_changed_models = []
-        mock_analysis.valid_models = [
-            CacheAnalysisResult("customers", "valid", "Cache is up to date", "2 minutes ago"),
-            CacheAnalysisResult("orders", "valid", "Cache is up to date", "3 minutes ago"),
-        ]
-        mock_analyzer.analyze_all_models.return_value = mock_analysis
+        # Mock analysis results - two valid models
+        from datetime import datetime, timezone
+
+        mock_model1 = Mock(spec=Model)
+        mock_model1.name = "customers"
+        mock_model1.last_built = datetime.now(tz=timezone.utc)
+        mock_model2 = Mock(spec=Model)
+        mock_model2.name = "orders"
+        mock_model2.last_built = datetime.now(tz=timezone.utc)
+
+        mock_analyze.return_value = {
+            "customers": AnalysisResult(model=mock_model1),
+            "orders": AnalysisResult(model=mock_model2),
+        }
 
         cli_runner = CliRunner()
         result = cli_runner.invoke(app, ["analyze", "--model", "customers+"])
 
         assert result.exit_code == 0
-        mock_analyzer.analyze_all_models.assert_called_once_with("customers+")
+        mock_analyze.assert_called_once_with("customers+")
         assert "Cache Analysis Results" in result.stdout
         assert "All models have valid cache!" in result.stdout
 
-    @patch("dbt_toolbox.cli.analyze.cache_analyzer")
-    def test_analyze_with_failed_models(self, mock_analyzer: Mock) -> None:
+    @patch("dbt_toolbox.cli.analyze.analyze_model_statuses")
+    def test_analyze_with_failed_models(self, mock_analyze: Mock) -> None:
         """Test analyze command with failed models."""
         # Mock analysis results with failed models
-        mock_analysis = Mock()
-        mock_analysis.total_models = 3
-        mock_analysis.models_needing_execution = [
-            CacheAnalysisResult("failed_model", "failed", "Model failed in last execution", None),
-        ]
-        mock_analysis.failed_models = [
-            CacheAnalysisResult("failed_model", "failed", "Model failed in last execution", None),
-        ]
-        mock_analysis.id_mismatch_models = []
-        mock_analysis.outdated_models = []
-        mock_analysis.upstream_changed_models = []
-        mock_analysis.valid_models = [
-            CacheAnalysisResult("customers", "valid", "Cache is up to date", "2 minutes ago"),
-            CacheAnalysisResult("orders", "valid", "Cache is up to date", "3 minutes ago"),
-        ]
-        mock_analyzer.analyze_all_models.return_value = mock_analysis
+        from datetime import datetime, timezone
+
+        mock_failed_model = Mock(spec=Model)
+        mock_failed_model.name = "failed_model"
+        mock_failed_model.last_built = None
+        mock_model1 = Mock(spec=Model)
+        mock_model1.name = "customers"
+        mock_model1.last_built = datetime.now(tz=timezone.utc)
+        mock_model2 = Mock(spec=Model)
+        mock_model2.name = "orders"
+        mock_model2.last_built = datetime.now(tz=timezone.utc)
+
+        mock_analyze.return_value = {
+            "failed_model": AnalysisResult(
+                model=mock_failed_model,
+                reason=ExecutionReason.LAST_EXECUTION_FAILED,
+            ),
+            "customers": AnalysisResult(model=mock_model1),
+            "orders": AnalysisResult(model=mock_model2),
+        }
 
         cli_runner = CliRunner()
         result = cli_runner.invoke(app, ["analyze"])
 
         assert result.exit_code == 0
-        mock_analyzer.analyze_all_models.assert_called_once_with(None)
-        assert "Failed Models (1)" in result.stdout
+        mock_analyze.assert_called_once_with(None)
         assert "Models needing execution: 1" in result.stdout
 
-    @patch("dbt_toolbox.cli.analyze.cache_analyzer")
-    def test_analyze_with_upstream_macro_changes(self, mock_analyzer: Mock) -> None:
+    @patch("dbt_toolbox.cli.analyze.analyze_model_statuses")
+    def test_analyze_with_upstream_macro_changes(self, mock_analyze: Mock) -> None:
         """Test analyze command detecting upstream macro changes."""
         # Mock analysis results with upstream changes
-        mock_analysis = Mock()
-        mock_analysis.total_models = 2
-        mock_analysis.models_needing_execution = [
-            CacheAnalysisResult(
-                "affected_model",
-                "upstream_changed",
-                "Upstream macros changed: simple_macro",
-                None,
+        from datetime import datetime, timezone
+
+        mock_affected_model = Mock(spec=Model)
+        mock_affected_model.name = "affected_model"
+        mock_affected_model.last_built = datetime.now(tz=timezone.utc)
+        mock_other_model = Mock(spec=Model)
+        mock_other_model.name = "other_model"
+        mock_other_model.last_built = datetime.now(tz=timezone.utc)
+
+        mock_analyze.return_value = {
+            "affected_model": AnalysisResult(
+                model=mock_affected_model,
+                reason=ExecutionReason.UPSTREAM_MACRO_CHANGED,
             ),
-        ]
-        mock_analysis.failed_models = []
-        mock_analysis.id_mismatch_models = []
-        mock_analysis.outdated_models = []
-        mock_analysis.upstream_changed_models = [
-            CacheAnalysisResult(
-                "affected_model",
-                "upstream_changed",
-                "Upstream macros changed: simple_macro",
-                None,
-            ),
-        ]
-        mock_analysis.valid_models = [
-            CacheAnalysisResult("other_model", "valid", "Cache is up to date", "2 minutes ago"),
-        ]
-        mock_analyzer.analyze_all_models.return_value = mock_analysis
+            "other_model": AnalysisResult(model=mock_other_model),
+        }
 
         cli_runner = CliRunner()
         result = cli_runner.invoke(app, ["analyze"])
 
         assert result.exit_code == 0
-        mock_analyzer.analyze_all_models.assert_called_once_with(None)
-        assert "Upstream Dependencies Changed (1)" in result.stdout
+        mock_analyze.assert_called_once_with(None)
         assert "Models needing execution: 1" in result.stdout
 
 
 class TestCacheAnalyzer:
     """Test the cache analyzer functionality."""
 
-    def test_cache_analysis_result_structure(self) -> None:
-        """Test CacheAnalysisResult structure."""
-        result = CacheAnalysisResult(
-            model_name="test_model",
-            status="valid",
-            issue_description="Cache is up to date",
-            timestamp_info="5 minutes ago",
-        )
-
-        assert result.model_name == "test_model"
-        assert result.status == "valid"
-        assert result.issue_description == "Cache is up to date"
-        assert result.timestamp_info == "5 minutes ago"
-
-    @patch("dbt_toolbox.cli.analyze.dbt_parser")
-    def test_analyze_with_no_models(self, mock_dbt_parser: Mock) -> None:
+    @patch("dbt_toolbox.cli.analyze.analyze_model_statuses")
+    def test_analyze_with_no_models(self, mock_analyze: Mock) -> None:
         """Test analyzing when no models are available."""
-        mock_dbt_parser.models = {}
+        mock_analyze.return_value = {}
 
-        analysis = cache_analyzer.analyze_all_models()
+        cli_runner = CliRunner()
+        result = cli_runner.invoke(app, ["analyze"])
 
-        assert analysis.total_models == 0
-        assert len(analysis.models_needing_execution) == 0
-
-    @patch("dbt_toolbox.cli.analyze.dbt_parser")
-    def test_analyze_with_failed_model_tracking(self, mock_dbt_parser: Mock) -> None:
-        """Test analyzing with failed model tracking."""
-        # Mock a model with last_build_failed = True
-        mock_model = Mock()
-        mock_model.name = "test_model"
-        mock_model.hash = "test_hash"
-        mock_model.last_built = Mock()  # Will be mocked as recent
-        mock_model.last_build_failed = True  # Mark as failed
-        mock_model.is_fresh = True  # This doesn't matter since failed takes precedence
-
-        # Mock upstream dependencies to avoid iteration error
-        mock_upstream = Mock()
-        mock_upstream.models = []  # Empty list to avoid iteration issues
-        mock_upstream.macros = []
-        mock_model.upstream = mock_upstream
-
-        mock_dbt_parser.models = {"test_model": mock_model}
-
-        analysis = cache_analyzer.analyze_all_models()
-
-        # Should detect the failed model
-        assert len(analysis.failed_models) == 1
-        assert analysis.failed_models[0].model_name == "test_model"
-        assert analysis.failed_models[0].status == "failed"
+        assert result.exit_code == 0
+        assert "Total models analyzed: 0" in result.stdout
 
     def test_format_time_delta(self) -> None:
         """Test time delta formatting."""
         from datetime import timedelta
 
+        from dbt_toolbox.cli.analyze import _format_time_delta
+
         # Test seconds
         delta = timedelta(seconds=30)
-        result = cache_analyzer._format_time_delta(delta)
+        result = _format_time_delta(delta)
         assert result == "30 seconds"
 
         # Test minutes
         delta = timedelta(minutes=5, seconds=30)
-        result = cache_analyzer._format_time_delta(delta)
+        result = _format_time_delta(delta)
         assert result == "5 minutes"
 
         # Test hours
         delta = timedelta(hours=2, minutes=30)
-        result = cache_analyzer._format_time_delta(delta)
+        result = _format_time_delta(delta)
         assert result == "2 hours"
 
         # Test days
         delta = timedelta(days=3, hours=5)
-        result = cache_analyzer._format_time_delta(delta)
+        result = _format_time_delta(delta)
         assert result == "3 days"
