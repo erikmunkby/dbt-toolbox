@@ -8,15 +8,14 @@ from typing import Annotated
 import typer
 
 from dbt_toolbox.cli._analyze_columns import analyze_column_references
-from dbt_toolbox.cli._build_analysis import build_analyzer
+from dbt_toolbox.cli._analyze_models import analyze_model_statuses, print_execution_analysis
 from dbt_toolbox.cli._dbt_output_parser import dbt_output_parser
-from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.dbt_parser import dbt_parser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import printer
 
 
-def _validate_lineage_references(models_to_check: list[str] | None = None) -> bool:
+def _validate_lineage_references() -> bool:
     """Validate lineage references for models before execution.
 
     Args:
@@ -31,17 +30,8 @@ def _validate_lineage_references(models_to_check: list[str] | None = None) -> bo
 
     printer.cprint("🔍 Validating lineage references...", color="cyan")
 
-    # Get all models, sources, and seeds
-    models = dbt_parser.models
-    sources = dbt_parser.sources
-    seeds = dbt_parser.seeds
-
-    # Filter models if specific models are requested
-    if models_to_check:
-        models = {name: model for name, model in models.items() if name in models_to_check}
-
     # Perform column analysis
-    analysis = analyze_column_references(models, sources, seeds)
+    analysis = analyze_column_references(dbt_parser.models, dbt_parser.sources, dbt_parser.seeds)
 
     # Check if there are any issues
     if not analysis.non_existent_columns and not analysis.referenced_non_existent_models:
@@ -146,17 +136,14 @@ def execute_dbt_command(base_command: list[str]) -> None:
             combined_output = "".join(captured_output)
             execution_result = dbt_output_parser.parse_output(combined_output)
 
-            # Update build success flags for all models based on execution results
-            all_models = dbt_parser.models  # Get all models to update their build status
-
             # Mark successful models as built successfully
-            if execution_result.successful_models:
-                for model_name in execution_result.successful_models:
-                    if model_name in all_models:
-                        model = all_models[model_name]
-                        model.last_build_failed = False
-                        model.last_built = EXECUTION_TIMESTAMP
-                        dbt_parser.cache.cache_model(model)
+            for model_name, model in dbt_parser.models.items():
+                if model_name in execution_result.successful_models:
+                    model.set_build_successful()
+                    dbt_parser.cache.cache_model(model=model)
+                elif model_name in execution_result.failed_models:
+                    model.set_build_failed()
+                    dbt_parser.cache.cache_model(model=model)
 
             # Handle failed models - mark as failed and clear from cache
             if execution_result.failed_models and return_code != 0:
@@ -164,25 +151,6 @@ def execute_dbt_command(base_command: list[str]) -> None:
                     f"🧹 Marking {len(execution_result.failed_models)} models as failed...",
                     color="yellow",
                 )
-
-                removed_models = []
-                for model_name in execution_result.failed_models:
-                    if model_name in all_models:
-                        model = all_models[model_name]
-                        model.last_build_failed = True
-                        model.last_built = EXECUTION_TIMESTAMP
-                        dbt_parser.cache.cache_model(model)
-
-                    # Also clear the cache to force rebuild next time
-                    if dbt_parser.cache.clear_model_cache(model_name):
-                        removed_models.append(model_name)
-
-                if removed_models:
-                    printer.cprint("   Removed from cache:", color="cyan")
-                    for model in removed_models:
-                        printer.cprint(f"   • {model}", color="bright_black")
-                else:
-                    printer.cprint("   No failed models found in cache", color="bright_black")
 
         # Exit with the same code as dbt
         sys.exit(return_code)
@@ -264,8 +232,8 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
     # Perform intelligent execution analysis (enabled by default)
     if not disable_smart:
         # Analyze which models need execution
-        analyses = build_analyzer.analyze_build_execution(model)
-        build_analyzer.print_execution_analysis(analyses)
+        analyses = analyze_model_statuses(model)
+        print_execution_analysis(analyses)
 
         if analyze_only:
             # Just show analysis and exit
@@ -303,8 +271,8 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
                 dbt_command.extend(["--select", new_selection])
     elif analyze_only:
         # If smart execution is disabled but analyze_only is requested
-        analyses = build_analyzer.analyze_build_execution(model)
-        build_analyzer.print_execution_analysis(analyses, verbose=True)
+        analyses = analyze_model_statuses(model)
+        print_execution_analysis(analyses, verbose=True)
         return
 
     execute_dbt_command(dbt_command)

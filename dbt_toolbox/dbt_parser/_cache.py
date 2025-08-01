@@ -233,7 +233,7 @@ class Cache:
     def _validate_macro_cache(self) -> bool:
         """Check if any macro has changed since last execution."""
         cached_macros = self._cache_macro.read()
-        current_macros = {macro.id for macro in self.macros_list}
+        current_macros = {macro.code_hash for macro in self.macros_list}
         utils.log(
             f"Found {len(cached_macros)} CACHED macros and {len(current_macros)} CURRENT macros.",
         )

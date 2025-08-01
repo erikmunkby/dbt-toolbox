@@ -3,7 +3,7 @@ with customers as (
 ),
 
 orders as (
-    select * from {{ ref("orders") }}
+    select order_id, ordered_at, store_id, subtotal, tax_paid, order_total, customer_id from {{ ref("orders") }}
 ),
 
 customer_orders as (

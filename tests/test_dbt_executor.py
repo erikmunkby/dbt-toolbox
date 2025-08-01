@@ -108,8 +108,8 @@ class TestDbtExecutor:
         assert exc_info.value.code == 130
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    @patch("dbt_toolbox.cli._build_analysis.build_analyzer.analyze_build_execution")
-    @patch("dbt_toolbox.cli._build_analysis.build_analyzer.print_execution_analysis")
+    @patch("dbt_toolbox.cli._dbt_executor.analyze_model_statuses")
+    @patch("dbt_toolbox.cli._dbt_executor.print_execution_analysis")
     @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
     def test_execute_dbt_with_smart_selection_build(
         self,
@@ -122,9 +122,13 @@ class TestDbtExecutor:
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock analysis results showing some models need execution
+        from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
+
         mock_analysis = {
-            "customers": Mock(needs_execution=False),
-            "orders": Mock(needs_execution=True),
+            "customers": AnalysisResult(model=Mock(name="customers")),  # No reason = no execution
+            "orders": AnalysisResult(
+                model=Mock(name="orders"), reason=ExecutionReason.CODE_CHANGED
+            ),
         }
         mock_analyze.return_value = mock_analysis
 
@@ -146,8 +150,8 @@ class TestDbtExecutor:
         assert "orders" in executed_command
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    @patch("dbt_toolbox.cli._build_analysis.build_analyzer.analyze_build_execution")
-    @patch("dbt_toolbox.cli._build_analysis.build_analyzer.print_execution_analysis")
+    @patch("dbt_toolbox.cli._dbt_executor.analyze_model_statuses")
+    @patch("dbt_toolbox.cli._dbt_executor.print_execution_analysis")
     @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
     def test_execute_dbt_with_smart_selection_run(
         self,
@@ -160,9 +164,15 @@ class TestDbtExecutor:
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock analysis results showing all models need execution
+        from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
+
         mock_analysis = {
-            "customers": Mock(needs_execution=True),
-            "orders": Mock(needs_execution=True),
+            "customers": AnalysisResult(
+                model=Mock(name="customers"), reason=ExecutionReason.CODE_CHANGED
+            ),
+            "orders": AnalysisResult(
+                model=Mock(name="orders"), reason=ExecutionReason.CODE_CHANGED
+            ),
         }
         mock_analyze.return_value = mock_analysis
 
@@ -182,7 +192,7 @@ class TestDbtExecutor:
         assert executed_command[:2] == ["dbt", "run"]
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    @patch("dbt_toolbox.cli._build_analysis.build_analyzer.analyze_build_execution")
+    @patch("dbt_toolbox.cli._dbt_executor.analyze_model_statuses")
     @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
     def test_execute_dbt_with_smart_selection_all_cached(
         self,
@@ -194,9 +204,11 @@ class TestDbtExecutor:
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock analysis results showing no models need execution
+        from dbt_toolbox.cli._analyze_models import AnalysisResult
+
         mock_analysis = {
-            "customers": Mock(needs_execution=False),
-            "orders": Mock(needs_execution=False),
+            "customers": AnalysisResult(model=Mock(name="customers")),  # No reason = no execution
+            "orders": AnalysisResult(model=Mock(name="orders")),  # No reason = no execution
         }
         mock_analyze.return_value = mock_analysis
 
@@ -211,7 +223,7 @@ class TestDbtExecutor:
         mock_execute.assert_not_called()
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
-    @patch("dbt_toolbox.cli._build_analysis.build_analyzer.analyze_build_execution")
+    @patch("dbt_toolbox.cli._dbt_executor.analyze_model_statuses")
     def test_execute_dbt_with_smart_selection_disabled(
         self,
         mock_analyze: Mock,
@@ -234,8 +246,8 @@ class TestDbtExecutor:
         assert "--select" in executed_command
         assert "customers+" in executed_command
 
-    @patch("dbt_toolbox.cli._build_analysis.build_analyzer.analyze_build_execution")
-    @patch("dbt_toolbox.cli._build_analysis.build_analyzer.print_execution_analysis")
+    @patch("dbt_toolbox.cli._dbt_executor.analyze_model_statuses")
+    @patch("dbt_toolbox.cli._dbt_executor.print_execution_analysis")
     @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
     def test_execute_dbt_with_smart_selection_analyze_only(
         self,
@@ -246,7 +258,13 @@ class TestDbtExecutor:
         """Test analyze-only mode."""
         # Mock lineage validation to pass
         mock_validate.return_value = True
-        mock_analysis = {"customers": Mock(needs_execution=True)}
+        from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
+
+        mock_analysis = {
+            "customers": AnalysisResult(
+                model=Mock(name="customers"), reason=ExecutionReason.CODE_CHANGED
+            )
+        }
         mock_analyze.return_value = mock_analysis
 
         execute_dbt_with_smart_selection(

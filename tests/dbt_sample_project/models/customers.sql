@@ -9,4 +9,4 @@ cleaned as (
     from source
 )
 
-select * from cleaned
+select customer_id, full_name from cleaned

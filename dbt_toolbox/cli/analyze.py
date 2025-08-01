@@ -1,15 +1,13 @@
 """Analyze command for comprehensive cache analysis without manipulation."""
 
-from dataclasses import dataclass
 from datetime import timedelta
-from typing import Literal, NamedTuple
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from dbt_toolbox.cli._analyze_columns import analyze_column_references
-from dbt_toolbox.cli._build_analysis import BuildAnalyzer, ExecutionReason
+from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason, analyze_model_statuses
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.data_models import Model, Seed, Source
 from dbt_toolbox.dbt_parser.dbt_parser import dbt_parser
@@ -17,230 +15,48 @@ from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import printer
 
 
-class CacheAnalysisResult(NamedTuple):
-    """Result of cache analysis for a model."""
+def _format_time_delta(delta: timedelta) -> str:
+    """Format a time delta in human-readable format.
 
-    model_name: str
-    status: Literal["outdated", "id_mismatch", "failed", "valid", "upstream_changed"]
-    issue_description: str
-    timestamp_info: str | None = None
-    upstream_changes: list[ExecutionReason] | None = None
+    Args:
+        delta: Time delta to format
 
+    Returns:
+        Human-readable time string
 
-@dataclass
-class CacheAnalysis:
-    """Comprehensive cache analysis results."""
+    """
+    total_seconds = int(delta.total_seconds())
 
-    outdated_models: list[CacheAnalysisResult]
-    id_mismatch_models: list[CacheAnalysisResult]
-    failed_models: list[CacheAnalysisResult]
-    upstream_changed_models: list[CacheAnalysisResult]
-    valid_models: list[CacheAnalysisResult]
-
-    @property
-    def total_models(self) -> int:
-        """Total number of models analyzed."""
-        return (
-            len(self.outdated_models)
-            + len(self.id_mismatch_models)
-            + len(self.failed_models)
-            + len(self.upstream_changed_models)
-            + len(self.valid_models)
-        )
-
-    @property
-    def models_needing_execution(self) -> list[CacheAnalysisResult]:
-        """All models that need execution."""
-        return (
-            self.outdated_models
-            + self.id_mismatch_models
-            + self.failed_models
-            + self.upstream_changed_models
-        )
+    if total_seconds < 60:  # noqa: PLR2004
+        return f"{total_seconds} seconds"
+    if total_seconds < 3600:  # noqa: PLR2004
+        minutes = total_seconds // 60
+        return f"{minutes} minutes"
+    if total_seconds < 86400:  # noqa: PLR2004
+        hours = total_seconds // 3600
+        return f"{hours} hours"
+    days = total_seconds // 86400
+    return f"{days} days"
 
 
-class CacheAnalyzer:
-    """Analyzes cache state without manipulating it."""
+def _get_timestamp_info(analysis_result: AnalysisResult) -> str:
+    """Get timestamp info for display purposes.
 
-    def __init__(self) -> None:
-        """Initialize the cache analyzer."""
-        self.build_analyzer = BuildAnalyzer()
+    Args:
+        analysis_result: The AnalysisResult from analyze_model_statuses
 
-    def analyze_all_models(self, model_selection: str | None = None) -> CacheAnalysis:
-        """Analyze all models' cache state.
+    Returns:
+        Human-readable timestamp information
 
-        Args:
-            model_selection: Optional dbt model selection string
+    """
+    model = analysis_result.model
 
-        Returns:
-            Complete cache analysis results
+    if not model.last_built:
+        return "Never built"
 
-        """
-        # Get all models (this will cache them automatically)
-        all_models = dbt_parser.models
-
-        # Get target models
-        if model_selection:
-            target_models = self.build_analyzer.parse_dbt_selection(model_selection)
-            # Filter to only models that exist in the project
-            target_models = target_models.intersection(all_models.keys())
-        else:
-            # Get all models that exist in the project
-            target_models = set(all_models.keys())
-
-        # Initialize result lists
-        outdated_models = []
-        id_mismatch_models = []
-        failed_models = []
-        upstream_changed_models = []
-        valid_models = []
-
-        for model_name in sorted(target_models):
-            model = all_models[model_name]
-            analysis = self._analyze_single_model(model)
-
-            if analysis.status == "outdated":
-                outdated_models.append(analysis)
-            elif analysis.status == "id_mismatch":
-                id_mismatch_models.append(analysis)
-            elif analysis.status == "failed":
-                failed_models.append(analysis)
-            elif analysis.status == "upstream_changed":
-                upstream_changed_models.append(analysis)
-            else:
-                valid_models.append(analysis)
-
-        return CacheAnalysis(
-            outdated_models=outdated_models,
-            id_mismatch_models=id_mismatch_models,
-            failed_models=failed_models,
-            upstream_changed_models=upstream_changed_models,
-            valid_models=valid_models,
-        )
-
-    def _analyze_single_model(self, model: Model) -> CacheAnalysisResult:
-        """Analyze a single model's cache state.
-
-        Args:
-            model: The model to analyze
-
-        Returns:
-            Cache analysis result for the model
-
-        """
-        # Check if model build failed (last_build_failed = True)
-        if model.last_build_failed is True:
-            return CacheAnalysisResult(
-                model_name=model.name,
-                status="failed",
-                issue_description="Model failed in last execution and needs re-run",
-                timestamp_info=None,
-            )
-
-        # Check if model was never built (last_built = None)
-        if model.last_built is None:
-            return CacheAnalysisResult(
-                model_name=model.name,
-                status="outdated",
-                issue_description="Model has never been built",
-                timestamp_info=None,
-            )
-
-        # Check if model is not fresh (using the is_fresh property)
-        if not model.is_fresh:
-            age_delta = EXECUTION_TIMESTAMP - model.last_built
-            age_description = self._format_time_delta(age_delta)
-
-            return CacheAnalysisResult(
-                model_name=model.name,
-                status="outdated",
-                issue_description=f"Cache is older than {settings.cache_validity_minutes} minutes",
-                timestamp_info=f"Last updated: {age_description} ago",
-            )
-
-        # Check for upstream changes (models and macros)
-        upstream_changes = []
-
-        # Check upstream models
-        changed_upstream_models = self.build_analyzer.upstream_models_changed(model)
-        if changed_upstream_models:
-            upstream_changes.append(
-                ExecutionReason(
-                    code="UPSTREAM_MODELS_CHANGED",
-                    description=f"Upstream models changed: {', '.join(changed_upstream_models)}",
-                ),
-            )
-
-        # Check upstream macros
-        changed_upstream_macros = self.build_analyzer.upstream_macros_changed(model)
-        if changed_upstream_macros:
-            upstream_changes.append(
-                ExecutionReason(
-                    code="UPSTREAM_MACROS_CHANGED",
-                    description=f"Upstream macros changed: {', '.join(changed_upstream_macros)}",
-                ),
-            )
-
-        if upstream_changes:
-            change_descriptions = [reason.description for reason in upstream_changes]
-            return CacheAnalysisResult(
-                model_name=model.name,
-                status="upstream_changed",
-                issue_description="; ".join(change_descriptions),
-                timestamp_info=None,
-                upstream_changes=upstream_changes,
-            )
-
-        # Model cache is valid
-        age_delta = EXECUTION_TIMESTAMP - model.last_built
-        age_description = self._format_time_delta(age_delta)
-
-        return CacheAnalysisResult(
-            model_name=model.name,
-            status="valid",
-            issue_description="Cache is up to date",
-            timestamp_info=f"Last updated: {age_description} ago",
-        )
-
-    def _is_model_failed(self, model_name: str) -> bool:
-        """Check if a model is marked as failed.
-
-        Args:
-            model_name: Name of the model to check
-
-        Returns:
-            True if model is marked as failed
-
-        """
-        # Check if model has last_build_failed flag set to True (failed)
-        # None = never attempted, False = successful, True = failed
-        model = dbt_parser.models.get(model_name)
-        if model:
-            return model.last_build_failed is True
-        return False
-
-    def _format_time_delta(self, delta: timedelta) -> str:
-        """Format a time delta in human-readable format.
-
-        Args:
-            delta: Time delta to format
-
-        Returns:
-            Human-readable time string
-
-        """
-        total_seconds = int(delta.total_seconds())
-
-        if total_seconds < 60:  # noqa: PLR2004
-            return f"{total_seconds} seconds"
-        if total_seconds < 3600:  # noqa: PLR2004
-            minutes = total_seconds // 60
-            return f"{minutes} minutes"
-        if total_seconds < 86400:  # noqa: PLR2004
-            hours = total_seconds // 3600
-            return f"{hours} hours"
-        days = total_seconds // 86400
-        return f"{days} days"
+    age_delta = EXECUTION_TIMESTAMP - model.last_built
+    age_description = _format_time_delta(age_delta)
+    return f"Last updated: {age_description} ago"
 
 
 def print_column_analysis_results(
@@ -344,22 +160,28 @@ def print_column_analysis_results(
         print()  # noqa: T201 blankline
 
 
-def print_analysis_results(analysis: CacheAnalysis) -> None:
+def print_analysis_results(analysis_results: dict[str, AnalysisResult]) -> None:
     """Print cache analysis results in a formatted way.
 
     Args:
-        analysis: Cache analysis results to print
+        analysis_results: Dictionary of model analysis results from analyze_model_statuses
 
     """
     console = Console()
 
+    # Separate into categories
+    models_needing_execution = [
+        result for result in analysis_results.values() if result.needs_execution
+    ]
+    valid_models = [result for result in analysis_results.values() if not result.needs_execution]
+
     # Header
     printer.cprint("🔍 Cache Analysis Results", color="cyan")
-    printer.cprint(f"Total models analyzed: {analysis.total_models}", color="nocolor")
+    printer.cprint(f"Total models analyzed: {len(analysis_results)}", color="nocolor")
 
-    if analysis.models_needing_execution:
+    if models_needing_execution:
         printer.cprint(
-            f"Models needing execution: {len(analysis.models_needing_execution)}",
+            f"Models needing execution: {len(models_needing_execution)}",
             color="yellow",
         )
     else:
@@ -367,78 +189,57 @@ def print_analysis_results(analysis: CacheAnalysis) -> None:
 
     print()  # noqa: T201 blankline
 
-    # Failed models section
-    if analysis.failed_models:
-        printer.cprint(f"❌ Failed Models ({len(analysis.failed_models)}):", color="red")
-        table = Table(show_header=True, header_style="bold red")
-        table.add_column("Model", style="red")
-        table.add_column("Issue", style="white")
-
-        for result in analysis.failed_models:
-            table.add_row(result.model_name, result.issue_description)
-
-        console.print(table)
-        print()  # noqa: T201 blankline
-
-    # ID mismatch models section
-    if analysis.id_mismatch_models:
-        printer.cprint(f"🔄 Modified Models ({len(analysis.id_mismatch_models)}):", color="yellow")
-        table = Table(show_header=True, header_style="bold yellow")
-        table.add_column("Model", style="yellow")
-        table.add_column("Issue", style="white")
-
-        for result in analysis.id_mismatch_models:
-            table.add_row(result.model_name, result.issue_description)
-
-        console.print(table)
-        print()  # noqa: T201 blankline
-
-    # Upstream changed models section
-    if analysis.upstream_changed_models:
+    # Models needing execution section (combined table)
+    if models_needing_execution:
         printer.cprint(
-            f"🔗 Upstream Dependencies Changed ({len(analysis.upstream_changed_models)}):",
+            f"🔧 Models Needing Execution ({len(models_needing_execution)}):",
             color="yellow",
         )
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Model", style="magenta")
-        table.add_column("Upstream Changes", style="white")
+        table = Table(show_header=True, header_style="bold yellow")
+        table.add_column("Model", style="white")
+        table.add_column("Issue", style="white")
+        table.add_column("Info", style="cyan")
 
-        for result in analysis.upstream_changed_models:
-            table.add_row(result.model_name, result.issue_description)
+        for result in models_needing_execution:
+            # Color code the model name based on issue type
+            if result.reason == ExecutionReason.LAST_EXECUTION_FAILED:
+                model_style = "red"
+            elif result.reason == ExecutionReason.CODE_CHANGED:
+                model_style = "yellow"
+            elif result.reason in [
+                ExecutionReason.UPSTREAM_MODEL_CHANGED,
+                ExecutionReason.UPSTREAM_MACRO_CHANGED,
+            ]:
+                model_style = "magenta"
+            else:  # outdated
+                model_style = "blue"
+
+            # Get issue description with special handling for outdated models
+            if result.reason == ExecutionReason.OUTDATED_MODEL:
+                issue_description = (
+                    f"Cache is older than {settings.cache_validity_minutes} minutes"
+                )
+            else:
+                issue_description = result.reason_description
+
+            table.add_row(
+                f"[{model_style}]{result.model.name}[/{model_style}]",
+                issue_description,
+                _get_timestamp_info(result),
+            )
 
         console.print(table)
         print()  # noqa: T201 blankline
 
-    # Outdated models section
-    if analysis.outdated_models:
-        printer.cprint(f"⏰ Outdated Models ({len(analysis.outdated_models)}):", color="cyan")
-        table = Table(show_header=True, header_style="bold blue")
-        table.add_column("Model", style="blue")
-        table.add_column("Issue", style="white")
-        table.add_column("Age", style="cyan")
-
-        for result in analysis.outdated_models:
-            table.add_row(
-                result.model_name,
-                result.issue_description,
-                result.timestamp_info or "N/A",
-            )
-
-        console.print(table)
-
     # Valid models section (only show count unless verbose)
-    if analysis.valid_models:
-        printer.cprint(f"✅ Valid Models ({len(analysis.valid_models)}):", color="green")
+    if valid_models:
+        printer.cprint(f"✅ Valid Models ({len(valid_models)}):", color="green")
         # Just show a summary for valid models to keep output clean
-        for result in analysis.valid_models:
+        for result in valid_models:
             printer.cprint(
-                f"   • {result.model_name} - {result.timestamp_info}",
+                f"   • {result.model.name} - {_get_timestamp_info(result)}",
                 color="bright_black",
             )
-
-
-# Global analyzer instance
-cache_analyzer = CacheAnalyzer()
 
 
 def analyze_command(
@@ -458,11 +259,11 @@ def analyze_command(
     """
     printer.cprint("🔍 Analyzing model cache state and column references...", color="cyan")
 
-    # Perform cache analysis
-    analysis = cache_analyzer.analyze_all_models(model)
+    # Perform cache analysis using the new analyze_model_statuses function
+    analysis_results = analyze_model_statuses(model)
 
     # Print cache analysis results
-    print_analysis_results(analysis)
+    print_analysis_results(analysis_results)
 
     # Perform column analysis on available models, sources, and seeds
     models = dbt_parser.models
@@ -471,16 +272,19 @@ def analyze_command(
 
     # Filter models if selection is provided
     if model:
-        target_models = cache_analyzer.build_analyzer.parse_dbt_selection(model)
+        target_models = dbt_parser.parse_dbt_selection(model)
         models = {name: model_obj for name, model_obj in models.items() if name in target_models}
 
     # Print column analysis results
     print_column_analysis_results(models, sources, seeds)
 
     # Summary
-    if analysis.models_needing_execution:
+    models_needing_execution = sum(
+        1 for result in analysis_results.values() if result.needs_execution
+    )
+    if models_needing_execution:
         printer.cprint(
-            f"\n💡 Tip: Run 'dt build' to execute the {len(analysis.models_needing_execution)} "
+            f"\n💡 Tip: Run 'dt build' to execute the {models_needing_execution} "
             "models that need updates.",
             color="cyan",
         )

@@ -110,11 +110,12 @@ This module is NOT tests for the project itself, but helper functions for users 
 **`dt analyze`** - Cache state analysis
 - Analyzes model cache state without manipulating it
 - Shows outdated models, ID mismatches, and failed models that need re-execution
-- Supports model selection with dbt syntax (`--model`, `--select`)
+- `--model/-m/-s/--select` - Analyze specific models (dbt selection syntax)
 - Provides detailed cache validity status and dependency analysis
 
 **`dt clean`** - Cache management
 - Clears all cached data with detailed reporting of removed files
+- `--models/-m` - Clean specific models from cache (comma-separated), if not provided cleans entire cache
 - Shows cache statistics and cleanup results
 
 **`dt settings`** - Configuration inspection
@@ -140,11 +141,16 @@ This module is NOT tests for the project itself, but helper functions for users 
 ## Configuration
 
 ### Environment Variables
+**`dbt` variables**
 - `DBT_PROJECT_DIR` - Override dbt project directory
+- `DBT_PROFILES_DIR` - Custom dbt profiles directory
+
+**`dbt-toolbox` variables**
 - `DBT_TOOLBOX_DEBUG` - Enable debug logging
 - `DBT_TOOLBOX_CACHE_PATH` - Custom cache directory
 - `DBT_TOOLBOX_SKIP_PLACEHOLDER` - Skip placeholder descriptions
 - `DBT_TOOLBOX_PLACEHOLDER_DESCRIPTION` - Custom placeholder text
+- `DBT_TOOLBOX_CACHE_VALIDITY_MINUTES` - Cache validity in minutes (default: 1440)
 - `DBT_TOOLBOX_ENFORCE_LINEAGE_VALIDATION` - Enable/disable lineage validation (default: true)
 
 ### TOML Configuration (`pyproject.toml`)
@@ -153,16 +159,19 @@ This module is NOT tests for the project itself, but helper functions for users 
 dbt_project_dir = "tests/dbt_sample_project"
 debug = false
 cache_path = ".dbt_toolbox"
+dbt_profiles_dir = "path/to/profiles"
 skip_placeholder = false
 placeholder_description = "TODO: PLACEHOLDER"
+cache_validity_minutes = 1440
 enforce_lineage_validation = true
 ```
 
 ### Settings Precedence
 1. Environment variables (highest priority)
 2. TOML file configuration
-3. dbt profiles.yml (for SQL dialect)
-4. Default values (lowest priority)
+3. Auto-detected values (for dbt_project_dir)
+4. dbt profiles.yml (for SQL dialect)
+5. Default values (lowest priority)
 
 ## General instructions
 

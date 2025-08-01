@@ -30,7 +30,7 @@ class MacroBase:
         return "{% test" in self.raw_code or "{%- test" in self.raw_code
 
     @property
-    def id(self) -> str:
+    def code_hash(self) -> str:
         """Get id as name+hash of macro."""
         return self.name + md5(self.raw_code.encode()).hexdigest()[:5]  # noqa: S324
 
@@ -67,7 +67,7 @@ class ModelBase:
     raw_code: str
 
     @property
-    def hash(self) -> str:
+    def code_hash(self) -> str:
         """Get a model's hash based on name and code."""
         return self.name + md5(self.raw_code.encode()).hexdigest()[:5]  # noqa: S324
 
@@ -152,9 +152,25 @@ class Model(ModelBase):
     # Flag indicating whether the most recent build was successful
     # None = never attempted, True = successful, False = failed
     last_build_failed: bool | None = None
+    # Will be set when we discover code hash differences
+    code_changed: bool = False
+    # Will be set when we discover upstream macro changes
+    upstream_macros_changed: bool = False
+
+    def set_build_successful(self) -> None:
+        """Flag that the model built and everything is fresh."""
+        self.last_built = EXECUTION_TIMESTAMP
+        self.last_build_failed = False
+        self.code_changed = False
+        self.upstream_macros_changed = False
+
+    def set_build_failed(self) -> None:
+        """Flag the model as last build failed."""
+        self.last_built = EXECUTION_TIMESTAMP
+        self.last_build_failed = True
 
     @property
-    def _cache_timed_out(self) -> bool:
+    def cache_outdated(self) -> bool:
         """Check whether the cache has timed out or not."""
         if self.last_built is None:
             return True
@@ -173,12 +189,14 @@ class Model(ModelBase):
 
         """
         # Check if build was successful (None = never built, False = failed)
-        if self.last_build_failed is None or self.last_built is None:
-            return False
-        if self.last_build_failed:
-            return False
-
-        return not self._cache_timed_out
+        return not (
+            self.last_build_failed is None
+            or self.last_built is None
+            or self.last_build_failed
+            or self.code_changed
+            or self.cache_outdated
+            or self.upstream_macros_changed
+        )
 
     @cached_property
     def final_columns(self) -> list[str]:
