@@ -2,7 +2,7 @@
 
 from typing import TypedDict
 
-from dbt_toolbox.dbt_parser.dbt_parser import dbt_parser
+from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
 
 
 class ColumnDocumentationResult(TypedDict):
@@ -27,7 +27,7 @@ def check_column_documentation() -> dict[str, ColumnDocumentationResult]:
     """
     results = {}
 
-    for model_name, model in dbt_parser.models.items():
+    for model_name, model in dbtParser().models.items():
         # Only include models that have documentation issues
         if model.columns_missing_description or model.superfluent_column_descriptions:
             results[model_name] = ColumnDocumentationResult(

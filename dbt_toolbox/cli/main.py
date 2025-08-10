@@ -2,11 +2,13 @@
 
 import typer
 
+from dbt_toolbox.cli._common_options import Target
 from dbt_toolbox.cli.analyze import analyze_command
 from dbt_toolbox.cli.build import build
 from dbt_toolbox.cli.clean import clean
 from dbt_toolbox.cli.docs import docs
 from dbt_toolbox.cli.run import run
+from dbt_toolbox.run_config import RunConfig
 from dbt_toolbox.settings import settings
 
 app = typer.Typer(help="dbt-toolbox CLI - Tools for working with dbt projects")
@@ -20,14 +22,17 @@ app.command(name="analyze")(analyze_command)
 
 
 @app.command(name="settings")
-def settings_cmd() -> None:
+def settings_cmd(target: str = Target) -> None:
     """Show all found settings and their sources."""
-    settings_sources = settings.get_all_settings_with_sources()
-
     typer.secho("dbt-toolbox Settings:", fg=typer.colors.BRIGHT_CYAN, bold=True)
     typer.secho("=" * 50, fg=typer.colors.CYAN)
 
-    for setting_name, source_info in settings_sources.items():
+    all_settings = {
+        **settings.get_all_settings_with_sources(),
+        **RunConfig(target=target).get_all_config_with_sources(),
+    }
+
+    for setting_name, source_info in all_settings.items():
         typer.echo()
         typer.secho(f"{setting_name}:", fg=typer.colors.BRIGHT_WHITE, bold=True)
 

@@ -2,16 +2,13 @@
 
 import re
 from functools import cached_property
+from pathlib import Path
 
 import yamlium
-from jinja2.nodes import Call, Output
-from sqlglot import ParseError, parse_one
-from sqlglot.optimizer import optimize
+from sqlglot import ParseError
 
-from dbt_toolbox.column_resolver import resolve_column_lineage
 from dbt_toolbox.data_models import (
     ColDocs,
-    DependsOn,
     Macro,
     MacroBase,
     Model,
@@ -20,90 +17,50 @@ from dbt_toolbox.data_models import (
     Source,
     YamlDocs,
 )
+from dbt_toolbox.dbt_parser._builders import _build_macro, _build_model
 from dbt_toolbox.dbt_parser._cache import Cache, cache
 from dbt_toolbox.dbt_parser._file_fetcher import read_macros, read_models
-from dbt_toolbox.dbt_parser._jinja_handler import jinja
+from dbt_toolbox.dbt_parser._jinja_handler import Jinja
 from dbt_toolbox.graph.dependency_graph import DependencyGraph
+from dbt_toolbox.run_config import RunConfig
 from dbt_toolbox.settings import settings
-from dbt_toolbox.utils import printer, utils
-
-
-def _build_macro(m: MacroBase, /) -> Macro:
-    """Build a complete Macro object from a MacroBase.
-
-    Args:
-        m: Base macro containing name, path, and raw code.
-
-    Returns:
-        Complete Macro object with execution timestamp.
-
-    """
-    return Macro(
-        source=m.source,
-        file_name=m.file_name,
-        name=m.name,
-        raw_code=m.raw_code,
-        macro_path=m.macro_path,
-    )
-
-
-def _build_model(m: ModelBase, /) -> Model:
-    """Build a complete Model object from a ModelBase.
-
-    Parses Jinja templates to extract dependencies, renders the code,
-    and creates optimized SQL representations.
-
-    Args:
-        m: Base model containing name, path, and raw code.
-
-    Returns:
-        Complete Model object with dependencies and SQL parsing.
-
-    Raises:
-        NotImplementedError: If source() calls are found (not yet supported).
-
-    """
-    deps = DependsOn()
-    for obj in jinja.parse(m.raw_code).body:
-        if not isinstance(obj, Output):
-            continue
-        for node in obj.nodes:
-            if isinstance(node, Call):
-                node_name: str = node.node.name  # type: ignore
-                # When we find {{ ref() }}
-                if node_name == "ref":
-                    deps.models.append(node.args[0].value)  # type: ignore
-                # When we find {{ source() }}
-                elif node_name == "source":
-                    min_source_args = 2  # source('source_name', 'table_name')
-                    if len(node.args) >= min_source_args:
-                        source_name = node.args[0].value  # type: ignore
-                        table_name = node.args[1].value  # type: ignore
-                        deps.sources.append(f"{source_name}__{table_name}")
-                # When we find any other e.g. {{ my_macro() }}
-                else:
-                    deps.macros.append(node_name)
-    rendered_code = jinja.render(m.raw_code)
-    glot_code = parse_one(rendered_code, dialect=settings.sql_dialect)  # type: ignore
-    try:
-        optimized_glot_code = optimize(glot_code, dialect=settings.sql_dialect)
-    except:  # noqa: E722
-        optimized_glot_code = None
-
-    return Model(
-        name=m.name,
-        raw_code=m.raw_code,
-        path=m.path,
-        rendered_code=rendered_code,
-        upstream=deps,
-        glot_code=glot_code,  # type: ignore
-        optimized_glot_code=optimized_glot_code,  # type: ignore
-        column_references=resolve_column_lineage(glot_code),
-    )
+from dbt_toolbox.utils import cprint, list_files
 
 
 class dbtParser:  # noqa: N801
     """dbt parser class."""
+
+    def __init__(self, target: str | None = None) -> None:
+        """Instantiate the dbt parser using the dbt profile."""
+        self.run_config = RunConfig(target=target)
+        self.jinja = Jinja(profile=self.run_config.dbt_profile)
+
+    @cached_property
+    def docs_macros_paths(self) -> list[Path]:
+        """Get a list of all docs macros paths."""
+        return [
+            path
+            for docs_path in settings.dbt_project.docs_paths
+            for path in list_files(docs_path, file_suffix=".md")
+        ]
+
+    @cached_property
+    def model_paths(self) -> list[Path]:
+        """Get a list of all model paths."""
+        return [
+            path
+            for model_path in settings.dbt_project.model_paths
+            for path in list_files(model_path, [".sql"])
+        ]
+
+    @cached_property
+    def model_yaml_paths(self) -> list[Path]:
+        """Get a list of all model yaml paths."""
+        return [
+            path
+            for model_path in settings.dbt_project.model_paths
+            for path in list_files(model_path, [".yml", ".yaml"])
+        ]
 
     @property
     def cache(self) -> Cache:
@@ -114,7 +71,7 @@ class dbtParser:  # noqa: N801
     def yaml_docs(self) -> dict[str, YamlDocs]:
         """Get the yaml documentation for all models."""
         result = {}
-        for path in utils.model_yaml_paths:
+        for path in self.model_yaml_paths:
             models: list[dict] = yamlium.parse(path).to_dict().get("models", [])  # type: ignore
             for m in models:
                 result[m["name"]] = YamlDocs(
@@ -131,7 +88,7 @@ class dbtParser:  # noqa: N801
     def sources(self) -> dict[str, Source]:
         """Get all sources defined in the project."""
         result = {}
-        for path in utils.model_yaml_paths:
+        for path in self.model_yaml_paths:
             sources: list[dict] = yamlium.parse(path).to_dict().get("sources", [])  # type: ignore
             for source in sources:
                 source_name = source["name"]
@@ -154,10 +111,9 @@ class dbtParser:  # noqa: N801
     def seeds(self) -> dict[str, Seed]:
         """Get all seeds (CSV files) defined in the project."""
         result = {}
-        dbt_project = utils.dbt_project
         project_dir = settings.dbt_project_dir
 
-        for seed_path in dbt_project.seed_paths:
+        for seed_path in settings.dbt_project.seed_paths:
             seed_dir = project_dir / seed_path
             if seed_dir.exists():
                 for csv_file in seed_dir.glob("*.csv"):
@@ -173,7 +129,7 @@ class dbtParser:  # noqa: N801
         """Get all docs macros."""
         pattern = re.compile(r"{%\s*docs\s+(\w+)\s*%}\s*(.*?)\s*{%\s*enddocs\s*%}", re.DOTALL)
         result = {}
-        for p in utils.docs_macros_paths:
+        for p in self.docs_macros_paths:
             for match in pattern.findall(p.read_text()):
                 result[match[0]] = match[1].strip()
         return result
@@ -198,9 +154,11 @@ class dbtParser:  # noqa: N801
             return cached_model
         # Model was not found in cache or has changed, build and cache it
         try:
-            built_model = _build_model(raw_model)
+            built_model = _build_model(
+                raw_model, jinja=self.jinja, sql_dialect=self.run_config.sql_dialect
+            )
         except ParseError:
-            printer.cprint(
+            cprint(
                 "Failed to parse model",
                 model_name,
                 highlight_idx=1,
@@ -234,7 +192,7 @@ class dbtParser:  # noqa: N801
         for name in self.list_raw_models:
             model = self.get_model(name)
             if not model:
-                printer.cprint(
+                cprint(
                     "Model not found: " + name,
                     highlight_idx=1,
                     color="yellow",
@@ -394,6 +352,3 @@ class dbtParser:  # noqa: N801
                 target_models.add(sel)
 
         return target_models
-
-
-dbt_parser = dbtParser()

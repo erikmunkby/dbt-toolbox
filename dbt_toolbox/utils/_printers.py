@@ -3,6 +3,9 @@
 from typing import Literal
 
 import typer
+from loguru import logger
+
+from dbt_toolbox.settings import settings
 
 
 def _red(text: str, /) -> str:
@@ -55,3 +58,20 @@ def cprint(
                 else t,
             )
     typer.echo(" ".join(colored_texts), color=True)
+
+
+def log(msg: str, level: Literal["INFO", "DEBUG", "WARN"] = "DEBUG") -> None:
+    """Log a message at the specified level.
+
+    Args:
+        msg: Message to log.
+        level:  Log level (INFO, DEBUG, WARN). DEBUG messages only show
+                when debug mode is enabled in settings.
+
+    """
+    if settings.debug and level == "DEBUG":
+        logger.debug(msg)
+    elif level == "INFO":
+        logger.info(msg)
+    elif level == "WARN":
+        logger.warning(msg)

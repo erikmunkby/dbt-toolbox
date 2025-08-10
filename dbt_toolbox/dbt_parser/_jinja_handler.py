@@ -1,14 +1,15 @@
 """Module for the jinja environment builder."""
 
 import pickle
-from functools import cached_property
 from typing import Any, Literal
 
 from jinja2 import Environment, FileSystemBytecodeCache, FileSystemLoader
 from jinja2.nodes import Template
 
+from dbt_toolbox import utils
 from dbt_toolbox.constants import CUSTOM_MACROS, TABLE_REF_SEP
-from dbt_toolbox.utils import utils
+from dbt_toolbox.data_models import DbtProfile
+from dbt_toolbox.settings import settings
 
 from ._cache import cache
 
@@ -105,7 +106,7 @@ def _load_sorted_macro_dict() -> dict[str, str]:
     return result
 
 
-def _get_base_env() -> Environment:
+def _get_base_env(profile: DbtProfile) -> Environment:
     """Create base Jinja environment with dbt dummy functions.
 
     Sets up the core Jinja environment with necessary extensions,
@@ -115,7 +116,7 @@ def _get_base_env() -> Environment:
         Configured Jinja Environment with dbt compatibility.
 
     """
-    bytecode_cache = FileSystemBytecodeCache(str(utils.path("jinja_env")))
+    bytecode_cache = FileSystemBytecodeCache(str(utils.build_path("jinja_env")))
     env = Environment(
         extensions=["jinja2.ext.do"],
         loader=FileSystemLoader("templates"),
@@ -129,11 +130,11 @@ def _get_base_env() -> Environment:
         "config": _config,
         "return": _return,
         "run_query": _run_query,
-        "target": utils.dbt_profile,
+        "target": profile,
         "adapter": DummyAdapter(),
     }
     env.globals.update(_dummy_functions)
-    dbt_vars = VarsFetcher(utils.dbt_project.rendered_parse(env).get("vars", {}))  # type: ignore
+    dbt_vars = VarsFetcher(settings.dbt_project.rendered_parse(env).get("vars", {}))  # type: ignore
     env.globals.update(
         {
             "var": dbt_vars,
@@ -142,7 +143,7 @@ def _get_base_env() -> Environment:
     return env
 
 
-def _build_jinja_env() -> Environment:
+def _build_jinja_env(profile: DbtProfile) -> Environment:
     """Build complete Jinja environment with macros.
 
     Creates the full environment by loading the base setup and then
@@ -152,7 +153,7 @@ def _build_jinja_env() -> Environment:
         Complete Jinja Environment ready for rendering dbt models.
 
     """
-    env = _get_base_env()
+    env = _get_base_env(profile=profile)
     for source, macro_string in _load_sorted_macro_dict().items():
         modules = env.from_string(macro_string).module.__dict__
         if source == CUSTOM_MACROS:  # If they are custom macros, add them to global
@@ -165,10 +166,8 @@ def _build_jinja_env() -> Environment:
 class Jinja:
     """Jinja class holder."""
 
-    @cached_property
-    def env(self) -> Environment:
-        """The jinja environment."""
-        return _build_jinja_env()
+    def __init__(self, profile: DbtProfile | None = None) -> None:
+        self.env = _build_jinja_env(profile=profile if profile else DbtProfile())
 
     def render(self, sql: str) -> str:
         """Render a model using macros."""
@@ -177,6 +176,3 @@ class Jinja:
     def parse(self, sql: str) -> Template:
         """Parse a model into jinja tree."""
         return self.env.parse(sql)
-
-
-jinja = Jinja()

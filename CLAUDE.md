@@ -175,7 +175,10 @@ enforce_lineage_validation = true
 
 ## General instructions
 
-- Always run `ruff check --fix --unsafe-fixes` after every finished implementation.
+- After building any implementations, run the following command: `make fix`.
 - When running tests, use `uv run pytest -x`
 - When building complex return statements, instead build a dataclass.
 - Never run code in notebooks when testing, instead either build tests or run as `python -c `.
+- When implementing new features always do the following:
+  1. Implement a minimal test (if one not already exists).
+  2. Implement minimal amount of code for the test to succeed.

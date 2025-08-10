@@ -2,7 +2,11 @@
 
 import sqlglot
 
-from dbt_toolbox.column_resolver import ColumnReference, TableType, resolve_column_lineage
+from dbt_toolbox.dbt_parser._column_resolver import (
+    ColumnReference,
+    TableType,
+    resolve_column_lineage,
+)
 
 
 def _convert_to_legacy_dict(column_refs: list[ColumnReference]) -> dict[str, str | None]:

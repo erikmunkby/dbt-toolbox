@@ -6,10 +6,11 @@ from typing import Annotated
 import typer
 import yamlium
 
+from dbt_toolbox.cli._common_options import Target
 from dbt_toolbox.data_models import ColumnChanges
-from dbt_toolbox.dbt_parser import dbt_parser
+from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
-from dbt_toolbox.utils import printer
+from dbt_toolbox.utils import _printers
 
 _DESC = "description"
 _NAME = "name"
@@ -18,13 +19,15 @@ _NAME = "name"
 class YamlBuilder:
     """Builder for generating and updating dbt model YAML documentation."""
 
-    def __init__(self, model_name: str) -> None:
+    def __init__(self, model_name: str, dbt_parser: dbtParser) -> None:
         """Initialize the YAML builder for a specific model.
 
         Args:
             model_name: Name of the dbt model to build docs for.
+            dbt_parser: The dbt parser instance to use.
 
         """
+        self.dbt_parser = dbt_parser
         self.model = dbt_parser.models[model_name]
         self.idx, yml = self.model.load_model_yaml  # type: ignore
         if yml is None:
@@ -52,23 +55,23 @@ class YamlBuilder:
             return self.yaml_docs[col]
 
         # Macro docs
-        if col in dbt_parser.column_macro_docs:
+        if col in self.dbt_parser.column_macro_docs:
             return {_NAME: col, _DESC: f"\"{{{{ doc('{col}') }}}}\""}
         # Upstream model docs
         for upstream_model in self.model.upstream.models:
-            if upstream_model not in dbt_parser.models:
+            if upstream_model not in self.dbt_parser.models:
                 # This happens when upstream model is a seed.
                 # TODO: Build support for seed docs.
                 continue
-            for upstream_col in dbt_parser.models[upstream_model].column_descriptions:
+            for upstream_col in self.dbt_parser.models[upstream_model].column_descriptions:
                 if col == upstream_col.name:
                     return {_NAME: col, _DESC: upstream_col.description}  # type: ignore
 
         # Upstream source docs
         for upstream_source in self.model.upstream.sources:
-            if upstream_source not in dbt_parser.sources:
+            if upstream_source not in self.dbt_parser.sources:
                 continue
-            for upstream_col in dbt_parser.sources[upstream_source].columns:
+            for upstream_col in self.dbt_parser.sources[upstream_source].columns:
                 if col == upstream_col.name and upstream_col.description:
                     return {_NAME: col, _DESC: upstream_col.description}
         if settings.skip_placeholders:
@@ -135,14 +138,14 @@ class YamlBuilder:
             yml = yamlium.from_dict({"models": [self.yml]}).to_yaml()
             process = subprocess.Popen(args="pbcopy", stdin=subprocess.PIPE)
             process.communicate(input=yml.encode())
-            printer.cprint(yml)
-            printer.cprint("Also exists in your clipboard (cmd+V)", color="green")
+            _printers.cprint(yml)
+            _printers.cprint("Also exists in your clipboard (cmd+V)", color="green")
         else:
             # Check if any changes were made
             has_changes = changes.added or changes.removed or changes.reordered
 
             if not has_changes:
-                printer.cprint(
+                _printers.cprint(
                     "ℹ️  No column changes detected for model",  # noqa: RUF001
                     self.model.name,
                     highlight_idx=1,
@@ -158,9 +161,9 @@ class YamlBuilder:
             if changes.reordered:
                 change_messages.append("Column order changed")
 
-            printer.cprint("✅ updated model", self.model.name, highlight_idx=1)
+            _printers.cprint("✅ updated model", self.model.name, highlight_idx=1)
             for msg in change_messages:
-                printer.cprint(f"   {msg}", color="cyan")
+                _printers.cprint(f"   {msg}", color="cyan")
 
             self.model.update_model_yaml(self.yml)
 
@@ -182,12 +185,14 @@ def docs(
             help="Copy output to clipboard",
         ),
     ] = False,
+    target: str | None = Target,
 ) -> None:
     """Generate documentation for a specific dbt model.
 
     This is a typer command configured in cli/main.py.
     """
+    dbt_parser = dbtParser(target=target)
     if model not in dbt_parser.models:
-        printer.cprint("model", model, "not found", highlight_idx=1, color="red")
+        _printers.cprint("model", model, "not found", highlight_idx=1, color="red")
         raise typer.Exit(1)
-    YamlBuilder(model).build(print_only=clipboard)
+    YamlBuilder(model, dbt_parser).build(print_only=clipboard)

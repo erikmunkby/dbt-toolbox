@@ -9,16 +9,18 @@ import typer
 
 from dbt_toolbox.cli._analyze_columns import analyze_column_references
 from dbt_toolbox.cli._analyze_models import analyze_model_statuses, print_execution_analysis
+from dbt_toolbox.cli._common_options import Target
 from dbt_toolbox.cli._dbt_output_parser import dbt_output_parser
-from dbt_toolbox.dbt_parser import dbt_parser
+from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
-from dbt_toolbox.utils import printer
+from dbt_toolbox.utils import _printers
 
 
-def _validate_lineage_references() -> bool:
+def _validate_lineage_references(dbt_parser: dbtParser) -> bool:
     """Validate lineage references for models before execution.
 
     Args:
+        dbt_parser: The dbt parser object.
         models_to_check: List of model names to validate. If None, validates all models.
 
     Returns:
@@ -28,7 +30,7 @@ def _validate_lineage_references() -> bool:
     if not settings.enforce_lineage_validation:
         return True
 
-    printer.cprint("🔍 Validating lineage references...", color="cyan")
+    _printers.cprint("🔍 Validating lineage references...", color="cyan")
 
     # Perform column analysis
     analysis = analyze_column_references(dbt_parser.models, dbt_parser.sources, dbt_parser.seeds)
@@ -38,16 +40,16 @@ def _validate_lineage_references() -> bool:
         return True
 
     # Print validation errors
-    printer.cprint("❌ Lineage validation failed!", color="red")
+    _printers.cprint("❌ Lineage validation failed!", color="red")
     print()  # noqa: T201
 
     # Show non-existent columns
     if analysis.non_existent_columns:
         total_missing_cols = sum(len(cols) for cols in analysis.non_existent_columns.values())
-        printer.cprint(f"Missing columns ({total_missing_cols}):", color="red")
+        _printers.cprint(f"Missing columns ({total_missing_cols}):", color="red")
         for model_name, referenced_models in analysis.non_existent_columns.items():
             for referenced_model, missing_columns in referenced_models.items():
-                printer.cprint(
+                _printers.cprint(
                     f"  • {model_name} → {referenced_model}: {', '.join(missing_columns)}",
                     color="yellow",
                 )
@@ -57,15 +59,15 @@ def _validate_lineage_references() -> bool:
         total_missing_models = sum(
             len(models) for models in analysis.referenced_non_existent_models.values()
         )
-        printer.cprint(f"Non-existent references ({total_missing_models}):", color="red")
+        _printers.cprint(f"Non-existent references ({total_missing_models}):", color="red")
         for model_name, non_existent_models in analysis.referenced_non_existent_models.items():
-            printer.cprint(
+            _printers.cprint(
                 f"  • {model_name} → {', '.join(set(non_existent_models))}",
                 color="yellow",
             )
 
     print()  # noqa: T201
-    printer.cprint(
+    _printers.cprint(
         "💡 Tip: You can disable lineage validation by setting "
         "'enforce_lineage_validation = false' in your configuration",
         color="cyan",
@@ -98,10 +100,11 @@ def _stream_process_output(process: subprocess.Popen) -> list[str]:
     return captured_output
 
 
-def execute_dbt_command(base_command: list[str]) -> None:
+def execute_dbt_command(dbt_parser: dbtParser, base_command: list[str]) -> None:
     """Execute a dbt command with standard project and profiles directories.
 
     Args:
+        dbt_parser: The dbt parser object.
         base_command: Base dbt command as list of strings (e.g., ["dbt", "build"]).
 
     """
@@ -110,7 +113,7 @@ def execute_dbt_command(base_command: list[str]) -> None:
     command.extend(["--project-dir", str(settings.dbt_project_dir)])
     command.extend(["--profiles-dir", str(settings.dbt_profiles_dir)])
 
-    printer.cprint("🚀 Executing:", " ".join(command), highlight_idx=1, color="green")
+    _printers.cprint("🚀 Executing:", " ".join(command), highlight_idx=1, color="green")
 
     try:
         # Execute the dbt command with real-time output streaming
@@ -147,7 +150,7 @@ def execute_dbt_command(base_command: list[str]) -> None:
 
             # Handle failed models - mark as failed and clear from cache
             if execution_result.failed_models and return_code != 0:
-                printer.cprint(
+                _printers.cprint(
                     f"🧹 Marking {len(execution_result.failed_models)} models as failed...",
                     color="yellow",
                 )
@@ -156,10 +159,10 @@ def execute_dbt_command(base_command: list[str]) -> None:
         sys.exit(return_code)
 
     except KeyboardInterrupt:
-        printer.cprint("❌ Command interrupted by user", color="red")
+        _printers.cprint("❌ Command interrupted by user", color="red")
         sys.exit(130)  # Standard exit code for Ctrl+C
     except FileNotFoundError:
-        printer.cprint(
+        _printers.cprint(
             "❌ Error: 'dbt' command not found.",
             "Please ensure dbt is installed and available in your PATH.",
             highlight_idx=1,
@@ -167,7 +170,7 @@ def execute_dbt_command(base_command: list[str]) -> None:
         )
         sys.exit(1)
     except Exception as e:  # noqa: BLE001
-        printer.cprint("❌ Unexpected error:", str(e), highlight_idx=1, color="red")
+        _printers.cprint("❌ Unexpected error:", str(e), highlight_idx=1, color="red")
         sys.exit(1)
 
 
@@ -184,6 +187,7 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
     """Execute a dbt command with intelligent model selection.
 
     Args:
+        dbt_parser: The dbt parser object.
         command_name: The dbt command to run ('build' or 'run')
         model: Model selection string
         full_refresh: Whether to do a full refresh
@@ -194,7 +198,8 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
         disable_smart: Disable smart execution and run all selected models
 
     """
-    if not disable_smart and not _validate_lineage_references():
+    dbt_parser = dbtParser(target=target)
+    if not disable_smart and not _validate_lineage_references(dbt_parser=dbt_parser):
         sys.exit(1)
     # Start building the dbt command
     dbt_command = ["dbt", command_name]
@@ -202,14 +207,14 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
     # Display what we're doing
     action = "Building" if command_name == "build" else "Running"
     if model:
-        printer.cprint(
+        _printers.cprint(
             f"🔨 {action} models:",
             model,
             highlight_idx=1,
             color="cyan",
         )
     else:
-        printer.cprint(f"🔨 {action} all models", color="cyan")
+        _printers.cprint(f"🔨 {action} all models", color="cyan")
 
     # Add model selection if provided
     if model:
@@ -232,7 +237,7 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
     # Perform intelligent execution analysis (enabled by default)
     if not disable_smart:
         # Analyze which models need execution
-        analyses = analyze_model_statuses(model)
+        analyses = analyze_model_statuses(dbt_parser=dbt_parser, dbt_selection=model)
         print_execution_analysis(analyses)
 
         if analyze_only:
@@ -245,7 +250,7 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
         ]
 
         if not models_to_execute:
-            printer.cprint(
+            _printers.cprint(
                 "✅ All models have valid cache - nothing to execute!",
                 color="green",
             )
@@ -254,11 +259,11 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
         # Update dbt command with filtered model selection
         if len(models_to_execute) == len(analyses):
             # All models need execution, keep original selection
-            printer.cprint("🔥 All selected models need execution", color="yellow")
+            _printers.cprint("🔥 All selected models need execution", color="yellow")
         else:
             # Create new selection with only models that need execution
             new_selection = " ".join(models_to_execute)
-            printer.cprint(f"🎯 Optimized selection: {new_selection}", color="cyan")
+            _printers.cprint(f"🎯 Optimized selection: {new_selection}", color="cyan")
 
             # Update the dbt command to use the optimized selection
             # Find and replace the --select argument
@@ -271,17 +276,18 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
                 dbt_command.extend(["--select", new_selection])
     elif analyze_only:
         # If smart execution is disabled but analyze_only is requested
-        analyses = analyze_model_statuses(model)
+        analyses = analyze_model_statuses(dbt_parser=dbt_parser, dbt_selection=model)
         print_execution_analysis(analyses, verbose=True)
         return
 
-    execute_dbt_command(dbt_command)
+    execute_dbt_command(dbt_parser=dbt_parser, base_command=dbt_command)
 
 
 def create_dbt_command_function(command_name: str, help_text: str) -> Callable:
     """Create a dbt command function with standardized options.
 
     Args:
+        dbt_parser: The dbt parser object.
         command_name: The dbt command name (e.g., 'build', 'run')
         help_text: Help text for the command
 
@@ -291,6 +297,7 @@ def create_dbt_command_function(command_name: str, help_text: str) -> Callable:
     """
 
     def dbt_command(  # noqa: PLR0913
+        target: str | None = Target,
         model: Annotated[
             str | None,
             typer.Option(
@@ -313,10 +320,6 @@ def create_dbt_command_function(command_name: str, help_text: str) -> Callable:
         vars: Annotated[  # noqa: A002
             str | None,
             typer.Option("--vars", help="Supply variables to the project (YAML string)"),
-        ] = None,
-        target: Annotated[
-            str | None,
-            typer.Option("--target", "-t", help="Which target to load for the given profile"),
         ] = None,
         analyze_only: Annotated[
             bool,

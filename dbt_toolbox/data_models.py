@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from enum import Enum
 from functools import cached_property
 from hashlib import md5
 from pathlib import Path
@@ -9,9 +10,83 @@ from pathlib import Path
 import yamlium
 from sqlglot.expressions import Select
 
-from dbt_toolbox.column_resolver import ColumnReference
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.settings import settings
+
+
+class DbtProfile:
+    """Represents a dbt profile configuration with dynamic properties."""
+
+    type: str
+
+    def __init__(self, target: str | None = None) -> None:
+        """Build a dynamic property factory for dbt target.
+
+        Loads the profiles.yml file, finds the default target, and
+        dynamically sets all target properties as instance attributes.
+        """
+        yaml = yamlium.parse(settings.dbt_profiles_yaml_path)
+        # If we don't have a specified target, find default target
+        if target is None:
+            for k, v, _ in yaml.walk_keys():
+                if k == "target":
+                    target = str(v)
+                    break
+
+        if target is None:
+            raise ValueError("No target found.")
+
+        # Next up, find the values behind the target
+        values = None
+        for k, v, _ in yaml.walk_keys():
+            if k == target:
+                values = v
+                break
+
+        if values is None:
+            raise ValueError(f"Target `{target}` not found.")
+
+        # Set dynamic typing on the profile
+        for key, value in values.to_dict().items():  # type: ignore
+            setattr(self, key, value)
+        self.name = target  # Set the target as the name
+
+
+@dataclass
+class CLIOptions:
+    """Common options for all commands."""
+
+    target: str | None = None
+
+
+class TableType(Enum):
+    """Different types of tables."""
+
+    EXTERNAL = "external"
+    CTE = "cte"
+    SUBQUERY = "subquery"
+    AMBIGUOUS = "ambiguous"
+
+
+@dataclass
+class Table:
+    """A table reference dataclass."""
+
+    name: str
+    type: TableType
+    available_columns: list[str] = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
+class ColumnReference:
+    """Metadata about each column."""
+
+    name: str
+    reference_type: TableType
+    table: str | None = None
+    resolved: bool | None = None
+    context: list[str] | None = None
+    id: int
 
 
 @dataclass

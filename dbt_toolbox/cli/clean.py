@@ -4,10 +4,12 @@ from typing import Annotated
 
 import typer
 
-from dbt_toolbox.dbt_parser import dbt_parser
+from dbt_toolbox.cli._common_options import Target
+from dbt_toolbox.dbt_parser import dbtParser
 
 
 def clean(
+    target: str | None = Target,
     models: Annotated[
         str | None,
         typer.Option(
@@ -19,6 +21,7 @@ def clean(
     ] = None,
 ) -> None:
     """Clean the cache completely or for specific models."""
+    dbt_parser = dbtParser(target=target)
     if models:
         # Clean specific models
         model_list = [m.strip() for m in models.split(",") if m.strip()]
