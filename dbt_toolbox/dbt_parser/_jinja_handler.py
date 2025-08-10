@@ -80,6 +80,11 @@ def _run_query(*args, **kwargs) -> None:  # noqa: ANN002, ANN003, ARG001
     return
 
 
+def _is_incremental(*args, **kwargs) -> bool:  # noqa: ANN002, ANN003, ARG001
+    """Mock implementaiton of is_incremental() dbt built in macro."""
+    return True
+
+
 def _load_sorted_macro_dict() -> dict[str, str]:
     """Load and cache sorted macro dictionary.
 
@@ -130,6 +135,7 @@ def _get_base_env(profile: DbtProfile) -> Environment:
         "config": _config,
         "return": _return,
         "run_query": _run_query,
+        "is_incremental": _is_incremental,
         "target": profile,
         "adapter": DummyAdapter(),
     }

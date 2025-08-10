@@ -1,0 +1,1 @@
+select {{ macro_to_modify_for_pytest() }}, 'bob' as static_column
