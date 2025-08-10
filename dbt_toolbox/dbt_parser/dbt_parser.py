@@ -151,6 +151,11 @@ class dbtParser:  # noqa: N801
         if raw_model is None:
             return None
         if cached_model and cached_model.code_hash == raw_model.code_hash:
+            # Even if model code hasn't changed, check if upstream macros have changed
+            for macro in cached_model.upstream.macros:
+                if self.macro_changed(macro):
+                    cached_model.upstream_macros_changed = True
+                    break
             return cached_model
         # Model was not found in cache or has changed, build and cache it
         try:
