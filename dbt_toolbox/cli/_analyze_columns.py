@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from dbt_toolbox.data_models import Model, Seed, Source
 from dbt_toolbox.dbt_parser._column_resolver import ColumnReference, TableType
+from dbt_toolbox.settings import settings
 
 
 @dataclass
@@ -179,6 +180,10 @@ def analyze_column_references(
     cte_column_issues = {}
 
     for model_name, model in models.items():
+        # Skip validation for models in the ignore list
+        if model_name in settings.models_ignore_validation:
+            continue
+
         (model_non_existent_cols, model_non_existent_refs, model_cte_issues) = (
             _analyze_model_column_references(
                 model,

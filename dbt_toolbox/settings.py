@@ -176,6 +176,39 @@ def _get_bool_setting(name: str, default: str, /) -> Setting:
     return Setting(value=bool_value, source=source.source, location=source.location)
 
 
+def _get_list_setting(name: str, default: list[str] | None = None, /) -> Setting:
+    """Get list setting value with source tracking.
+
+    Args:
+        name: Setting name.
+        default: Default value as list.
+
+    Returns:
+        SettingSource with list value and source info.
+
+    """
+    if default is None:
+        default = []
+
+    source = _get_setting(name, None)
+
+    if source.value is None:
+        return Setting(value=default, source="default", location=None)
+
+    # Handle different input formats
+    if isinstance(source.value, list):
+        # Already a list from TOML
+        list_value = source.value
+    elif isinstance(source.value, str):
+        # String from environment variable - split by comma
+        list_value = [item.strip() for item in source.value.split(",") if item.strip()]
+    else:
+        # Fallback to default for unexpected types
+        list_value = default
+
+    return Setting(value=list_value, source=source.source, location=source.location)
+
+
 class Settings:
     """Collection of settings class."""
 
@@ -305,6 +338,15 @@ class Settings:
         """Whether to enforce lineage validation before running dbt build/run."""
         return self._enforce_lineage_validation.value
 
+    @cached_property
+    def _models_ignore_validation(self) -> Setting:
+        return _get_list_setting("models_ignore_validation", [])
+
+    @cached_property
+    def models_ignore_validation(self) -> list[str]:
+        """List of model names to ignore during validation checks."""
+        return self._models_ignore_validation.value
+
     def get_all_settings_with_sources(self) -> dict[str, Setting]:
         """Get all settings with their source information.
 
@@ -323,6 +365,7 @@ class Settings:
                 "placeholder_description",
                 "cache_validity_minutes",
                 "enforce_lineage_validation",
+                "models_ignore_validation",
             ]
         }
 
