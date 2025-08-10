@@ -42,7 +42,12 @@ class TestAnalyzeCommand:
         result = cli_runner.invoke(app, ["analyze", "--model", "customers+"])
 
         assert result.exit_code == 0
-        mock_analyze.assert_called_once_with("customers+")
+        # Verify analyze was called with dbt_parser and selection
+        args, kwargs = mock_analyze.call_args
+        assert len(args) == 0  # No positional args
+        assert "dbt_selection" in kwargs
+        assert kwargs["dbt_selection"] == "customers+"
+        assert "dbt_parser" in kwargs
         assert "Cache Analysis Results" in result.stdout
         assert "All models have valid cache!" in result.stdout
 
@@ -75,7 +80,12 @@ class TestAnalyzeCommand:
         result = cli_runner.invoke(app, ["analyze"])
 
         assert result.exit_code == 0
-        mock_analyze.assert_called_once_with(None)
+        # Verify analyze was called with dbt_parser and None selection
+        args, kwargs = mock_analyze.call_args
+        assert len(args) == 0  # No positional args
+        assert "dbt_selection" in kwargs
+        assert kwargs["dbt_selection"] is None
+        assert "dbt_parser" in kwargs
         assert "Models needing execution: 1" in result.stdout
 
     @patch("dbt_toolbox.cli.analyze.analyze_model_statuses")
@@ -103,7 +113,12 @@ class TestAnalyzeCommand:
         result = cli_runner.invoke(app, ["analyze"])
 
         assert result.exit_code == 0
-        mock_analyze.assert_called_once_with(None)
+        # Verify analyze was called with dbt_parser and None selection
+        args, kwargs = mock_analyze.call_args
+        assert len(args) == 0  # No positional args
+        assert "dbt_selection" in kwargs
+        assert kwargs["dbt_selection"] is None
+        assert "dbt_parser" in kwargs
         assert "Models needing execution: 1" in result.stdout
 
 

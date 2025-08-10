@@ -4,9 +4,10 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
+from dbt_toolbox import utils
 from dbt_toolbox.constants import CUSTOM_MACROS
 from dbt_toolbox.data_models import MacroBase, ModelBase
-from dbt_toolbox.utils import utils
+from dbt_toolbox.settings import settings
 
 
 def _parse_macros_from_file(file_path: Path) -> dict[str, MacroBase]:
@@ -85,12 +86,12 @@ def read_macros() -> dict[str, list[MacroBase]]:
     """
     macros = defaultdict(list)
 
-    for folder in utils.dbt_project.macro_paths:
+    for folder in settings.dbt_project.macro_paths:
         macros[CUSTOM_MACROS].extend(
-            _fetch_macros_from_source(folder=utils.path(folder), source=CUSTOM_MACROS),
+            _fetch_macros_from_source(folder=utils.build_path(folder), source=CUSTOM_MACROS),
         )
 
-    packages_path = utils.path("dbt_packages")
+    packages_path = utils.build_path("dbt_packages")
     if packages_path.exists():
         for folder in packages_path.iterdir():
             macros[folder.stem] = _fetch_macros_from_source(
@@ -114,6 +115,6 @@ def read_models() -> list[ModelBase]:
     """
     return [
         ModelBase(name=file_path.stem, path=file_path, raw_code=file_path.read_text())
-        for path in utils.dbt_project.model_paths
+        for path in settings.dbt_project.model_paths
         for file_path in utils.list_files(path=path, file_suffix=".sql")
     ]

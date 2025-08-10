@@ -8,11 +8,12 @@ from rich.table import Table
 
 from dbt_toolbox.cli._analyze_columns import analyze_column_references
 from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason, analyze_model_statuses
+from dbt_toolbox.cli._common_options import Target
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.data_models import Model, Seed, Source
-from dbt_toolbox.dbt_parser.dbt_parser import dbt_parser
+from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
-from dbt_toolbox.utils import printer
+from dbt_toolbox.utils import _printers
 
 
 def _format_time_delta(delta: timedelta) -> str:
@@ -81,16 +82,16 @@ def print_column_analysis_results(
         and not analysis.referenced_non_existent_models
         and not analysis.cte_column_issues
     ):
-        printer.cprint("✅ All column references are valid!", color="green")
+        _printers.cprint("✅ All column references are valid!", color="green")
         return
 
-    printer.cprint("📊 Column Reference Analysis", color="cyan")
+    _printers.cprint("📊 Column Reference Analysis", color="cyan")
     print()  # noqa: T201 blankline
 
     # Non-existent columns section
     if analysis.non_existent_columns:
         total_missing_cols = sum(len(cols) for cols in analysis.non_existent_columns.values())
-        printer.cprint(
+        _printers.cprint(
             f"❌ Non-existent Columns ({total_missing_cols}):",
             color="red",
         )
@@ -117,7 +118,7 @@ def print_column_analysis_results(
             for cte_dict in analysis.cte_column_issues.values()
             for cols in cte_dict.values()
         )
-        printer.cprint(
+        _printers.cprint(
             f"🔶 CTE Column Issues ({total_cte_issues}):",
             color="yellow",
         )
@@ -142,7 +143,7 @@ def print_column_analysis_results(
         total_missing_models = sum(
             len(models) for models in analysis.referenced_non_existent_models.values()
         )
-        printer.cprint(
+        _printers.cprint(
             f"❌ Referenced Non-existent Models ({total_missing_models}):",
             color="red",
         )
@@ -176,22 +177,22 @@ def print_analysis_results(analysis_results: dict[str, AnalysisResult]) -> None:
     valid_models = [result for result in analysis_results.values() if not result.needs_execution]
 
     # Header
-    printer.cprint("🔍 Cache Analysis Results", color="cyan")
-    printer.cprint(f"Total models analyzed: {len(analysis_results)}", color="nocolor")
+    _printers.cprint("🔍 Cache Analysis Results", color="cyan")
+    _printers.cprint(f"Total models analyzed: {len(analysis_results)}", color="nocolor")
 
     if models_needing_execution:
-        printer.cprint(
+        _printers.cprint(
             f"Models needing execution: {len(models_needing_execution)}",
             color="yellow",
         )
     else:
-        printer.cprint("✅ All models have valid cache!", color="green")
+        _printers.cprint("✅ All models have valid cache!", color="green")
 
     print()  # noqa: T201 blankline
 
     # Models needing execution section (combined table)
     if models_needing_execution:
-        printer.cprint(
+        _printers.cprint(
             f"🔧 Models Needing Execution ({len(models_needing_execution)}):",
             color="yellow",
         )
@@ -233,16 +234,17 @@ def print_analysis_results(analysis_results: dict[str, AnalysisResult]) -> None:
 
     # Valid models section (only show count unless verbose)
     if valid_models:
-        printer.cprint(f"✅ Valid Models ({len(valid_models)}):", color="green")
+        _printers.cprint(f"✅ Valid Models ({len(valid_models)}):", color="green")
         # Just show a summary for valid models to keep output clean
         for result in valid_models:
-            printer.cprint(
+            _printers.cprint(
                 f"   • {result.model.name} - {_get_timestamp_info(result)}",
                 color="bright_black",
             )
 
 
 def analyze_command(
+    target: str | None = Target,
     model: str | None = typer.Option(
         None,
         "--model",
@@ -257,10 +259,11 @@ def analyze_command(
     Shows outdated models, ID mismatches, failed models that need re-execution,
     and column reference issues.
     """
-    printer.cprint("🔍 Analyzing model cache state and column references...", color="cyan")
+    _printers.cprint("🔍 Analyzing model cache state and column references...", color="cyan")
+    dbt_parser = dbtParser(target=target)
 
     # Perform cache analysis using the new analyze_model_statuses function
-    analysis_results = analyze_model_statuses(model)
+    analysis_results = analyze_model_statuses(dbt_parser=dbt_parser, dbt_selection=model)
 
     # Print cache analysis results
     print_analysis_results(analysis_results)
@@ -283,7 +286,7 @@ def analyze_command(
         1 for result in analysis_results.values() if result.needs_execution
     )
     if models_needing_execution:
-        printer.cprint(
+        _printers.cprint(
             f"\n💡 Tip: Run 'dt build' to execute the {models_needing_execution} "
             "models that need updates.",
             color="cyan",

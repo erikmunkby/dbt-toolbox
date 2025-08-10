@@ -8,10 +8,10 @@ from typing import Any
 
 from loguru import logger
 
+from dbt_toolbox import utils
 from dbt_toolbox.data_models import MacroBase, Model
 from dbt_toolbox.dbt_parser._file_fetcher import read_macros
 from dbt_toolbox.settings import settings
-from dbt_toolbox.utils import utils
 
 
 class _CacheHolder:

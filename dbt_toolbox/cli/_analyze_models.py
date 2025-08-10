@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 from dbt_toolbox.data_models import Model
-from dbt_toolbox.dbt_parser import dbt_parser
-from dbt_toolbox.utils import printer
+from dbt_toolbox.dbt_parser import dbtParser
+from dbt_toolbox.utils import _printers
 
 
 class ExecutionReason(Enum):
@@ -58,10 +58,13 @@ def _analyze_model(model: Model) -> AnalysisResult | None:
     return None
 
 
-def analyze_model_statuses(dbt_selection: str | None = None) -> dict[str, AnalysisResult]:
+def analyze_model_statuses(
+    dbt_parser: dbtParser, dbt_selection: str | None = None
+) -> dict[str, AnalysisResult]:
     """Analyze the execution status of models based on their dependencies and cache.
 
     Args:
+        dbt_parser: The dbt parser object.
         dbt_selection: Optional dbt selection string to filter models
 
     Returns:
@@ -111,15 +114,15 @@ def print_execution_analysis(
     models_to_execute = sum(1 for a in analyses.values() if a.needs_execution)
     models_to_skip = total_models - models_to_execute
 
-    printer.cprint("🔍 Build Execution Analysis", color="cyan")
-    printer.cprint(f"   📊 Total models in selection: {total_models}")
-    printer.cprint(f"   ✅ Models to execute: {models_to_execute}")
-    printer.cprint(f"   ⏭️  Models to skip: {models_to_skip}")
+    _printers.cprint("🔍 Build Execution Analysis", color="cyan")
+    _printers.cprint(f"   📊 Total models in selection: {total_models}")
+    _printers.cprint(f"   ✅ Models to execute: {models_to_execute}")
+    _printers.cprint(f"   ⏭️  Models to skip: {models_to_skip}")
 
     if verbose and models_to_execute > 0:
-        printer.cprint("\n📋 Models requiring execution:", color="yellow")
+        _printers.cprint("\n📋 Models requiring execution:", color="yellow")
         for model_name, analysis in analyses.items():
             if analysis.needs_execution:
-                printer.cprint(
+                _printers.cprint(
                     f"  • {model_name} ({analysis.reason_description})", color="bright_black"
                 )

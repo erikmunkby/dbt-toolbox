@@ -7,6 +7,7 @@ from shutil import copytree, ignore_patterns, rmtree
 import pytest
 
 from dbt_toolbox.dbt_parser._cache import Cache
+from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
 
 
@@ -34,3 +35,9 @@ def dbt_project_setup():  # noqa: ANN201
     yield
     rmtree(destination_path)
     del os.environ["DBT_PROJECT_DIR"]
+
+
+@pytest.fixture
+def dbt_parser() -> dbtParser:
+    """Get the dbt parser."""
+    return dbtParser()

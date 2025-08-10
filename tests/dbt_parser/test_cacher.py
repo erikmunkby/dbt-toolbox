@@ -5,8 +5,9 @@ from pathlib import Path
 from yamlium import parse
 
 from dbt_toolbox.dbt_parser._cache import Cache
+from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
-from dbt_toolbox.utils import utils
+from dbt_toolbox.utils import build_path
 
 
 def test_dbt_project_validation() -> None:
@@ -34,10 +35,11 @@ def test_macro_cache_validation() -> None:
     cache = Cache()
     assert not cache._validate_macro_cache()
     assert cache._validate_macro_cache()
+    dbtParser()
 
     # Add a new macro
-    p = Path(utils.dbt_project.macro_paths[0])
-    p = utils.path(p / "cache_test_macro.sql")
+    p = Path(settings.dbt_project.macro_paths[0])
+    p = build_path(p / "cache_test_macro.sql")
     p.write_text("""
 {% macro cache_test_macro() %}
 'Test'

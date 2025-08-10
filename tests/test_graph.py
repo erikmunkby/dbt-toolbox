@@ -3,7 +3,7 @@
 import pytest
 
 from dbt_toolbox.data_models import Model
-from dbt_toolbox.dbt_parser.dbt_parser import dbt_parser
+from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
 from dbt_toolbox.graph.dependency_graph import DependencyGraph, NodeNotFoundError
 
 
@@ -111,7 +111,7 @@ class TestDependencyGraph:
 class TestDbtParserGraphIntegration:
     """Test the integration of dependency graph with dbtParser."""
 
-    def test_macros_property(self, dbt_project_setup: None) -> None:
+    def test_macros_property(self, dbt_parser: dbtParser) -> None:
         """Test that the macros property returns available macros."""
         macros = dbt_parser.macros
 
@@ -125,7 +125,7 @@ class TestDbtParserGraphIntegration:
         assert hasattr(simple_macro, "raw_code")
         assert simple_macro.file_name == "simple_macro"
 
-    def test_get_dependency_graph(self, dbt_project_setup: None) -> None:
+    def test_get_dependency_graph(self, dbt_parser: dbtParser) -> None:
         """Test that get_dependency_graph builds a complete graph."""
         graph = dbt_parser.dependency_graph
 
@@ -147,7 +147,7 @@ class TestDbtParserGraphIntegration:
         assert stats["models"] >= 4  # At least the expected models
         assert stats["macros"] >= 1  # At least simple_macro
 
-    def test_model_to_model_dependencies(self, dbt_project_setup: None) -> None:
+    def test_model_to_model_dependencies(self, dbt_parser: dbtParser) -> None:
         """Test that model-to-model dependencies are correctly established."""
         graph = dbt_parser.dependency_graph
 
@@ -160,7 +160,7 @@ class TestDbtParserGraphIntegration:
         downstream_of_customers = graph.get_downstream_nodes("customers")
         assert "customer_orders" in downstream_of_customers
 
-    def test_model_to_macro_dependencies(self, dbt_project_setup: None) -> None:
+    def test_model_to_macro_dependencies(self, dbt_parser: dbtParser) -> None:
         """Test that model-to-macro dependencies are correctly established."""
         graph = dbt_parser.dependency_graph
 
@@ -173,7 +173,7 @@ class TestDbtParserGraphIntegration:
         downstream_of_simple_macro = graph.get_downstream_nodes("simple_macro")
         assert "customer_orders" in downstream_of_simple_macro
 
-    def test_get_downstream_models_for_model(self, dbt_project_setup: None) -> None:
+    def test_get_downstream_models_for_model(self, dbt_parser: dbtParser) -> None:
         """Test getting downstream models for a given model."""
         downstream_models = dbt_parser.get_downstream_models("customers")
 
@@ -184,7 +184,7 @@ class TestDbtParserGraphIntegration:
         downstream_names = [model.name for model in downstream_models]
         assert "customer_orders" in downstream_names
 
-    def test_get_downstream_models_for_macro(self, dbt_project_setup: None) -> None:
+    def test_get_downstream_models_for_macro(self, dbt_parser: dbtParser) -> None:
         """Test getting downstream models for a given macro."""
         downstream_models = dbt_parser.get_downstream_models("simple_macro")
 
@@ -195,7 +195,7 @@ class TestDbtParserGraphIntegration:
         downstream_names = [model.name for model in downstream_models]
         assert "customer_orders" in downstream_names
 
-    def test_get_downstream_models_empty_result(self, dbt_project_setup: None) -> None:
+    def test_get_downstream_models_empty_result(self, dbt_parser: dbtParser) -> None:
         """Test getting downstream models for a node with no downstream dependencies."""
         # customer_orders is likely a leaf node (no models depend on it)
         downstream_models = dbt_parser.get_downstream_models("customer_orders")

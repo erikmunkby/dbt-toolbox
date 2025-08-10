@@ -1,14 +1,54 @@
 """Utility class module."""
 
 import os
-import sys
 from functools import cached_property
 from pathlib import Path
 from typing import Any, NamedTuple
 
 import tomli
-import typer
 import yamlium
+from jinja2 import Environment
+
+
+class DbtProject:
+    """Represents a dbt project configuration."""
+
+    def __init__(self, dbt_project_path: Path) -> None:
+        """Initialize by loading and parsing dbt_project.yml."""
+        self.text = dbt_project_path.read_text()
+        self.parsed: dict = yamlium.parse(self.text).to_dict()  # type: ignore
+
+    def rendered_parse(self, env: Environment) -> yamlium.Mapping:
+        """Parse the project file with Jinja rendering.
+
+        Args:
+            env: Jinja environment for rendering templates.
+
+        Returns:
+            Parsed and rendered project configuration.
+
+        """
+        return yamlium.parse(env.from_string(self.text).render())
+
+    @property
+    def macro_paths(self) -> list[str]:
+        """List of paths for macros."""
+        return self.parsed.get("macro-paths", ["macros"])
+
+    @property
+    def model_paths(self) -> list[str]:
+        """List of paths for models."""
+        return self.parsed.get("model-paths", ["models"])
+
+    @property
+    def docs_paths(self) -> list[str]:
+        """List of paths for documentation macros."""
+        return self.parsed.get("docs-paths", ["docs"])
+
+    @property
+    def seed_paths(self) -> list[str]:
+        """List of paths for seeds."""
+        return self.parsed.get("seed-paths", ["seeds"])
 
 
 class Setting(NamedTuple):
@@ -136,31 +176,6 @@ def _get_bool_setting(name: str, default: str, /) -> Setting:
     return Setting(value=bool_value, source=source.source, location=source.location)
 
 
-class _DbtProfile:
-    """Represents a dbt profile configuration with dynamic properties."""
-
-    type: str
-
-    def __init__(self, profiles_path: Path) -> None:
-        """Build a dynamic property factory for dbt target.
-
-        Loads the profiles.yml file, finds the default target, and
-        dynamically sets all target properties as instance attributes.
-        """
-        default_target = None
-        # Find the default target
-        for k, v, _ in yamlium.parse(profiles_path).walk_keys():
-            if k == "target":
-                default_target = str(v)
-            if default_target and k == default_target:
-                break
-
-        # Set dynamic typing on the profile
-        for key, value in v.to_dict().items():  # type: ignore
-            setattr(self, key, value)
-        self.name = default_target
-
-
 class Settings:
     """Collection of settings class."""
 
@@ -250,7 +265,7 @@ class Settings:
     @cached_property
     def _dbt_project_yaml_path(self) -> Setting:
         """The path to the dbt project yaml."""
-        return Setting(value=self.path("dbt_project.yml"), source="default")
+        return Setting(value=self.dbt_project_dir / "dbt_project.yml", source="default")
 
     @cached_property
     def dbt_project_yaml_path(self) -> Path:
@@ -268,24 +283,9 @@ class Settings:
         return self._dbt_profiles_yaml_path.value
 
     @cached_property
-    def _dbt_profile(self) -> _DbtProfile:
-        return _DbtProfile(profiles_path=self.dbt_profiles_yaml_path)
-
-    @cached_property
-    def _sql_dialect(self) -> Setting:
-        if hasattr(self._dbt_profile, "type"):
-            return Setting(
-                value=self._dbt_profile.type,
-                source="dbt",
-                location=str(self.dbt_profiles_yaml_path),
-            )
-        typer.secho("dbt dialect must be set.", fg=typer.colors.RED)
-        sys.exit(1)
-
-    @cached_property
-    def sql_dialect(self) -> str:
-        """The sql dialect used by dbt."""
-        return self._sql_dialect.value
+    def dbt_project(self) -> DbtProject:
+        """Reference to the dbt project."""
+        return DbtProject(self.dbt_project_yaml_path)
 
     @cached_property
     def _cache_validity_minutes(self) -> Setting:
@@ -305,23 +305,11 @@ class Settings:
         """Whether to enforce lineage validation before running dbt build/run."""
         return self._enforce_lineage_validation.value
 
-    def path(self, path: str | Path, /) -> Path:
-        """Construct a path relative to the dbt project directory.
-
-        Args:
-            path: Relative path from the dbt project root.
-
-        Returns:
-            Absolute Path object.
-
-        """
-        return self.dbt_project_dir / path
-
     def get_all_settings_with_sources(self) -> dict[str, Setting]:
         """Get all settings with their source information.
 
         Returns:
-            Dictionary mapping setting names to SettingSource objects.
+            Dictionary mapping setting names to Setting objects.
 
         """
         return {
@@ -333,7 +321,6 @@ class Settings:
                 "dbt_profiles_dir",
                 "skip_placeholders",
                 "placeholder_description",
-                "sql_dialect",
                 "cache_validity_minutes",
                 "enforce_lineage_validation",
             ]

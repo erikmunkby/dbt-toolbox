@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 
-from dbt_toolbox.column_resolver import ColumnReference, TableType
 from dbt_toolbox.data_models import Model, Seed, Source
+from dbt_toolbox.dbt_parser._column_resolver import ColumnReference, TableType
 
 
 @dataclass

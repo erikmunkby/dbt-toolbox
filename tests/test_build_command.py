@@ -42,7 +42,10 @@ class TestBuildCommand:
 
         # Should call execute_dbt_command with the right command
         mock_execute.assert_called_once()
-        called_args = mock_execute.call_args[0][0]
+        # Function now takes dbt_parser and base_command as keyword arguments
+        args, kwargs = mock_execute.call_args
+        assert "base_command" in kwargs
+        called_args = kwargs["base_command"]
         assert called_args[:2] == ["dbt", "build"]
         assert "--select" in called_args
         assert "customers" in called_args
@@ -62,7 +65,10 @@ class TestBuildCommand:
 
         # Should call execute_dbt_command with the right command
         mock_execute.assert_called_once()
-        called_args = mock_execute.call_args[0][0]
+        # Function now takes dbt_parser and base_command as keyword arguments
+        args, kwargs = mock_execute.call_args
+        assert "base_command" in kwargs
+        called_args = kwargs["base_command"]
         assert called_args[:2] == ["dbt", "build"]
         assert "--select" in called_args
         assert "orders" in called_args
@@ -82,7 +88,10 @@ class TestBuildCommand:
 
         # Should call dbt build without model selection but with project and profiles dirs
         mock_execute.assert_called_once()
-        called_args = mock_execute.call_args[0][0]
+        # Function now takes dbt_parser and base_command as keyword arguments
+        args, kwargs = mock_execute.call_args
+        assert "base_command" in kwargs
+        called_args = kwargs["base_command"]
         assert called_args[:2] == ["dbt", "build"]
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
@@ -100,7 +109,9 @@ class TestBuildCommand:
         mock_execute.assert_called_once()
 
         # Check that both --threads and --full-refresh are passed through
-        called_args = mock_execute.call_args[0][0]
+        args, kwargs = mock_execute.call_args
+        assert "base_command" in kwargs
+        called_args = kwargs["base_command"]
         assert called_args[:2] == ["dbt", "build"]
         assert "--threads" in called_args
         assert "4" in called_args
@@ -147,11 +158,31 @@ class TestBuildCommand:
 
     @patch("dbt_toolbox.cli._dbt_executor.execute_dbt_command")
     @patch("dbt_toolbox.cli._dbt_executor._validate_lineage_references")
-    def test_build_with_target_option(self, mock_validate: Mock, mock_execute: Mock) -> None:
+    @patch("dbt_toolbox.cli._dbt_executor.dbtParser")
+    @patch("dbt_toolbox.cli._dbt_executor.analyze_model_statuses")
+    def test_build_with_target_option(
+        self, mock_analyze: Mock, mock_dbt_parser: Mock, mock_validate: Mock, mock_execute: Mock
+    ) -> None:
         """Test build command with --target option."""
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
+        # Mock analyze_model_statuses to return a model that needs execution
+        from datetime import datetime, timezone
+
+        from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
+
+        mock_model = Mock(spec=Mock)
+        mock_model.name = "customers"
+        mock_model.last_built = datetime.now(tz=timezone.utc)
+
+        mock_analyze.return_value = {
+            "customers": AnalysisResult(
+                model=mock_model,
+                reason=ExecutionReason.OUTDATED_MODEL,
+            ),
+        }
+
         cli_runner = CliRunner()
 
         result = cli_runner.invoke(app, ["build", "--target", "prod", "--model", "customers"])
@@ -160,7 +191,9 @@ class TestBuildCommand:
         mock_execute.assert_called_once()
 
         # Check that --target is passed through to dbt command
-        called_args = mock_execute.call_args[0][0]
+        args, kwargs = mock_execute.call_args
+        assert "base_command" in kwargs
+        called_args = kwargs["base_command"]
         assert called_args[:2] == ["dbt", "build"]
         assert "--target" in called_args
         assert "prod" in called_args
@@ -182,7 +215,9 @@ class TestBuildCommand:
         mock_execute.assert_called_once()
 
         # Check that --target is NOT in the command when not provided
-        called_args = mock_execute.call_args[0][0]
+        args, kwargs = mock_execute.call_args
+        assert "base_command" in kwargs
+        called_args = kwargs["base_command"]
         assert called_args[:2] == ["dbt", "build"]
         assert "--target" not in called_args
         assert "--select" in called_args

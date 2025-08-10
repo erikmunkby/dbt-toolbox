@@ -10,6 +10,7 @@ import yamlium
 from dbt_toolbox.cli.docs import YamlBuilder
 from dbt_toolbox.cli.main import app
 from dbt_toolbox.data_models import ColumnChanges
+from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
 
 
 @pytest.fixture
@@ -21,23 +22,29 @@ def cli_runner() -> typer.testing.CliRunner:
 class TestYamlBuilder:
     """Test YamlBuilder class functionality."""
 
-    def test_yaml_builder_init_existing_model(self, dbt_project_setup: None) -> None:
+    def test_yaml_builder_init_existing_model(
+        self, dbt_project_setup: None, dbt_parser: dbtParser
+    ) -> None:
         """Test YamlBuilder initialization with existing model."""
-        builder = YamlBuilder("customers")
+        builder = YamlBuilder("customers", dbt_parser)
 
         assert builder.model.name == "customers"
         assert isinstance(builder.yml, yamlium.Mapping)
         assert "columns" in builder.yml
         assert isinstance(builder.yaml_docs, dict)
 
-    def test_yaml_builder_init_nonexistent_model(self, dbt_project_setup: None) -> None:
+    def test_yaml_builder_init_nonexistent_model(
+        self, dbt_project_setup: None, dbt_parser: dbtParser
+    ) -> None:
         """Test YamlBuilder initialization with nonexistent model raises error."""
         with pytest.raises(KeyError):
-            YamlBuilder("nonexistent_model")
+            YamlBuilder("nonexistent_model", dbt_parser)
 
-    def test_get_column_description_existing_docs(self, dbt_project_setup: None) -> None:
+    def test_get_column_description_existing_docs(
+        self, dbt_project_setup: None, dbt_parser: dbtParser
+    ) -> None:
         """Test getting column description from existing YAML docs."""
-        builder = YamlBuilder("customers")
+        builder = YamlBuilder("customers", dbt_parser)
 
         # customers model should have existing column docs in schema.yml
         desc = builder._get_column_description("customer_id")
@@ -46,9 +53,11 @@ class TestYamlBuilder:
         assert desc["name"] == "customer_id"
         assert "description" in desc
 
-    def test_get_column_description_placeholder(self, dbt_project_setup: None) -> None:
+    def test_get_column_description_placeholder(
+        self, dbt_project_setup: None, dbt_parser: dbtParser
+    ) -> None:
         """Test getting placeholder description for undocumented column."""
-        builder = YamlBuilder("customers")
+        builder = YamlBuilder("customers", dbt_parser)
 
         # Test with a column that likely doesn't have docs
         desc = builder._get_column_description("nonexistent_column")
@@ -57,9 +66,11 @@ class TestYamlBuilder:
         assert desc["name"] == "nonexistent_column"
         assert "description" in desc
 
-    def test_detect_column_changes_no_changes(self, dbt_project_setup: None) -> None:
+    def test_detect_column_changes_no_changes(
+        self, dbt_project_setup: None, dbt_parser: dbtParser
+    ) -> None:
         """Test column change detection when no changes exist."""
-        builder = YamlBuilder("customers")
+        builder = YamlBuilder("customers", dbt_parser)
 
         # Get current columns
         existing_columns = [{"name": c["name"]} for c in builder.yml.get("columns", [])]
@@ -70,9 +81,11 @@ class TestYamlBuilder:
         assert changes.removed == []
         assert changes.reordered is False
 
-    def test_detect_column_changes_with_additions(self, dbt_project_setup: None) -> None:
+    def test_detect_column_changes_with_additions(
+        self, dbt_project_setup: None, dbt_parser: dbtParser
+    ) -> None:
         """Test column change detection with new columns."""
-        builder = YamlBuilder("customers")
+        builder = YamlBuilder("customers", dbt_parser)
 
         # Add a new column
         existing_columns = [{"name": c["name"]} for c in builder.yml.get("columns", [])]
@@ -83,9 +96,11 @@ class TestYamlBuilder:
         assert "new_column" in changes.added
         assert changes.removed == []
 
-    def test_detect_column_changes_with_removals(self, dbt_project_setup: None) -> None:
+    def test_detect_column_changes_with_removals(
+        self, dbt_project_setup: None, dbt_parser: dbtParser
+    ) -> None:
         """Test column change detection with removed columns."""
-        builder = YamlBuilder("customers")
+        builder = YamlBuilder("customers", dbt_parser)
 
         # Remove a column (take all but first)
         existing_columns = [{"name": c["name"]} for c in builder.yml.get("columns", [])]
@@ -98,9 +113,11 @@ class TestYamlBuilder:
             assert removed_column in changes.removed
             assert changes.added == []
 
-    def test_detect_column_changes_reordered(self, dbt_project_setup: None) -> None:
+    def test_detect_column_changes_reordered(
+        self, dbt_project_setup: None, dbt_parser: dbtParser
+    ) -> None:
         """Test column change detection with reordered columns."""
-        builder = YamlBuilder("customers")
+        builder = YamlBuilder("customers", dbt_parser)
 
         # Reverse the order of columns
         existing_columns = [{"name": c["name"]} for c in builder.yml.get("columns", [])]
@@ -181,14 +198,20 @@ class TestDocsCommand:
             mock_build.assert_called_once_with(print_only=True)
 
     @patch("subprocess.Popen")
-    @patch("dbt_toolbox.utils.printer.cprint")
-    def test_build_print_only_mode(self, mock_cprint, mock_popen, dbt_project_setup: None) -> None:  # noqa: ANN001
+    @patch("dbt_toolbox.utils._printers.cprint")
+    def test_build_print_only_mode(
+        self,
+        mock_cprint,  # noqa: ANN001
+        mock_popen,  # noqa: ANN001
+        dbt_project_setup: None,
+        dbt_parser: dbtParser,
+    ) -> None:
         """Test YamlBuilder.build in print_only mode."""
         # Setup mock subprocess for clipboard
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
 
-        builder = YamlBuilder("customers")
+        builder = YamlBuilder("customers", dbt_parser)
         builder.build(print_only=True)
 
         # Verify subprocess was called for clipboard
@@ -198,10 +221,15 @@ class TestDocsCommand:
         # Verify print was called
         assert mock_cprint.call_count >= 1
 
-    @patch("dbt_toolbox.utils.printer.cprint")
-    def test_build_update_mode_no_changes(self, mock_cprint, dbt_project_setup: None) -> None:  # noqa: ANN001
+    @patch("dbt_toolbox.utils._printers.cprint")
+    def test_build_update_mode_no_changes(
+        self,
+        mock_cprint,  # noqa: ANN001
+        dbt_project_setup: None,
+        dbt_parser: dbtParser,
+    ) -> None:
         """Test YamlBuilder.build in update mode with no changes."""
-        builder = YamlBuilder("customers")
+        builder = YamlBuilder("customers", dbt_parser)
 
         # Mock the _detect_column_changes to return no changes
         with patch.object(builder, "_detect_column_changes") as mock_detect:
@@ -218,10 +246,15 @@ class TestDocsCommand:
             call_args = mock_cprint.call_args[0]
             assert "No column changes detected" in call_args[0]
 
-    @patch("dbt_toolbox.utils.printer.cprint")
-    def test_build_update_mode_with_changes(self, mock_cprint, dbt_project_setup: None) -> None:  # noqa: ANN001
+    @patch("dbt_toolbox.utils._printers.cprint")
+    def test_build_update_mode_with_changes(
+        self,
+        mock_cprint,  # noqa: ANN001
+        dbt_project_setup: None,
+        dbt_parser: dbtParser,
+    ) -> None:
         """Test YamlBuilder.build in update mode with changes."""
-        builder = YamlBuilder("customers")
+        builder = YamlBuilder("customers", dbt_parser)
 
         # Mock the model's update_model_yaml method
         with patch.object(builder.model, "update_model_yaml") as mock_update:
@@ -272,7 +305,7 @@ class TestCLIIntegration:
         """Test complete CLI workflow with clipboard output."""
         with (
             patch("subprocess.Popen") as mock_popen,
-            patch("dbt_toolbox.utils.printer.cprint") as mock_cprint,
+            patch("dbt_toolbox.utils._printers.cprint") as mock_cprint,
         ):
             mock_process = MagicMock()
             mock_popen.return_value = mock_process

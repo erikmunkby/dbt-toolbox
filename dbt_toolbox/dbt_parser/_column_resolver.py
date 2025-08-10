@@ -1,46 +1,14 @@
 """Recursively resolve each column and see which are valid."""
 
-from dataclasses import dataclass, field
-from enum import Enum
-
 import sqlglot.expressions as expr
 
 from dbt_toolbox.constants import TABLE_REF_SEP
+from dbt_toolbox.data_models import ColumnReference, Table, TableType
 from dbt_toolbox.settings import settings
-from dbt_toolbox.utils.printer import cprint
+from dbt_toolbox.utils._printers import cprint
 
 
-class TableType(Enum):
-    """Different types of tables."""
-
-    EXTERNAL = "external"
-    CTE = "cte"
-    SUBQUERY = "subquery"
-    AMBIGUOUS = "ambiguous"
-
-
-@dataclass
-class _Tbl:
-    """A table reference dataclass."""
-
-    name: str
-    type: TableType
-    available_columns: list[str] = field(default_factory=list)
-
-
-@dataclass(kw_only=True)
-class ColumnReference:
-    """Metadata about each column."""
-
-    name: str
-    reference_type: TableType
-    table: str | None = None
-    resolved: bool | None = None
-    context: list[str] | None = None
-    id: int
-
-
-def _debug_print(col: expr.Column, tables: dict[str, _Tbl], context: list[str]) -> None:
+def _debug_print(col: expr.Column, tables: dict[str, Table], context: list[str]) -> None:
     cprint("column", col.name, str(context), highlight_idx=1)
     for name, t in tables.items():
         p = (
@@ -59,7 +27,7 @@ def _clean_tbl_name(name: str) -> str:
 
 def _build_col(
     col: expr.Column,
-    tables: dict[str, _Tbl],
+    tables: dict[str, Table],
     context: list[str],
     existing_cols: list[ColumnReference],
 ) -> ColumnReference | None:
@@ -107,12 +75,12 @@ def _build_col(
     )
 
 
-def _resolve_from_clause(stmnt: expr.From, ctes: dict[str, _Tbl]) -> dict[str, _Tbl]:
+def _resolve_from_clause(stmnt: expr.From, ctes: dict[str, Table]) -> dict[str, Table]:
     if isinstance(stmnt.this, expr.Subquery):
         subq = stmnt.this
         subq_select = subq.this
         return {
-            subq.alias_or_name: _Tbl(
+            subq.alias_or_name: Table(
                 name=subq.alias_or_name,
                 type=TableType.SUBQUERY,
                 available_columns=[c.alias_or_name for c in subq_select.selects]
@@ -123,15 +91,15 @@ def _resolve_from_clause(stmnt: expr.From, ctes: dict[str, _Tbl]) -> dict[str, _
     return {
         stmnt.alias_or_name: ctes[stmnt.name]
         if stmnt.name in ctes
-        else _Tbl(name=stmnt.name, type=TableType.EXTERNAL)
+        else Table(name=stmnt.name, type=TableType.EXTERNAL)
     }
 
 
 def _recursive_resolve(
     select_stmt: expr.Select,
     context: list[str],
-    tables: dict[str, _Tbl] | None = None,
-    ctes: dict[str, _Tbl] | None = None,
+    tables: dict[str, Table] | None = None,
+    ctes: dict[str, Table] | None = None,
 ) -> list[ColumnReference]:
     if tables is None:
         tables = {}
@@ -141,7 +109,7 @@ def _recursive_resolve(
     results: list[ColumnReference] = []
     # Find all available CTEs
     for cte in select_stmt.ctes:
-        ctes[cte.alias] = _Tbl(
+        ctes[cte.alias] = Table(
             name=cte.alias,
             available_columns=[c.alias_or_name for c in cte.selects],
             type=TableType.CTE,
@@ -174,7 +142,7 @@ def _recursive_resolve(
         tables[join_table.alias_or_name] = (
             ctes[join_table.name]
             if join_table.name in ctes
-            else _Tbl(name=join_table.name, type=TableType.EXTERNAL)
+            else Table(name=join_table.name, type=TableType.EXTERNAL)
         )
 
     subq_id = 0
@@ -220,9 +188,9 @@ def resolve_column_lineage(glot_code: expr.Expression) -> list[ColumnReference]:
         - table: The source table name (None if ambiguous)
         - reference_type: TableType enum value (EXTERNAL, CTE, SUBQUERY, or AMBIGUOUS)
         - resolved: Boolean indicating if the column exists in the source:
-          - True: Column exists in the referenced table/CTE
-          - False: Column does not exist in the referenced table/CTE
-          - None: Cannot determine (e.g., SELECT * or external table)
+            - True: Column exists in the referenced table/CTE
+            - False: Column does not exist in the referenced table/CTE
+            - None: Cannot determine (e.g., SELECT * or external table)
         - context: List of strings showing the query context path (e.g., ["root", "my_cte"])
 
     """

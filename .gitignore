@@ -213,3 +213,4 @@ __marimo__/
 *.ipynb
 *.dbt_toolbox
 logs/
+.vscode/
