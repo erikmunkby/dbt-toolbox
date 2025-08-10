@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.2.1...v0.3.0) (2025-08-10)
+
+
+### Features
+
+* **settings:** ignore model validation ([2378267](https://github.com/erikmunkby/dbt-toolbox/commit/23782676e7049a5a335f6c31dbbc5b6a66eb70af))
+
 ## [0.2.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.2.0...v0.2.1) (2025-08-10)
 
 
