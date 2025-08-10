@@ -189,6 +189,7 @@ This fixture is automatically applied to all tests and do not need to be include
 - `DBT_TOOLBOX_PLACEHOLDER_DESCRIPTION` - Custom placeholder text
 - `DBT_TOOLBOX_CACHE_VALIDITY_MINUTES` - Cache validity in minutes (default: 1440)
 - `DBT_TOOLBOX_ENFORCE_LINEAGE_VALIDATION` - Enable/disable lineage validation (default: true)
+- `DBT_TOOLBOX_MODELS_IGNORE_VALIDATION` - Comma-separated list of models to ignore during validation
 
 ### TOML Configuration (`pyproject.toml`)
 ```toml
@@ -201,6 +202,7 @@ skip_placeholder = false
 placeholder_description = "TODO: PLACEHOLDER"
 cache_validity_minutes = 1440
 enforce_lineage_validation = true
+models_ignore_validation = ["legacy_model", "staging_temp"]
 ```
 
 ### Settings Precedence

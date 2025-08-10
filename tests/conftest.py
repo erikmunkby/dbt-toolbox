@@ -34,7 +34,8 @@ def dbt_project_setup():  # noqa: ANN201
     assert settings.dbt_project_dir == Path().cwd() / destination_path
     yield
     rmtree(destination_path)
-    del os.environ["DBT_PROJECT_DIR"]
+    if "DBT_PROJECT_DIR" in os.environ:
+        del os.environ["DBT_PROJECT_DIR"]
 
 
 @pytest.fixture
