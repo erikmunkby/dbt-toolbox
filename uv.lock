@@ -413,7 +413,7 @@ requires-dist = [
     { name = "sqlglot", extras = ["rs"], specifier = ">=26.25.3" },
     { name = "tomli", specifier = ">=2.2.1" },
     { name = "typer", specifier = ">=0.16.0" },
-    { name = "yamlium", specifier = ">=0.1.3" },
+    { name = "yamlium", specifier = ">=0.1.4" },
 ]
 
 [package.metadata.requires-dev]
