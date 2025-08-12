@@ -1,3 +1,35 @@
+<div id="top">
+
+<!-- HEADER STYLE: CONSOLE -->
+<div align="center">
+
+```console
+     |  |     |        |                |  |               
+  _` |   _ \   _| ____| _|   _ \   _ \  |   _ \   _ \ \ \ /
+\__,_| _.__/ \__|     \__| \___/ \___/ _| _.__/ \___/  _\_\
+
+A powerful CLI toolkit to supercharge your dbt development workflow
+```
+
+</div>
+
+<!-- BADGES -->
+<img src="https://img.shields.io/github/license/erikmunkby/dbt-toolbox?style=flat-square&logo=opensourceinitiative&logoColor=white&color=8a2be2" alt="license">
+<img src="https://img.shields.io/github/last-commit/erikmunkby/dbt-toolbox?style=flat-square&logo=git&logoColor=white&color=8a2be2" alt="last-commit">
+<img src="https://img.shields.io/github/languages/top/erikmunkby/dbt-toolbox?style=flat-square&color=8a2be2" alt="repo-top-language">
+<img src="https://img.shields.io/github/languages/count/erikmunkby/dbt-toolbox?style=flat-square&color=8a2be2" alt="repo-language-count">
+
+<em>Built with the tools and technologies:</em>
+
+<img src="https://img.shields.io/badge/Typer-000000.svg?style=flat-square&logo=Typer&logoColor=white" alt="Typer">
+<img src="https://img.shields.io/badge/Python-3776AB.svg?style=flat-square&logo=Python&logoColor=white" alt="Python">
+<img src="https://img.shields.io/badge/yamlium-FF6B6B.svg?style=flat-square&logo=YAML&logoColor=white" alt="yamlium">
+<img src="https://img.shields.io/badge/SQLGlot-4169E1.svg?style=flat-square&logo=SQL&logoColor=white" alt="SQLGlot">
+<img src="https://img.shields.io/badge/uv-DE5FE9.svg?style=flat-square&logo=uv&logoColor=white" alt="uv">
+
+</div>
+<br>
+
 # dbt-toolbox
 
 A powerful CLI toolkit that supercharges your dbt development workflow with intelligent caching, dependency analysis, and enhanced documentation generation.
@@ -78,6 +110,12 @@ dt docs -m orders --clipboard # Copy to clipboard
 ### Intelligent Caching System
 dbt-toolbox caches parsed models, macros, and Jinja environments in `.dbt_toolbox/` directory with smart invalidation based on file changes and project configuration.
 
+### Smart Execution & Lineage Validation
+- Only executes models that actually need rebuilding based on dependency analysis
+- Optional lineage validation to catch broken references before execution
+- Configurable model validation ignore lists for legacy models
+- Cache validity controls for optimal performance
+
 ### Dependency Graph Analysis
 Lightweight DAG implementation provides efficient model relationship tracking:
 - Upstream/downstream dependency resolution
@@ -86,7 +124,7 @@ Lightweight DAG implementation provides efficient model relationship tracking:
 
 ### Enhanced CLI Experience
 - Colored output with progress indicators
-- Global options that work across all commands
+- Target-specific execution (`--target` option)
 - Command shadowing for seamless dbt integration
 - Comprehensive error handling and reporting
 
@@ -96,10 +134,51 @@ The `dt docs` command intelligently inherits column descriptions from:
 - Macro parameters that reference the columns
 - Existing schema.yml documentation
 
+## ⚙️ Configuration
+
+dbt-toolbox supports configuration through multiple sources with the following precedence:
+
+1. **Environment Variables** (highest priority)
+2. **TOML Configuration** (`pyproject.toml`)
+3. **dbt Profiles** (for SQL dialect)
+4. **Auto-detection** (for project paths)
+5. **Defaults** (lowest priority)
+
+### Key Configuration Options
+For an exhaustive list see [CLI.md](./CLI.md)
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `dbt_project_dir` | Path to dbt project | Auto-detected |
+| `cache_path` | Cache directory location | `.dbt_toolbox` |
+| `cache_validity_minutes` | Cache validity duration | `1440` (24 hours) |
+| `enforce_lineage_validation` | Enable lineage validation | `true` |
+| `models_ignore_validation` | Models to skip validation | `[]` |
+| `debug` | Enable debug logging | `false` |
+| `skip_placeholder` | Skip placeholder descriptions | `false` |
+| `placeholder_description` | Custom placeholder text | `"TODO: PLACEHOLDER"` |
+
+### Configuration Examples
+
+**Environment Variables:**
+```bash
+export DBT_TOOLBOX_ENFORCE_LINEAGE_VALIDATION=false
+export DBT_TOOLBOX_MODELS_IGNORE_VALIDATION="legacy_model,staging_temp"
+export DBT_TOOLBOX_CACHE_VALIDITY_MINUTES=720 # Default=1440
+```
+
+**TOML Configuration:**
+```toml
+[tool.dbt_toolbox]
+enforce_lineage_validation = false
+models_ignore_validation = ["legacy_model", "staging_temp"]
+cache_validity_minutes = 720 # Default=1440
+```
+
 ## 📚 Documentation
 
-- [CLI Reference](./CLI.md) - Detailed command documentation and examples
-- [Contributing Guide](./CONTRIBUTING.md) - Development setup and guidelines
+- [CLI Reference](https://github.com/erikmunkby/dbt-toolbox/blob/main/CLI.md) - Detailed command documentation and examples
+- [Contributing Guide](https://github.com/erikmunkby/dbt-toolbox/blob/main/CONTRIBUTING.md) - Development setup and guidelines
 
 ## 🧪 Testing Integration
 
@@ -115,13 +194,19 @@ def test_model_documentation():
         pytest.fail(result)
 ```
 
+## ⭐ Roadmap
+
+- [X] **`dt docs`**: <strike>Automatic yaml docs generation.</strike>
+- [x] **`Smart model selection`**: <strike>Smart caching and model selection for optimized executions.</strike>
+- [ ] **`Expand testing stack`**: Build out the `dbt_toolbox.testing` stack.
+
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) for development setup, coding standards, and contribution guidelines.
+We welcome contributions! Please see our [Contributing Guide](https://github.com/erikmunkby/dbt-toolbox/blob/main/CONTRIBUTING.md) for development setup, coding standards, and contribution guidelines.
 
 ## 📄 License
 
-[MIT License](LICENSE) - Feel free to use this project in your own work.
+[MIT License](https://github.com/erikmunkby/dbt-toolbox/blob/main/LICENSE) - Feel free to use this project in your own work.
 
 ## 🙏 Acknowledgments
 
