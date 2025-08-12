@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.3.0...v0.3.1) (2025-08-12)
+
+
+### Bug Fixes
+
+* update docs ([55cc56b](https://github.com/erikmunkby/dbt-toolbox/commit/55cc56b60362ead919b6e3cfb33e588f1c37718c))
+
 ## [0.3.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.2.1...v0.3.0) (2025-08-10)
 
 
