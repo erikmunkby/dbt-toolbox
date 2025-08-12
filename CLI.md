@@ -4,6 +4,9 @@ Complete documentation for all dbt-toolbox CLI commands with detailed examples a
 
 ## Table of Contents
 
+<details>
+<summary>Table of Contents</summary>
+
 - [Global Options](#global-options)
 - [Commands Overview](#commands-overview)
 - [`dt build`](#dt-build) - Enhanced dbt build with intelligent caching
@@ -15,9 +18,16 @@ Complete documentation for all dbt-toolbox CLI commands with detailed examples a
 - [Configuration](#configuration)
 - [Examples & Workflows](#examples--workflows)
 
+</details>
+
 ## Global Options
 
-dbt-toolbox currently has no global options. All options are command-specific.
+All commands support the `--target` (`-t`) option to specify which dbt target to use:
+
+```bash
+dt build --target prod
+dt docs --model customers --target staging
+```
 
 ## Commands Overview
 
@@ -96,6 +106,7 @@ Generate YAML documentation for dbt models with column inheritance from upstream
 |--------|-------|-------------|
 | `--model` | `-m` | Model name to generate docs for (required) |
 | `--clipboard` | `-c` | Copy output to clipboard instead of updating file |
+| `--target` | `-t` | Which target to load for the given profile |
 
 ### Example
 
@@ -128,7 +139,8 @@ Analyze cache state and model dependencies without executing any models. Shows w
 
 | Option | Short | Description |
 |--------|-------|-------------|
-| `--model` | `-m`, `-s` | Analyze specific models (dbt selection syntax) |
+| `--model` | `-m`, `-s`, `--select` | Analyze specific models (dbt selection syntax) |
+| `--target` | `-t` | Which target to load for the given profile |
 
 ### Example
 
@@ -151,7 +163,7 @@ Models needing execution: 4
 ┌─────────────────┬────────────────────────────────────────────┐
 │ Model           │ Issue                                      │
 ├─────────────────┼────────────────────────────────────────────┤
-│ customer_orders │ Model failed in last execution            │
+│ customer_orders │ Model failed in last execution             │
 └─────────────────┴────────────────────────────────────────────┘
 
 🔄 Modified Models (2):
@@ -174,10 +186,26 @@ Models needing execution: 4
 
 ## `dt clean`
 
-Clear all cached data including models, macros, Jinja environments, and dependency graphs.
+Clear all cached data including models, macros, Jinja environments, and dependency graphs. Can also clean specific models from cache.
+
+### Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--models` | `-m` | Specific models to clean from cache (comma-separated) |
+| `--target` | `-t` | Which target to load for the given profile |
+
+### Examples
 
 ```bash
+# Clean entire cache
 dt clean
+
+# Clean specific models from cache
+dt clean --models customers,orders
+
+# Clean with specific target
+dt clean --target prod
 ```
 
 ### Output Example
@@ -198,8 +226,17 @@ Removed 8 cache files:
 
 Inspect configuration from all sources (environment variables, TOML files, dbt profiles, defaults) with precedence and location tracking.
 
+### Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--target` | `-t` | Which target to load for the given profile |
+
+### Example
+
 ```bash
 dt settings
+dt settings --target prod
 ```
 
 ### Output Example
@@ -232,11 +269,14 @@ cache_path:
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `DBT_PROJECT_DIR` | Override dbt project directory | `/path/to/dbt/project` |
+| `DBT_PROFILES_DIR` | Custom dbt profiles directory | `/path/to/profiles` |
 | `DBT_TOOLBOX_DEBUG` | Enable debug logging | `true` |
 | `DBT_TOOLBOX_CACHE_PATH` | Custom cache directory | `.cache` |
 | `DBT_TOOLBOX_SKIP_PLACEHOLDER` | Skip placeholder descriptions | `true` |
 | `DBT_TOOLBOX_PLACEHOLDER_DESCRIPTION` | Custom placeholder text | `"TODO: Add docs"` |
+| `DBT_TOOLBOX_CACHE_VALIDITY_MINUTES` | Cache validity in minutes | `720` |
 | `DBT_TOOLBOX_ENFORCE_LINEAGE_VALIDATION` | Enable/disable lineage validation | `true` |
+| `DBT_TOOLBOX_MODELS_IGNORE_VALIDATION` | Models to ignore during validation | `"legacy_model,temp"` |
 
 ### TOML Configuration
 
@@ -245,11 +285,14 @@ Add to `pyproject.toml`:
 ```toml
 [tool.dbt_toolbox]
 dbt_project_dir = "path/to/dbt/project"
+dbt_profiles_dir = "path/to/profiles"
 debug = false
 cache_path = ".dbt_toolbox"  
 skip_placeholder = false
 placeholder_description = "TODO: PLACEHOLDER"
+cache_validity_minutes = 1440
 enforce_lineage_validation = true
+models_ignore_validation = ["legacy_model", "staging_temp"]
 ```
 
 ### dbt Profile Integration

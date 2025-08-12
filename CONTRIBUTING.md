@@ -23,7 +23,7 @@ uv sync --group dev
 dt --help
 
 # Run tests to ensure everything works
-pytest
+uv run pytest
 ```
 
 ### Development Environment
@@ -50,33 +50,47 @@ dbt_toolbox/
 ├── cli/                  # CLI commands and interface
 │   ├── main.py          # Main CLI app with Typer
 │   ├── build.py         # Enhanced dbt build command
+│   ├── run.py           # Enhanced dbt run command
 │   ├── docs.py          # YAML documentation generation
+│   ├── analyze.py       # Cache state analysis
 │   ├── clean.py         # Cache management
-│   └── globals.py       # Global state management
+│   ├── _dbt_executor.py # Shared dbt execution engine
+│   ├── _analyze_models.py # Model execution analysis logic
+│   ├── _analyze_columns.py # Column lineage analysis
+│   ├── _common_options.py # Shared CLI options and types
+│   └── _dbt_output_parser.py # dbt command output parsing
 ├── dbt_parser/          # dbt project parsing and caching
 │   ├── dbt_parser.py    # Main parsing interface
 │   ├── _cache.py        # Caching implementation
 │   ├── _file_fetcher.py # File system operations
-│   └── _jinja_handler.py# Jinja environment management
+│   ├── _jinja_handler.py# Jinja environment management
+│   ├── _builders.py     # Model and macro building logic
+│   └── _column_resolver.py # SQL column resolution and dependency analysis
 ├── graph/               # Dependency graph implementation
 │   └── dependency_graph.py # Lightweight DAG
 ├── testing/             # Testing utilities for users
 │   └── column_tests.py  # Documentation test helpers
 ├── utils/               # Shared utilities
-│   ├── printer.py       # Enhanced console output
-│   └── utils.py         # General utilities
-├── data_models.py       # Pydantic data models
-├── settings.py          # Configuration management
+│   ├── _printers.py     # Enhanced console output with colors
+│   └── _paths.py        # Path utility functions
+├── data_models.py       # Pydantic data models and DbtProfile
+├── settings.py          # Configuration management with source tracking
+├── run_config.py        # Runtime configuration and target management
 └── constants.py         # Project constants
 ```
 
 ### Key Design Patterns
 
-1. **Caching Strategy**: Uses pickle serialization for parsed models, macros, and Jinja environments
-2. **Dependency Tracking**: Lightweight DAG with efficient upstream/downstream traversal  
-3. **Configuration Hierarchy**: Multi-source settings with precedence tracking
-4. **CLI Design**: Typer-based with global options and command shadowing
-5. **SQL Processing**: SQLGlot for parsing and optimization
+1. **Intelligent Execution**: Smart cache-based execution that analyzes which models need rebuilding
+2. **Shared Command Infrastructure**: Common dbt execution logic via `_dbt_executor.py` factory pattern
+3. **Instance-based Parser**: dbtParser is instantiated with target parameter instead of singleton pattern
+4. **Caching Strategy**: Uses pickle serialization for caching parsed models, macros, and Jinja environments
+5. **Dependency Tracking**: Lightweight DAG with efficient upstream/downstream traversal
+6. **SQL Processing**: Uses SQLGlot for parsing and optimizing SQL queries with advanced column resolution
+7. **CLI Design**: Typer-based with target support, command shadowing, and enhanced UX
+8. **Configuration Hierarchy**: Multi-source settings with precedence and source tracking
+9. **Lineage Validation**: Optional column and model reference validation before execution
+10. **Target Management**: Runtime configuration with support for dbt target environments
 
 ### Development Principles
 
@@ -92,16 +106,19 @@ dbt_toolbox/
 
 ```bash
 # Run all tests
-pytest
+uv run pytest
 
 # Run specific test file
-pytest tests/test_cacher.py
+uv run pytest tests/test_cacher.py
 
 # Run with verbose output
-pytest -v
+uv run pytest -v
+
+# Run tests with coverage and stop at first failure (recommended during development)
+uv run pytest -x
 
 # Run tests with coverage
-pytest --cov=dbt_toolbox
+uv run pytest --cov=dbt_toolbox
 ```
 
 ### Test Structure
@@ -136,13 +153,16 @@ We use [Ruff](https://docs.astral.sh/ruff/) for linting and formatting:
 
 ```bash
 # Check code style
-ruff check
+uv run ruff check
 
 # Auto-fix issues
-ruff check --fix
+uv run ruff check --fix
 
 # Format code
-ruff format
+uv run ruff format
+
+# Run all quality checks (recommended)
+make fix
 ```
 
 ### Code Quality Requirements
@@ -193,9 +213,9 @@ test(parser): add tests for Jinja template parsing
 
 ### Before Submitting
 
-1. **Run the full test suite**: `pytest`
-2. **Run code quality checks**: `ruff check --fix`
-3. **Update documentation** if needed
+1. **Run the full test suite**: `uv run pytest -x`
+2. **Run code quality checks**: `make fix`
+3. **Update documentation** if needed (README.md, CLI.md, CONTRIBUTING.md)
 4. **Add tests** for new functionality
 5. **Update CHANGELOG** for user-facing changes
 
@@ -262,11 +282,10 @@ git checkout -b feat/amazing-feature
 
 # 2. Make changes and test locally
 dt --help  # Test CLI changes
-pytest    # Run tests
+uv run pytest -x    # Run tests
 
 # 3. Ensure code quality
-ruff check --fix
-ruff format
+make fix
 
 # 4. Commit with conventional commit message
 git commit -m "feat(cli): add amazing new feature"
@@ -275,6 +294,31 @@ git commit -m "feat(cli): add amazing new feature"
 git push origin feat/amazing-feature
 ```
 
+### Development Patterns
+
+**When adding new CLI commands:**
+1. Add `target: str | None = Target` parameter to command function
+2. Create `dbt_parser = dbtParser(target=target)` instance
+3. Pass dbt_parser instance to functions that need it
+4. Use `from dbt_toolbox.cli._common_options import Target` for target type
+
+**When writing tests:**
+1. Mock `dbtParser` constructor calls: `@patch("module.dbtParser")`
+2. For execute_dbt_command tests: Access `kwargs["base_command"]` instead of positional args
+3. For analyze_model_statuses tests: Use `AnalysisResult` with proper `ExecutionReason` enum values
+4. Always provide mock dbt_parser instances to functions that require them
+
+**When working with utilities:**
+- Use `from dbt_toolbox.utils import _printers` (not old `printer` module)
+- Use `_printers.cprint()` for colored console output
+- Use `from dbt_toolbox.utils._paths import build_path` for path utilities
+
+**Import patterns:**
+- `from dbt_toolbox.dbt_parser import dbtParser` (class, not singleton)
+- `from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason`
+- `from dbt_toolbox.run_config import RunConfig`
+- `from dbt_toolbox.cli._common_options import Target`
+
 ### Local Testing Tips
 
 ```bash
@@ -282,9 +326,16 @@ git push origin feat/amazing-feature
 export DBT_PROJECT_DIR="/path/to/your/dbt/project" 
 dt docs --model my_model
 
+# Test with different targets
+dt build --model my_model --target prod
+
 # Enable debug logging
 export DBT_TOOLBOX_DEBUG=true
 dt build --model my_model
+
+# Test lineage validation settings
+export DBT_TOOLBOX_ENFORCE_LINEAGE_VALIDATION=false
+export DBT_TOOLBOX_MODELS_IGNORE_VALIDATION="legacy_model,temp"
 
 # Clear cache during development
 dt clean

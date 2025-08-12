@@ -15,6 +15,12 @@ readme = "README.md"
 authors = [{ name = "Erik Munkby", email = "erik.munkby@gmail.com" }]
 license = { file = "LICENSE" }
 
+[project.urls]
+Homepage = "https://github.com/erikmunkby/dbt-toolbox"
+Documentation = "https://github.com/erikmunkby/dbt-toolbox/blob/main/CLI.md"
+Repository = "https://github.com/erikmunkby/dbt-toolbox"
+Issues = "https://github.com/erikmunkby/dbt-toolbox/issues"
+
 [project.scripts]
 dt = "dbt_toolbox.cli.main:main"
 

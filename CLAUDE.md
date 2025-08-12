@@ -144,17 +144,16 @@ This module is NOT tests for the project itself, but helper functions for users 
 - Dynamic dbt profile and target integration
 - Global `--target` option for environment switching
 
-### Architecture Changes (Post-Refactoring)
+### Architecture Overview
 
 **dbtParser Instantiation Pattern:**
-- Old: Singleton `dbt_parser` instance imported globally
-- New: `dbtParser(target=target)` class instantiated per command with target parameter
+- `dbtParser(target=target)` class instantiated per command with target parameter
 - Benefits: Target isolation, better testability, cleaner dependency management
 
-**Function Signature Changes:**
-- `execute_dbt_command(dbt_parser: dbtParser, base_command: list[str])` - now requires dbt_parser instance
-- `analyze_model_statuses(dbt_parser: dbtParser, dbt_selection: str | None = None)` - now requires dbt_parser instance
-- All CLI commands now accept `target: str | None = Target` parameter
+**Function Signatures:**
+- `execute_dbt_command(dbt_parser: dbtParser, base_command: list[str])` - requires dbt_parser instance
+- `analyze_model_statuses(dbt_parser: dbtParser, dbt_selection: str | None = None)` - requires dbt_parser instance
+- All CLI commands accept `target: str | None = Target` parameter
 
 **Key Classes and Enums:**
 - `ExecutionReason` enum: `UPSTREAM_MODEL_CHANGED`, `UPSTREAM_MACRO_CHANGED`, `OUTDATED_MODEL`, `LAST_EXECUTION_FAILED`, `CODE_CHANGED`
@@ -221,8 +220,12 @@ models_ignore_validation = ["legacy_model", "staging_temp"]
 - When implementing new features always do the following:
   1. Implement a minimal test (if one not already exists).
   2. Implement minimal amount of code for the test to succeed.
+- Any time we do feature implementations or structural changes, remember to update:
+  1. `README.md` regarding any high-level project information and getting started stuff. The `README.md` should primarily be targeted towards users of the tool.
+  2. `CLI.md` regarding any CLI functionality. Also targeted towards users of the tool.
+  3. `CONTRIBUTING.md` regarding any development changes for other contributors to know.
 
-## Development Patterns (Post-Refactoring)
+## Development Patterns
 
 **When adding new CLI commands:**
 1. Add `target: str | None = Target` parameter to command function
@@ -237,12 +240,16 @@ models_ignore_validation = ["legacy_model", "staging_temp"]
 4. Always provide mock dbt_parser instances to functions that require them
 
 **When working with utilities:**
-- Use `from dbt_toolbox.utils import _printers` (not old `printer` module)
+- Use `from dbt_toolbox.utils import _printers` for colored console output
 - Use `_printers.cprint()` for colored console output
 - Use `from dbt_toolbox.utils._paths import build_path` for path utilities
 
 **Import patterns:**
-- `from dbt_toolbox.dbt_parser import dbtParser` (class, not singleton)
+- `from dbt_toolbox.dbt_parser import dbtParser`
 - `from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason`
 - `from dbt_toolbox.run_config import RunConfig`
 - `from dbt_toolbox.cli._common_options import Target`
+
+## Documentation Guidelines
+
+Documentation should always reflect the current state of the codebase. Never use terms like "post-refactoring", "new:", "old:", or references to past states. Always describe things as they currently are.
