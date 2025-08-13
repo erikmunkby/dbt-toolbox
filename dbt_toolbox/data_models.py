@@ -231,13 +231,16 @@ class Model(ModelBase):
     code_changed: bool = False
     # Will be set when we discover upstream macro changes
     upstream_macros_changed: bool = False
+    # Time it took to compute the model. Stored after a build.
+    compute_time_millis: int | None = None
 
-    def set_build_successful(self) -> None:
+    def set_build_successful(self, compute_time_millis: int) -> None:
         """Flag that the model built and everything is fresh."""
         self.last_built = EXECUTION_TIMESTAMP
         self.last_build_failed = False
         self.code_changed = False
         self.upstream_macros_changed = False
+        self.compute_time_millis = compute_time_millis
 
     def set_build_failed(self) -> None:
         """Flag the model as last build failed."""

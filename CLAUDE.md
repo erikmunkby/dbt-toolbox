@@ -224,6 +224,7 @@ models_ignore_validation = ["legacy_model", "staging_temp"]
   1. `README.md` regarding any high-level project information and getting started stuff. The `README.md` should primarily be targeted towards users of the tool.
   2. `CLI.md` regarding any CLI functionality. Also targeted towards users of the tool.
   3. `CONTRIBUTING.md` regarding any development changes for other contributors to know.
+- For any dbt log parsing purposes, you will find some example logs in tests/
 
 ## Development Patterns
 
