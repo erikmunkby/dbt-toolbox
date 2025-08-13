@@ -95,6 +95,101 @@ def test_macro_dependency_detection() -> None:
         macro_path.write_text(original_content)
 
 
+def test_analyze_command_consistency_after_macro_change() -> None:
+    """Test that dt analyze gives consistent results when run twice after a macro change.
+
+    This ensures that the analyze command itself doesn't affect cache state and gives
+    repeatable results for the same codebase state.
+    """
+    import time
+
+    # Setup: Get the dedicated test model which depends on macro_to_modify_for_pytest
+    dbt_parser = dbtParser()
+
+    # First, ensure we have a clean baseline
+    test_model = dbt_parser.get_model("macro_change_detection_model")
+    assert test_model is not None, "macro_change_detection_model should exist"
+
+    # Modify the macro to create a detectable change
+    time.sleep(0.1)
+    macro_path = settings.dbt_project_dir / "macros" / "macro_to_modify_for_pytest.sql"
+    original_content = macro_path.read_text()
+
+    try:
+        # Modify the macro content
+        modified_content = original_content.replace(
+            "'Tests will modify this macro. DO NOT EDIT MANUALLY'",
+            "'Modified by consistency test - macro change'",
+        )
+        macro_path.write_text(modified_content)
+
+        # Create a fresh parser to detect the change
+        dbt_parser_fresh = dbtParser()
+
+        # Run analyze twice with the same parser and verify results are identical
+        first_analysis = analyze_model_statuses(dbt_parser_fresh, "macro_change_detection_model")
+        second_analysis = analyze_model_statuses(dbt_parser_fresh, "macro_change_detection_model")
+
+        # Verify we have results for our test model
+        assert "macro_change_detection_model" in first_analysis
+        assert "macro_change_detection_model" in second_analysis
+
+        # Extract results for comparison
+        first_result = first_analysis["macro_change_detection_model"]
+        second_result = second_analysis["macro_change_detection_model"]
+
+        # Key consistency checks
+        assert first_result.needs_execution == second_result.needs_execution, (
+            f"needs_execution should be consistent: first={first_result.needs_execution}, "
+            f"second={second_result.needs_execution}"
+        )
+
+        if first_result.reason is not None:
+            assert first_result.reason == second_result.reason, (
+                f"execution reason should be consistent: first={first_result.reason}, "
+                f"second={second_result.reason}"
+            )
+
+        assert first_result.reason_description == second_result.reason_description, (
+            f"reason description should be consistent: first='{first_result.reason_description}', "
+            f"second='{second_result.reason_description}'"
+        )
+
+        # Model properties should be identical
+        assert first_result.model.name == second_result.model.name
+        assert first_result.model.last_built == second_result.model.last_built
+        assert (
+            first_result.model.upstream_macros_changed
+            == second_result.model.upstream_macros_changed
+        )
+
+        # Now test with a completely fresh parser for the second analysis
+        # This simulates running "dt analyze" twice from the command line
+        dbt_parser_second_fresh = dbtParser()
+        third_analysis = analyze_model_statuses(
+            dbt_parser_second_fresh, "macro_change_detection_model"
+        )
+
+        assert "macro_change_detection_model" in third_analysis
+        third_result = third_analysis["macro_change_detection_model"]
+
+        # Results should still be consistent even with a fresh parser instance
+        assert first_result.needs_execution == third_result.needs_execution, (
+            f"needs_execution should be consistent across parser instances: "
+            f"first={first_result.needs_execution}, third={third_result.needs_execution}"
+        )
+
+        if first_result.reason is not None:
+            assert first_result.reason == third_result.reason, (
+                f"execution reason should be consistent across parser instances: "
+                f"first={first_result.reason}, third={third_result.reason}"
+            )
+
+    finally:
+        # Restore original content
+        macro_path.write_text(original_content)
+
+
 def test_macro_dependency_detection_multiple_models() -> None:
     """Test that multiple models depending on the same macro are all flagged when it changes."""
     dbt_parser = dbtParser()
