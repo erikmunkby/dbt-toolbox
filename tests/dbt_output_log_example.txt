@@ -1,0 +1,44 @@
+16:36:54  Running with dbt=1.10.5
+16:36:54  Registered adapter: duckdb=1.9.4
+16:36:54  Found 6 seeds, 5 models, 2 sources, 550 macros
+16:36:54  
+16:36:54  Concurrency: 4 threads (target='dev')
+16:36:54  
+16:36:54  3 of 11 START seed file dev_seeds.raw_customers ................................ [RUN]
+16:36:54  1 of 11 START sql view model dev.macro_change_detection_model .................. [RUN]
+16:36:54  4 of 11 START seed file dev_seeds.raw_items .................................... [RUN]
+16:36:54  2 of 11 START sql view model dev.some_other_model .............................. [RUN]
+16:36:55  1 of 11 OK created sql view model dev.macro_change_detection_model ............. [OK in 0.29s]
+16:36:55  2 of 11 OK created sql view model dev.some_other_model ......................... [OK in 0.29s]
+16:36:55  5 of 11 START seed file dev_seeds.raw_orders ................................... [RUN]
+16:36:55  3 of 11 OK loaded seed file dev_seeds.raw_customers ............................ [INSERT 930 in 0.29s]
+16:36:55  6 of 11 START seed file dev_seeds.raw_products ................................. [RUN]
+16:36:55  7 of 11 START seed file dev_seeds.raw_stores ................................... [RUN]
+16:36:55  4 of 11 OK loaded seed file dev_seeds.raw_items ................................ [INSERT 90183 in 0.54s]
+16:36:55  8 of 11 START seed file dev_seeds.raw_supplies ................................. [RUN]
+16:36:55  6 of 11 OK loaded seed file dev_seeds.raw_products ............................. [INSERT 10 in 0.50s]
+16:36:55  7 of 11 OK loaded seed file dev_seeds.raw_stores ............................... [INSERT 6 in 0.56s]
+16:36:55  9 of 11 START sql view model dev.customers ..................................... [RUN]
+16:36:56  8 of 11 OK loaded seed file dev_seeds.raw_supplies ............................. [INSERT 65 in 0.62s]
+16:36:56  9 of 11 OK created sql view model dev.customers ................................ [OK in 0.44s]
+16:36:56  5 of 11 OK loaded seed file dev_seeds.raw_orders ............................... [INSERT 63148 in 1.21s]
+16:36:56  10 of 11 START sql view model dev.orders ....................................... [RUN]
+16:36:56  10 of 11 OK created sql view model dev.orders .................................. [OK in 0.14s]
+16:36:56  11 of 11 START sql view model dev.customer_orders .............................. [RUN]
+16:36:56  11 of 11 ERROR creating sql view model dev.customer_orders ..................... [ERROR in 0.02s]
+16:36:56  
+16:36:56  Finished running 6 seeds, 5 view models in 0 hours 0 minutes and 1.81 seconds (1.81s).
+16:36:56  
+16:36:56  Completed with 1 error, 0 partial successes, and 0 warnings:
+16:36:56  
+16:36:56  Failure in model customer_orders (models/customer_orders.sql)
+16:36:56    Runtime Error in model customer_orders (models/customer_orders.sql)
+  Binder Error: Referenced column "x" not found in FROM clause!
+  Candidate bindings: "tax_paid"
+  
+  LINE 15:         x,
+                   ^
+16:36:56  
+16:36:56    compiled code at target/compiled/dbt_ci_testing/models/customer_orders.sql
+16:36:56  
+16:36:56  Done. PASS=10 WARN=0 ERROR=1 SKIP=0 NO-OP=0 TOTAL=11

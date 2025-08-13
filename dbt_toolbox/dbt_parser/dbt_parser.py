@@ -144,48 +144,43 @@ class dbtParser:  # noqa: N801
         """Get all cached models."""
         return cache.get_all_cached_models()
 
-    def get_model(self, model_name: str) -> Model | None:
-        """Get a model by name."""
-        cached_model = self.cached_models.get(model_name)
+    def _get_model(self, model_name: str) -> Model | None:
         raw_model = self.list_raw_models.get(model_name)
         if raw_model is None:
             return None
-        if cached_model and cached_model.code_hash == raw_model.code_hash:
-            # Even if model code hasn't changed, check if upstream macros have changed
-            for macro in cached_model.upstream.macros:
-                if self.macro_changed(macro):
-                    cached_model.upstream_macros_changed = True
-                    break
-            return cached_model
-        # Model was not found in cache or has changed, build and cache it
-        try:
-            built_model = _build_model(
-                raw_model, jinja=self.jinja, sql_dialect=self.run_config.sql_dialect
-            )
-        except ParseError:
-            cprint(
-                "Failed to parse model",
-                model_name,
-                highlight_idx=1,
-                color="yellow",
-            )
+        cached_model = self.cached_models.get(model_name)
+        if not cached_model:
+            try:
+                built_model = _build_model(
+                    raw_model, jinja=self.jinja, sql_dialect=self.run_config.sql_dialect
+                )
+                built_model.yaml_docs = self.yaml_docs.get(model_name)
+                return built_model  # noqa: TRY300
+            except ParseError:
+                cprint(
+                    "Failed to parse model",
+                    model_name,
+                    highlight_idx=1,
+                    color="yellow",
+                )
+                return None
+        if cached_model.code_hash != raw_model.code_hash:
+            cached_model.code_changed = True
+        return cached_model
+
+    def get_model(self, model_name: str) -> Model | None:
+        """Get a model by name."""
+        model = self._get_model(model_name=model_name)
+        # Even if model code hasn't changed, check if upstream macros have changed
+        if not model:
             return None
-
-        # If the model existed in cache, but the code changed, preserve execution history
-        # and mark as code changed
-        if cached_model:
-            built_model.last_built = cached_model.last_built
-            built_model.last_build_failed = cached_model.last_build_failed
-            built_model.code_changed = True
-
-        for macro in built_model.upstream.macros:
+        for macro in model.upstream.macros:
             if self.macro_changed(macro):
-                built_model.upstream_macros_changed = True
+                model.upstream_macros_changed = True
                 break
 
-        built_model.yaml_docs = self.yaml_docs.get(model_name)
-        cache.cache_model(model=built_model)
-        return built_model
+        cache.cache_model(model=model)
+        return model
 
     @cached_property
     def models(self) -> dict[str, Model]:
