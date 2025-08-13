@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/erikmunkby/dbt-toolbox/compare/v0.3.1...v0.3.2) (2025-08-13)
+
+
+### Bug Fixes
+
+* macro changed persistence ([047ed28](https://github.com/erikmunkby/dbt-toolbox/commit/047ed282f6d1d0836bddf9e3d9f4807e4725b918))
+
 ## [0.3.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.3.0...v0.3.1) (2025-08-12)
 
 
