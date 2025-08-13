@@ -214,3 +214,4 @@ __marimo__/
 *.dbt_toolbox
 logs/
 .vscode/
+.serena/

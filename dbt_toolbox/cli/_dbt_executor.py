@@ -10,7 +10,7 @@ import typer
 from dbt_toolbox.cli._analyze_columns import analyze_column_references
 from dbt_toolbox.cli._analyze_models import analyze_model_statuses, print_execution_analysis
 from dbt_toolbox.cli._common_options import Target
-from dbt_toolbox.cli._dbt_output_parser import dbt_output_parser
+from dbt_toolbox.cli._dbt_output_parser import parse_dbt_output
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import _printers
@@ -137,16 +137,24 @@ def execute_dbt_command(dbt_parser: dbtParser, base_command: list[str]) -> None:
         if command_name in ["build", "run"]:
             # Use captured output for parsing
             combined_output = "".join(captured_output)
-            execution_result = dbt_output_parser.parse_output(combined_output)
+            execution_result = parse_dbt_output(combined_output)
 
             # Mark successful models as built successfully
             for model_name, model in dbt_parser.models.items():
                 if model_name in execution_result.successful_models:
-                    model.set_build_successful()
-                    dbt_parser.cache.cache_model(model=model)
+                    # Find the execution time for this model
+                    execution_time = 0
+                    for result in execution_result.all_results:
+                        if result.name == model_name and result.execution_time_seconds is not None:
+                            execution_time = int(
+                                result.execution_time_seconds * 1000
+                            )  # Convert to milliseconds
+                            break
+                    model.set_build_successful(execution_time)
                 elif model_name in execution_result.failed_models:
                     model.set_build_failed()
-                    dbt_parser.cache.cache_model(model=model)
+                # Finally, cache the model with its results.
+                dbt_parser.cache.cache_model(model=model)
 
             # Handle failed models - mark as failed and clear from cache
             if execution_result.failed_models and return_code != 0:
@@ -234,51 +242,52 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
     if vars:
         dbt_command.extend(["--vars", vars])
 
-    # Perform intelligent execution analysis (enabled by default)
-    if not disable_smart:
-        # Analyze which models need execution
-        analyses = analyze_model_statuses(dbt_parser=dbt_parser, dbt_selection=model)
-        print_execution_analysis(analyses)
-
-        if analyze_only:
-            # Just show analysis and exit
-            return
-
-        # Filter models to only those that need execution (smart execution)
-        models_to_execute = [
-            name for name, analysis in analyses.items() if analysis.needs_execution
-        ]
-
-        if not models_to_execute:
-            _printers.cprint(
-                "✅ All models have valid cache - nothing to execute!",
-                color="green",
-            )
-            return
-
-        # Update dbt command with filtered model selection
-        if len(models_to_execute) == len(analyses):
-            # All models need execution, keep original selection
-            _printers.cprint("🔥 All selected models need execution", color="yellow")
-        else:
-            # Create new selection with only models that need execution
-            new_selection = " ".join(models_to_execute)
-            _printers.cprint(f"🎯 Optimized selection: {new_selection}", color="cyan")
-
-            # Update the dbt command to use the optimized selection
-            # Find and replace the --select argument
-            for i, arg in enumerate(dbt_command):
-                if arg == "--select":
-                    dbt_command[i + 1] = new_selection
-                    break
-            else:
-                # If --select wasn't found, add it
-                dbt_command.extend(["--select", new_selection])
-    elif analyze_only:
+    if disable_smart:
+        execute_dbt_command(dbt_parser=dbt_parser, base_command=dbt_command)
+        return
+    if analyze_only:
         # If smart execution is disabled but analyze_only is requested
         analyses = analyze_model_statuses(dbt_parser=dbt_parser, dbt_selection=model)
         print_execution_analysis(analyses, verbose=True)
         return
+
+    # Otherwise perform intelligent execution analysis (enabled by default)
+    # Analyze which models need execution
+    analyses = analyze_model_statuses(dbt_parser=dbt_parser, dbt_selection=model)
+    print_execution_analysis(analyses)
+
+    if analyze_only:
+        # Just show analysis and exit
+        return
+
+    # Filter models to only those that need execution (smart execution)
+    models_to_execute = [name for name, analysis in analyses.items() if analysis.needs_execution]
+
+    if not models_to_execute:
+        _printers.cprint(
+            "✅ All models have valid cache - nothing to execute!",
+            color="green",
+        )
+        return
+
+    # Update dbt command with filtered model selection
+    if len(models_to_execute) == len(analyses):
+        # All models need execution, keep original selection
+        _printers.cprint("🔥 All selected models need execution", color="yellow")
+    else:
+        # Create new selection with only models that need execution
+        new_selection = " ".join(models_to_execute)
+        _printers.cprint(f"🎯 Optimized selection: {new_selection}", color="cyan")
+
+        # Update the dbt command to use the optimized selection
+        # Find and replace the --select argument
+        for i, arg in enumerate(dbt_command):
+            if arg == "--select":
+                dbt_command[i + 1] = new_selection
+                break
+        else:
+            # If --select wasn't found, add it
+            dbt_command.extend(["--select", new_selection])
 
     execute_dbt_command(dbt_parser=dbt_parser, base_command=dbt_command)
 

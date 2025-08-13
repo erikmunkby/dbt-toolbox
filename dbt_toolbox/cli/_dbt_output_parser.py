@@ -10,6 +10,7 @@ class ModelResult(NamedTuple):
 
     name: str
     status: str  # OK, ERROR, SKIP, etc.
+    execution_time_seconds: float | None = None
     error_message: str | None = None
 
 
@@ -23,106 +24,129 @@ class DbtExecutionResult:
     all_results: list[ModelResult]
 
 
-class DbtOutputParser:
-    """Parser for dbt command output to extract model execution results."""
+def parse_dbt_output(output: str) -> DbtExecutionResult:
+    """Parse dbt command output to extract model execution results.
 
-    # Regex patterns for different dbt output formats
-    PATTERNS = {
-        # Matches both numbered and non-numbered success patterns
-        # "OK created table model test_db.my_model" or "1 of 5 OK created ..."
-        # Also handles "sql" prefix: "OK created sql view model test_db.my_model"
-        "success": re.compile(
-            r"(?:\d+\s+of\s+\d+\s+)?OK\s+created\s+(?:sql\s+)?(?:table|view|incremental)\s+model\s+\w+\.(\w+)",
-        ),
-        # Matches both numbered and non-numbered error patterns
-        # "ERROR creating table model test_db.my_model" or "2 of 5 ERROR ..."
-        # Also handles "sql" prefix: "ERROR creating sql view model test_db.my_model"
-        "error": re.compile(
-            r"(?:\d+\s+of\s+\d+\s+)?ERROR\s+creating\s+(?:sql\s+)?(?:table|view|incremental)\s+model\s+\w+\.(\w+)",
-        ),
-        # Matches both numbered and non-numbered skip patterns
-        # "SKIP relation test_db.my_model" or "3 of 5 SKIP relation test_db.my_model"
-        "skip": re.compile(
-            r"(?:\d+\s+of\s+\d+\s+)?SKIP\s+relation\s+\w+\.(\w+)",
-        ),
-    }
+    Args:
+        output: Raw output from dbt command execution.
 
-    def parse_output(self, output: str) -> DbtExecutionResult:
-        """Parse dbt command output to extract model execution results.
+    Returns:
+        DbtExecutionResult with categorized model results.
 
-        Args:
-            output: Raw output from dbt command execution.
+    """
+    all_results = []
+    lines = output.split("\n")
 
-        Returns:
-            DbtExecutionResult with categorized model results.
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
 
-        """
-        all_results = []
+        # Skip RUN status lines
+        if "[RUN]" in line:
+            continue
 
-        lines = output.split("\n")
+        # Try to extract model information from the line
+        model_info = _extract_model_info(line)
+        if model_info:
+            all_results.append(model_info)
 
-        for raw_line in lines:
-            line = raw_line.strip()
-            if not line:
-                continue
+    # Categorize results
+    successful_models = [r.name for r in all_results if r.status == "OK"]
+    failed_models = [r.name for r in all_results if r.status == "ERROR"]
+    skipped_models = [r.name for r in all_results if r.status == "SKIP"]
 
-            # Try to match patterns
-            for pattern_name, pattern in self.PATTERNS.items():
-                match = pattern.search(line)
-                if match:
-                    model_name = match.group(1)
+    return DbtExecutionResult(
+        successful_models=successful_models,
+        failed_models=failed_models,
+        skipped_models=skipped_models,
+        all_results=all_results,
+    )
 
-                    if pattern_name == "success":
-                        status = "OK"
-                        error_msg = None
-                    elif pattern_name == "error":
-                        status = "ERROR"
-                        error_msg = self._extract_error_message(line)
-                    elif pattern_name == "skip":
-                        status = "SKIP"
-                        error_msg = None
-                    else:
-                        continue
 
-                    all_results.append(
-                        ModelResult(
-                            name=model_name,
-                            status=status,
-                            error_message=error_msg,
-                        ),
-                    )
-                    break
+def _extract_model_info(line: str) -> ModelResult | None:
+    """Extract model information from a dbt output line.
 
-        # Categorize results
-        successful_models = [r.name for r in all_results if r.status == "OK"]
-        failed_models = [r.name for r in all_results if r.status == "ERROR"]
-        skipped_models = [r.name for r in all_results if r.status == "SKIP"]
+    Args:
+        line: A line from dbt output
 
-        return DbtExecutionResult(
-            successful_models=successful_models,
-            failed_models=failed_models,
-            skipped_models=skipped_models,
-            all_results=all_results,
-        )
+    Returns:
+        ModelResult if model information is found, None otherwise
 
-    def _extract_error_message(self, line: str) -> str | None:
-        """Extract error message from a dbt error line.
+    """
+    # Look for pattern: [NUMBER of NUMBER] STATUS [created/creating] [sql]
+    # [table/view/incremental] model [schema.model_name]
 
-        Args:
-            line: Line containing the error.
+    # Extract model name from various patterns
+    model_name = None
 
-        Returns:
-            Extracted error message or None if not found.
+    # Pattern 1: "model schema.model_name" or "model target.model_name"
+    model_match = re.search(r"model\s+\w+\.(\w+)", line)
+    if model_match:
+        model_name = model_match.group(1)
 
-        """
-        # This is a simple implementation - could be enhanced based on dbt output format
-        if "ERROR" in line:
-            # Try to get everything after the model name
-            parts = line.split("ERROR")
-            if len(parts) > 1:
-                return parts[1].strip()
+    # Pattern 2: "relation schema.model_name" (for SKIP relations)
+    if not model_name:
+        relation_match = re.search(r"relation\s+\w+\.(\w+)", line)
+        if relation_match:
+            model_name = relation_match.group(1)
+
+    if not model_name:
         return None
 
+    # Determine status based on keywords in the line
+    status = None
+    execution_time = None
+    error_message = None
 
-# Global parser instance
-dbt_output_parser = DbtOutputParser()
+    if "OK created" in line or "OK loaded" in line:
+        status = "OK"
+        # Extract execution time from patterns like "[OK in 0.29s]" or "[SELECT 123 in 0.45s]"
+        time_match = re.search(r"\[(?:[A-Z]+\s+\d+\s+in\s+([\d.]+)s|OK\s+in\s+([\d.]+)s)\]", line)
+        if time_match:
+            try:
+                execution_time = float(time_match.group(1) or time_match.group(2))
+            except (ValueError, TypeError, AttributeError):
+                execution_time = None
+
+    elif "ERROR creating" in line:
+        status = "ERROR"
+        error_message = _extract_error_message(line)
+        # Extract execution time from patterns like "[ERROR in 0.02s]"
+        time_match = re.search(r"\[ERROR\s+in\s+([\d.]+)s\]", line)
+        if time_match:
+            try:
+                execution_time = float(time_match.group(1))
+            except (ValueError, TypeError):
+                execution_time = None
+
+    elif "SKIP relation" in line:
+        status = "SKIP"
+
+    if status:
+        return ModelResult(
+            name=model_name,
+            status=status,
+            execution_time_seconds=execution_time,
+            error_message=error_message,
+        )
+
+    return None
+
+
+def _extract_error_message(line: str) -> str | None:
+    """Extract error message from a dbt error line.
+
+    Args:
+        line: Line containing the error.
+
+    Returns:
+        Extracted error message or None if not found.
+
+    """
+    if "ERROR" in line:
+        # Try to get everything after "ERROR creating"
+        parts = line.split("ERROR creating")
+        if len(parts) > 1:
+            return parts[1].strip()
+    return None

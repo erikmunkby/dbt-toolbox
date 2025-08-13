@@ -1,6 +1,6 @@
 """Tests for the dbt output parser."""
 
-from dbt_toolbox.cli._dbt_output_parser import DbtExecutionResult, ModelResult, dbt_output_parser
+from dbt_toolbox.cli._dbt_output_parser import DbtExecutionResult, ModelResult, parse_dbt_output
 
 
 class TestDbtOutputParser:
@@ -15,7 +15,7 @@ class TestDbtOutputParser:
 15:23:46  3 of 3 OK created incremental model test_db.payments ............. [INSERT 0 in 0.12s]
         """
 
-        result = dbt_output_parser.parse_output(output)
+        result = parse_dbt_output(output)
 
         assert isinstance(result, DbtExecutionResult)
         assert len(result.successful_models) == 3
@@ -33,7 +33,7 @@ class TestDbtOutputParser:
 15:23:46  2 of 2 ERROR creating table model test_db.orders .................. [COMPILE ERROR]
         """
 
-        result = dbt_output_parser.parse_output(output)
+        result = parse_dbt_output(output)
 
         assert len(result.successful_models) == 1
         assert "customers" in result.successful_models
@@ -50,7 +50,7 @@ class TestDbtOutputParser:
 15:23:46  3 of 3 ERROR creating table model test_db.orders .................. [COMPILE ERROR]
         """
 
-        result = dbt_output_parser.parse_output(output)
+        result = parse_dbt_output(output)
 
         assert len(result.successful_models) == 1
         assert "customers" in result.successful_models
@@ -68,7 +68,7 @@ OK created table model test_db.legacy_model .......................... [SELECT 1
 ERROR creating table model test_db.broken_model ...................... [COMPILE ERROR]
         """
 
-        result = dbt_output_parser.parse_output(output)
+        result = parse_dbt_output(output)
 
         assert len(result.successful_models) == 2
         assert "legacy_model" in result.successful_models
@@ -78,7 +78,7 @@ ERROR creating table model test_db.broken_model ...................... [COMPILE 
 
     def test_parse_empty_output(self) -> None:
         """Test parsing empty or whitespace-only output."""
-        result = dbt_output_parser.parse_output("")
+        result = parse_dbt_output("")
 
         assert len(result.successful_models) == 0
         assert len(result.failed_models) == 0
@@ -95,7 +95,7 @@ ERROR creating table model test_db.broken_model ...................... [COMPILE 
 15:23:45  Done. PASS=0 WARN=0 ERROR=0 SKIP=0 TOTAL=0
         """
 
-        result = dbt_output_parser.parse_output(output)
+        result = parse_dbt_output(output)
 
         assert len(result.successful_models) == 0
         assert len(result.failed_models) == 0
@@ -104,10 +104,13 @@ ERROR creating table model test_db.broken_model ...................... [COMPILE 
 
     def test_model_result_structure(self) -> None:
         """Test that ModelResult is correctly structured."""
-        result = ModelResult(name="test_model", status="OK", error_message=None)
+        result = ModelResult(
+            name="test_model", status="OK", execution_time_seconds=1.5, error_message=None
+        )
 
         assert result.name == "test_model"
         assert result.status == "OK"
+        assert result.execution_time_seconds == 1.5
         assert result.error_message is None
 
     def test_parse_sql_prefix_models(self) -> None:
@@ -119,7 +122,7 @@ ERROR creating table model test_db.broken_model ...................... [COMPILE 
 11:10:58  3 of 3 ERROR creating sql view model dev.customer_orders . [ERROR in 0.02s]
         """
 
-        result = dbt_output_parser.parse_output(output)
+        result = parse_dbt_output(output)
 
         assert result.successful_models == ["customers", "orders"]
         assert result.failed_models == ["customer_orders"]
@@ -133,3 +136,27 @@ ERROR creating table model test_db.broken_model ...................... [COMPILE 
         customer_orders_result = next(r for r in result.all_results if r.name == "customer_orders")
         assert customer_orders_result.status == "ERROR"
         assert customer_orders_result.error_message is not None
+
+    def test_parse_execution_times(self) -> None:
+        """Test that execution times are correctly parsed."""
+        output = """
+11:10:58  Running with dbt=1.5.0
+11:10:58  1 of 3 OK created sql table model dev.customers .......... [SELECT 123 in 0.45s]
+11:10:58  2 of 3 OK created sql view model dev.orders ............ [SELECT 456 in 0.32s]
+11:10:58  3 of 3 ERROR creating sql view model dev.customer_orders . [ERROR in 0.02s]
+        """
+
+        result = parse_dbt_output(output)
+
+        assert len(result.all_results) == 3
+
+        # Check execution times for successful models
+        customers_result = next(r for r in result.all_results if r.name == "customers")
+        assert customers_result.execution_time_seconds == 0.45
+
+        orders_result = next(r for r in result.all_results if r.name == "orders")
+        assert orders_result.execution_time_seconds == 0.32
+
+        # Check execution time for failed model
+        customer_orders_result = next(r for r in result.all_results if r.name == "customer_orders")
+        assert customer_orders_result.execution_time_seconds == 0.02

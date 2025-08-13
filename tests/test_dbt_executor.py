@@ -13,7 +13,7 @@ class TestDbtExecutor:
     @patch("dbt_toolbox.cli._dbt_executor._stream_process_output")
     @patch("dbt_toolbox.cli._dbt_executor._printers")
     @patch("dbt_toolbox.cli._dbt_executor.settings")
-    @patch("dbt_toolbox.cli._dbt_executor.dbt_output_parser")
+    @patch("dbt_toolbox.cli._dbt_executor.parse_dbt_output")
     @patch("subprocess.Popen")
     def test_execute_dbt_command_success(
         self,
@@ -56,7 +56,7 @@ class TestDbtExecutor:
 
     @patch("dbt_toolbox.cli._dbt_executor._printers")
     @patch("dbt_toolbox.cli._dbt_executor.settings")
-    @patch("dbt_toolbox.cli._dbt_executor.dbt_output_parser")
+    @patch("dbt_toolbox.cli._dbt_executor.parse_dbt_output")
     @patch("subprocess.Popen")
     def test_execute_dbt_command_failure(
         self,
