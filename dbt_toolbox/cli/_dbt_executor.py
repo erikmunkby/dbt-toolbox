@@ -3,6 +3,7 @@
 import subprocess
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Annotated
 
 import typer
@@ -10,10 +11,17 @@ import typer
 from dbt_toolbox.cli._analyze_columns import analyze_column_references
 from dbt_toolbox.cli._analyze_models import analyze_model_statuses, print_execution_analysis
 from dbt_toolbox.cli._common_options import Target
-from dbt_toolbox.cli._dbt_output_parser import parse_dbt_output
+from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, parse_dbt_output
+from dbt_toolbox.data_models import Model
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import _printers
+
+
+@dataclass
+class DbtExecutionResults:
+    return_code: int
+    logs: DbtParsedLogs
 
 
 def _validate_lineage_references(dbt_parser: dbtParser) -> bool:
@@ -75,6 +83,44 @@ def _validate_lineage_references(dbt_parser: dbtParser) -> bool:
     return False
 
 
+def _format_time(time_seconds: float) -> str:
+    """Format compute time in seconds to human-readable format.
+
+    Args:
+        time_seconds: Time in seconds
+
+    Returns:
+        Human-readable time string
+
+    """
+    if time_seconds < 60:  # noqa: PLR2004
+        return f"{time_seconds:.1f}s"
+    if time_seconds < 3600:  # noqa: PLR2004
+        minutes = int(time_seconds // 60)
+        seconds = time_seconds % 60
+        return f"{minutes}m {seconds:.1f}s"
+    hours = int(time_seconds // 3600)
+    remaining_seconds = time_seconds % 3600
+    minutes = int(remaining_seconds // 60)
+    return f"{hours}h {minutes}m"
+
+
+def _print_compute_time(skipped_models: list[Model]) -> None:
+    """Print the compute time saved in console."""
+    time_seconds = sum(
+        [m.compute_time_seconds if m.compute_time_seconds else 0 for m in skipped_models]
+    )
+
+    if skipped_models:
+        time_display = _format_time(time_seconds)
+        _printers.cprint(
+            f"⚡ Skipped {len(skipped_models)} "
+            f"model{'s' if len(skipped_models) != 1 else ''}, "
+            f"saved ~{time_display} of compute time",
+            color="green",
+        )
+
+
 def _stream_process_output(process: subprocess.Popen) -> list[str]:
     """Stream process output in real-time and capture for parsing.
 
@@ -100,7 +146,7 @@ def _stream_process_output(process: subprocess.Popen) -> list[str]:
     return captured_output
 
 
-def execute_dbt_command(dbt_parser: dbtParser, base_command: list[str]) -> None:
+def execute_dbt_command(dbt_parser: dbtParser, base_command: list[str]) -> DbtExecutionResults:
     """Execute a dbt command with standard project and profiles directories.
 
     Args:
@@ -130,41 +176,34 @@ def execute_dbt_command(dbt_parser: dbtParser, base_command: list[str]) -> None:
         captured_output = _stream_process_output(process)
 
         # Wait for process to complete and get return code
-        return_code = process.wait()
+        dbt_return_code = process.wait()
 
         # Parse dbt output to identify model results (only for build/run commands)
         command_name = base_command[1] if len(base_command) > 1 else ""
         if command_name in ["build", "run"]:
             # Use captured output for parsing
             combined_output = "".join(captured_output)
-            execution_result = parse_dbt_output(combined_output)
+            dbt_logs = parse_dbt_output(combined_output)
 
             # Mark successful models as built successfully
             for model_name, model in dbt_parser.models.items():
-                if model_name in execution_result.successful_models:
-                    # Find the execution time for this model
-                    execution_time = 0
-                    for result in execution_result.all_results:
-                        if result.name == model_name and result.execution_time_seconds is not None:
-                            execution_time = int(
-                                result.execution_time_seconds * 1000
-                            )  # Convert to milliseconds
-                            break
-                    model.set_build_successful(execution_time)
-                elif model_name in execution_result.failed_models:
+                model_results = dbt_logs.get_model(model_name)
+                if not model_results:
+                    continue
+                if model_results.status == "OK":
+                    exec_time = model_results.execution_time_seconds
+                    model.set_build_successful(compute_time_seconds=exec_time if exec_time else 0)
+                elif model_results.status == "ERROR":
                     model.set_build_failed()
                 # Finally, cache the model with its results.
                 dbt_parser.cache.cache_model(model=model)
 
             # Handle failed models - mark as failed and clear from cache
-            if execution_result.failed_models and return_code != 0:
+            if dbt_logs.failed_models and dbt_return_code != 0:
                 _printers.cprint(
-                    f"🧹 Marking {len(execution_result.failed_models)} models as failed...",
+                    f"🧹 Marking {len(dbt_logs.failed_models)} models as failed...",
                     color="yellow",
                 )
-
-        # Exit with the same code as dbt
-        sys.exit(return_code)
 
     except KeyboardInterrupt:
         _printers.cprint("❌ Command interrupted by user", color="red")
@@ -180,6 +219,7 @@ def execute_dbt_command(dbt_parser: dbtParser, base_command: list[str]) -> None:
     except Exception as e:  # noqa: BLE001
         _printers.cprint("❌ Unexpected error:", str(e), highlight_idx=1, color="red")
         sys.exit(1)
+    return DbtExecutionResults(return_code=dbt_return_code, logs=dbt_logs)
 
 
 def execute_dbt_with_smart_selection(  # noqa: PLR0913
@@ -261,13 +301,20 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
         return
 
     # Filter models to only those that need execution (smart execution)
-    models_to_execute = [name for name, analysis in analyses.items() if analysis.needs_execution]
+    models_to_execute: list[str] = []
+    models_to_skip: list[Model] = []
+    for name, analysis in analyses.items():
+        if analysis.needs_execution:
+            models_to_execute.append(name)
+        else:
+            models_to_skip.append(analysis.model)
 
     if not models_to_execute:
         _printers.cprint(
             "✅ All models have valid cache - nothing to execute!",
             color="green",
         )
+        _print_compute_time(skipped_models=models_to_skip)
         return
 
     # Update dbt command with filtered model selection
@@ -289,7 +336,10 @@ def execute_dbt_with_smart_selection(  # noqa: PLR0913
             # If --select wasn't found, add it
             dbt_command.extend(["--select", new_selection])
 
-    execute_dbt_command(dbt_parser=dbt_parser, base_command=dbt_command)
+    execution_results = execute_dbt_command(dbt_parser=dbt_parser, base_command=dbt_command)
+    if not execution_results.logs.failed_models:
+        _print_compute_time(skipped_models=models_to_skip)
+    sys.exit(execution_results.return_code)
 
 
 def create_dbt_command_function(command_name: str, help_text: str) -> Callable:

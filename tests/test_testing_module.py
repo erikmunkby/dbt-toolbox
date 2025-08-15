@@ -1,6 +1,6 @@
 """Test the testing module functionality."""
 
-from dbt_toolbox.testing import check_column_documentation
+from dbt_toolbox.testing import check_column_documentation, get_all_models
 
 
 class TestColumnDocumentation:
@@ -40,3 +40,8 @@ class TestColumnDocumentation:
             assert has_missing or has_superfluous, (
                 f"Model {model_name} has no issues but is in results"
             )
+
+
+def test_get_all_models() -> None:
+    """Test the fetching all models function."""
+    assert "customers" in get_all_models()

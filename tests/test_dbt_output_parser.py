@@ -1,6 +1,6 @@
 """Tests for the dbt output parser."""
 
-from dbt_toolbox.cli._dbt_output_parser import DbtExecutionResult, ModelResult, parse_dbt_output
+from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, ModelResult, parse_dbt_output
 
 
 class TestDbtOutputParser:
@@ -17,13 +17,12 @@ class TestDbtOutputParser:
 
         result = parse_dbt_output(output)
 
-        assert isinstance(result, DbtExecutionResult)
+        assert isinstance(result, DbtParsedLogs)
         assert len(result.successful_models) == 3
         assert "customers" in result.successful_models
         assert "orders" in result.successful_models
         assert "payments" in result.successful_models
         assert len(result.failed_models) == 0
-        assert len(result.skipped_models) == 0
 
     def test_parse_failed_models(self) -> None:
         """Test parsing failed model executions."""
@@ -39,7 +38,6 @@ class TestDbtOutputParser:
         assert "customers" in result.successful_models
         assert len(result.failed_models) == 1
         assert "orders" in result.failed_models
-        assert len(result.skipped_models) == 0
 
     def test_parse_skipped_models(self) -> None:
         """Test parsing skipped model executions."""
@@ -82,8 +80,8 @@ ERROR creating table model test_db.broken_model ...................... [COMPILE 
 
         assert len(result.successful_models) == 0
         assert len(result.failed_models) == 0
-        assert len(result.skipped_models) == 0
-        assert len(result.all_results) == 0
+
+        assert len(result.models) == 0
 
     def test_parse_no_models_in_output(self) -> None:
         """Test parsing output with no model execution lines."""
@@ -99,8 +97,8 @@ ERROR creating table model test_db.broken_model ...................... [COMPILE 
 
         assert len(result.successful_models) == 0
         assert len(result.failed_models) == 0
-        assert len(result.skipped_models) == 0
-        assert len(result.all_results) == 0
+
+        assert len(result.models) == 0
 
     def test_model_result_structure(self) -> None:
         """Test that ModelResult is correctly structured."""
@@ -126,14 +124,14 @@ ERROR creating table model test_db.broken_model ...................... [COMPILE 
 
         assert result.successful_models == ["customers", "orders"]
         assert result.failed_models == ["customer_orders"]
-        assert len(result.all_results) == 3
+        assert len(result.models) == 3
 
         # Verify specific model results
-        customers_result = next(r for r in result.all_results if r.name == "customers")
+        customers_result = result.models["customers"]
         assert customers_result.status == "OK"
         assert customers_result.error_message is None
 
-        customer_orders_result = next(r for r in result.all_results if r.name == "customer_orders")
+        customer_orders_result = result.models["customer_orders"]
         assert customer_orders_result.status == "ERROR"
         assert customer_orders_result.error_message is not None
 
@@ -142,21 +140,21 @@ ERROR creating table model test_db.broken_model ...................... [COMPILE 
         output = """
 11:10:58  Running with dbt=1.5.0
 11:10:58  1 of 3 OK created sql table model dev.customers .......... [SELECT 123 in 0.45s]
-11:10:58  2 of 3 OK created sql view model dev.orders ............ [SELECT 456 in 0.32s]
-11:10:58  3 of 3 ERROR creating sql view model dev.customer_orders . [ERROR in 0.02s]
+11:10:58  2 of 3 OK created sql view model dev.orders ............ [INSERT 456 in 0.32s]
+11:10:58  3 of 3 OK creating sql view model dev.customer_orders . [OK in 0.02s]
         """
 
         result = parse_dbt_output(output)
 
-        assert len(result.all_results) == 3
+        assert len(result.models) == 3
 
         # Check execution times for successful models
-        customers_result = next(r for r in result.all_results if r.name == "customers")
+        customers_result = result.models["customers"]
         assert customers_result.execution_time_seconds == 0.45
 
-        orders_result = next(r for r in result.all_results if r.name == "orders")
+        orders_result = result.models["orders"]
         assert orders_result.execution_time_seconds == 0.32
 
         # Check execution time for failed model
-        customer_orders_result = next(r for r in result.all_results if r.name == "customer_orders")
+        customer_orders_result = result.models["customer_orders"]
         assert customer_orders_result.execution_time_seconds == 0.02

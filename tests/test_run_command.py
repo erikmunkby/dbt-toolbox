@@ -33,6 +33,8 @@ class TestRunCommand:
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
+        mock_execute.return_value.return_code = 0
+        mock_execute.return_value.logs.failed_models = []
         cli_runner = CliRunner()
 
         result = cli_runner.invoke(app, ["run", "--model", "customers"])
@@ -57,6 +59,8 @@ class TestRunCommand:
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
+        mock_execute.return_value.return_code = 0
+        mock_execute.return_value.logs.failed_models = []
         cli_runner = CliRunner()
 
         result = cli_runner.invoke(app, ["run", "--select", "orders"])
@@ -80,6 +84,8 @@ class TestRunCommand:
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
+        mock_execute.return_value.return_code = 0
+        mock_execute.return_value.logs.failed_models = []
         cli_runner = CliRunner()
 
         result = cli_runner.invoke(app, ["run"])
@@ -101,6 +107,8 @@ class TestRunCommand:
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
+        mock_execute.return_value.return_code = 0
+        mock_execute.return_value.logs.failed_models = []
         cli_runner = CliRunner()
 
         result = cli_runner.invoke(app, ["run", "--threads", "4", "--full-refresh"])
@@ -128,6 +136,8 @@ class TestRunCommand:
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
+        mock_execute.return_value.return_code = 0
+        mock_execute.return_value.logs.failed_models = []
         # Mock analyze_model_statuses to return a model that needs execution
         from datetime import datetime, timezone
 
@@ -168,6 +178,8 @@ class TestRunCommand:
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock execute_dbt_command to simulate successful execution
+        mock_execute.return_value.return_code = 0
+        mock_execute.return_value.logs.failed_models = []
         cli_runner = CliRunner()
 
         result = cli_runner.invoke(app, ["run", "--model", "customers"])

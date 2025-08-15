@@ -40,10 +40,14 @@ class TestDbtExecutor:
         mock_dbt_parser.models = {}
         mock_dbt_parser.cache = Mock()
 
-        with pytest.raises(SystemExit) as exc_info:
-            execute_dbt_command(mock_dbt_parser, ["dbt", "run", "--model", "test"])
+        # Mock the parse_dbt_output to return empty logs
+        mock_logs = Mock()
+        mock_logs.failed_models = []
+        mock_parser.return_value = mock_logs
 
-        assert exc_info.value.code == 0
+        result = execute_dbt_command(mock_dbt_parser, ["dbt", "run", "--model", "test"])
+
+        assert result.return_code == 0
         mock_popen.assert_called_once()
 
         # Check that project-dir and profiles-dir are added
@@ -140,22 +144,30 @@ class TestDbtExecutor:
 
         # Mock lineage validation to pass
         mock_validate.return_value = True
+        # Mock execute_dbt_command to return proper DbtExecutionResults
+        mock_execute.return_value.return_code = 0
+        mock_execute.return_value.logs.failed_models = []
         # Mock analysis results showing some models need execution
         from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
 
+        mock_customer_model = Mock(name="customers")
+        mock_customer_model.compute_time_seconds = 1.0
+        mock_orders_model = Mock(name="orders")
+        mock_orders_model.compute_time_seconds = 2.0
+
         mock_analysis = {
-            "customers": AnalysisResult(model=Mock(name="customers")),  # No reason = no execution
-            "orders": AnalysisResult(
-                model=Mock(name="orders"), reason=ExecutionReason.CODE_CHANGED
-            ),
+            "customers": AnalysisResult(model=mock_customer_model),  # No reason = no execution
+            "orders": AnalysisResult(model=mock_orders_model, reason=ExecutionReason.CODE_CHANGED),
         }
         mock_analyze.return_value = mock_analysis
 
-        execute_dbt_with_smart_selection(
-            command_name="build",
-            model="customers+",
-            disable_smart=False,
-        )
+        with pytest.raises(SystemExit) as exc_info:
+            execute_dbt_with_smart_selection(
+                command_name="build",
+                model="customers+",
+                disable_smart=False,
+            )
+        assert exc_info.value.code == 0
 
         # Should analyze, print results, and execute with filtered selection
         mock_analyze.assert_called_once()
@@ -190,24 +202,32 @@ class TestDbtExecutor:
 
         # Mock lineage validation to pass
         mock_validate.return_value = True
+        # Mock execute_dbt_command to return proper DbtExecutionResults
+        mock_execute.return_value.return_code = 0
+        mock_execute.return_value.logs.failed_models = []
         # Mock analysis results showing all models need execution
         from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
 
+        mock_customer_model = Mock(name="customers")
+        mock_customer_model.compute_time_seconds = 1.0
+        mock_orders_model = Mock(name="orders")
+        mock_orders_model.compute_time_seconds = 2.0
+
         mock_analysis = {
             "customers": AnalysisResult(
-                model=Mock(name="customers"), reason=ExecutionReason.CODE_CHANGED
+                model=mock_customer_model, reason=ExecutionReason.CODE_CHANGED
             ),
-            "orders": AnalysisResult(
-                model=Mock(name="orders"), reason=ExecutionReason.CODE_CHANGED
-            ),
+            "orders": AnalysisResult(model=mock_orders_model, reason=ExecutionReason.CODE_CHANGED),
         }
         mock_analyze.return_value = mock_analysis
 
-        execute_dbt_with_smart_selection(
-            command_name="run",
-            model="customers+",
-            disable_smart=False,
-        )
+        with pytest.raises(SystemExit) as exc_info:
+            execute_dbt_with_smart_selection(
+                command_name="run",
+                model="customers+",
+                disable_smart=False,
+            )
+        assert exc_info.value.code == 0
 
         # Should analyze, print results, and execute
         mock_analyze.assert_called_once()
@@ -241,9 +261,14 @@ class TestDbtExecutor:
         # Mock analysis results showing no models need execution
         from dbt_toolbox.cli._analyze_models import AnalysisResult
 
+        mock_customer_model = Mock(name="customers")
+        mock_customer_model.compute_time_seconds = 1.0
+        mock_orders_model = Mock(name="orders")
+        mock_orders_model.compute_time_seconds = 2.0
+
         mock_analysis = {
-            "customers": AnalysisResult(model=Mock(name="customers")),  # No reason = no execution
-            "orders": AnalysisResult(model=Mock(name="orders")),  # No reason = no execution
+            "customers": AnalysisResult(model=mock_customer_model),  # No reason = no execution
+            "orders": AnalysisResult(model=mock_orders_model),  # No reason = no execution
         }
         mock_analyze.return_value = mock_analysis
 
@@ -270,6 +295,9 @@ class TestDbtExecutor:
         # Mock dbtParser constructor
         mock_dbt_parser_instance = Mock()
         mock_dbt_parser_class.return_value = mock_dbt_parser_instance
+        # Mock execute_dbt_command to return proper DbtExecutionResults
+        mock_execute.return_value.return_code = 0
+        mock_execute.return_value.logs.failed_models = []
 
         execute_dbt_with_smart_selection(
             command_name="build",
@@ -336,6 +364,9 @@ class TestDbtExecutor:
         # Mock dbtParser constructor
         mock_dbt_parser_instance = Mock()
         mock_dbt_parser_class.return_value = mock_dbt_parser_instance
+        # Mock execute_dbt_command to return proper DbtExecutionResults
+        mock_execute.return_value.return_code = 0
+        mock_execute.return_value.logs.failed_models = []
 
         execute_dbt_with_smart_selection(
             command_name="run",
