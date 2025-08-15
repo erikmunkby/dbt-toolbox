@@ -199,6 +199,7 @@ def test_model_documentation():
 - [X] **`dt docs`**: <strike>Automatic yaml docs generation.</strike>
 - [x] **`Smart model selection`**: <strike>Smart caching and model selection for optimized executions.</strike>
 - [ ] **`Expand testing stack`**: Build out the `dbt_toolbox.testing` stack.
+- [ ] **`MCP Server`**: Publish commands via MCP server.
 
 ## 🤝 Contributing
 

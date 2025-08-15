@@ -2,29 +2,46 @@
 
 import re
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import Literal, NamedTuple
+
+StatusTypes = Literal["OK", "ERROR", "SKIP"]  # OK, ERROR, SKIP, etc.
 
 
 class ModelResult(NamedTuple):
     """Result of a model execution from dbt output."""
 
     name: str
-    status: str  # OK, ERROR, SKIP, etc.
+    status: StatusTypes
     execution_time_seconds: float | None = None
     error_message: str | None = None
 
 
 @dataclass
-class DbtExecutionResult:
+class DbtParsedLogs:
     """Result of parsing dbt execution output."""
 
-    successful_models: list[str]
-    failed_models: list[str]
-    skipped_models: list[str]
-    all_results: list[ModelResult]
+    models: dict[str, ModelResult]
+
+    def _filter(self, status: StatusTypes, /) -> list[str]:
+        return [name for name, m in self.models.items() if m.status == status]
+
+    @property
+    def successful_models(self) -> list[str]:
+        return self._filter("OK")
+
+    @property
+    def failed_models(self) -> list[str]:
+        return self._filter("ERROR")
+
+    @property
+    def skipped_models(self) -> list[str]:
+        return self._filter("SKIP")
+
+    def get_model(self, name: str, /) -> ModelResult | None:
+        return self.models.get(name)
 
 
-def parse_dbt_output(output: str) -> DbtExecutionResult:
+def parse_dbt_output(output: str) -> DbtParsedLogs:
     """Parse dbt command output to extract model execution results.
 
     Args:
@@ -34,9 +51,9 @@ def parse_dbt_output(output: str) -> DbtExecutionResult:
         DbtExecutionResult with categorized model results.
 
     """
-    all_results = []
     lines = output.split("\n")
 
+    results = {}
     for raw_line in lines:
         line = raw_line.strip()
         if not line:
@@ -49,19 +66,8 @@ def parse_dbt_output(output: str) -> DbtExecutionResult:
         # Try to extract model information from the line
         model_info = _extract_model_info(line)
         if model_info:
-            all_results.append(model_info)
-
-    # Categorize results
-    successful_models = [r.name for r in all_results if r.status == "OK"]
-    failed_models = [r.name for r in all_results if r.status == "ERROR"]
-    skipped_models = [r.name for r in all_results if r.status == "SKIP"]
-
-    return DbtExecutionResult(
-        successful_models=successful_models,
-        failed_models=failed_models,
-        skipped_models=skipped_models,
-        all_results=all_results,
-    )
+            results[model_info.name] = model_info
+    return DbtParsedLogs(models=results)
 
 
 def _extract_model_info(line: str) -> ModelResult | None:
@@ -77,17 +83,21 @@ def _extract_model_info(line: str) -> ModelResult | None:
     # Look for pattern: [NUMBER of NUMBER] STATUS [created/creating] [sql]
     # [table/view/incremental] model [schema.model_name]
 
+    # Strip ANSI escape codes that interfere with pattern matching
+    ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    clean_line = ansi_escape.sub("", line)
+
     # Extract model name from various patterns
     model_name = None
 
     # Pattern 1: "model schema.model_name" or "model target.model_name"
-    model_match = re.search(r"model\s+\w+\.(\w+)", line)
+    model_match = re.search(r"model\s+\w+\.(\w+)", clean_line)
     if model_match:
         model_name = model_match.group(1)
 
     # Pattern 2: "relation schema.model_name" (for SKIP relations)
     if not model_name:
-        relation_match = re.search(r"relation\s+\w+\.(\w+)", line)
+        relation_match = re.search(r"relation\s+\w+\.(\w+)", clean_line)
         if relation_match:
             model_name = relation_match.group(1)
 
@@ -99,28 +109,26 @@ def _extract_model_info(line: str) -> ModelResult | None:
     execution_time = None
     error_message = None
 
-    if "OK created" in line or "OK loaded" in line:
+    if "OK created" in clean_line or "OK loaded" in clean_line or "OK creating" in clean_line:
         status = "OK"
         # Extract execution time from patterns like "[OK in 0.29s]" or "[SELECT 123 in 0.45s]"
-        time_match = re.search(r"\[(?:[A-Z]+\s+\d+\s+in\s+([\d.]+)s|OK\s+in\s+([\d.]+)s)\]", line)
+        time_pattern = r"\[(?:[A-Z]+\s+\d+\s+in\s+([\d.]+)s|OK\s+in\s+([\d.]+)s)\]"
+        time_match = re.search(time_pattern, clean_line)
         if time_match:
-            try:
-                execution_time = float(time_match.group(1) or time_match.group(2))
-            except (ValueError, TypeError, AttributeError):
-                execution_time = None
+            execution_time = float(time_match.group(1) or time_match.group(2))
 
-    elif "ERROR creating" in line:
+    if "ERROR creating" in clean_line:
         status = "ERROR"
-        error_message = _extract_error_message(line)
+        error_message = _extract_error_message(clean_line)
         # Extract execution time from patterns like "[ERROR in 0.02s]"
-        time_match = re.search(r"\[ERROR\s+in\s+([\d.]+)s\]", line)
+        time_match = re.search(r"\[ERROR\s+in\s+([\d.]+)s\]", clean_line)
         if time_match:
             try:
                 execution_time = float(time_match.group(1))
             except (ValueError, TypeError):
                 execution_time = None
 
-    elif "SKIP relation" in line:
+    elif "SKIP relation" in clean_line:
         status = "SKIP"
 
     if status:
