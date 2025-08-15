@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.3.2...v0.4.0) (2025-08-15)
+
+
+### Features
+
+* track execution times ([7aeccf3](https://github.com/erikmunkby/dbt-toolbox/commit/7aeccf3b4b15741308ca5ed77d2bf87aa0a2fb4a))
+
+
+### Bug Fixes
+
+* collect model execution time ([40e6729](https://github.com/erikmunkby/dbt-toolbox/commit/40e67290b2395e34e2c214dbbe5aacfad8e6c212))
+
 ## [0.3.2](https://github.com/erikmunkby/dbt-toolbox/compare/v0.3.1...v0.3.2) (2025-08-13)
 
 
