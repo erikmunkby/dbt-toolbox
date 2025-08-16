@@ -13,7 +13,7 @@ from dbt_toolbox.settings import settings
 class ColumnIssue:
     """A specific column issue for a referenced object."""
 
-    referenced_object: str
+    referenced_table: str
     missing_columns: list[str]
 
 
@@ -30,8 +30,9 @@ class ModelAnalysisResult:
     """Results of column reference analysis for a single model."""
 
     model_name: str
+    model_path: str
     column_issues: list[ColumnIssue]
-    non_existent_references: list[str]
+    non_existant_model_references: list[str]
     cte_issues: list[CTEIssue]
 
 
@@ -49,7 +50,7 @@ class ColumnAnalysis:
         for model_result in self.model_results:
             if model_result.column_issues:
                 result[model_result.model_name] = {
-                    issue.referenced_object: issue.missing_columns
+                    issue.referenced_table: issue.missing_columns
                     for issue in model_result.column_issues
                 }
         return result
@@ -59,8 +60,8 @@ class ColumnAnalysis:
         """Legacy property for backward compatibility."""
         result = {}
         for model_result in self.model_results:
-            if model_result.non_existent_references:
-                result[model_result.model_name] = model_result.non_existent_references
+            if model_result.non_existant_model_references:
+                result[model_result.model_name] = model_result.non_existant_model_references
         return result
 
     @property
@@ -99,8 +100,9 @@ def _analyze_model_column_references(
         # TODO: Enhance column resolver to handle SELECT * and complex CTE chains
         return ModelAnalysisResult(
             model_name=model.name,
+            model_path=str(model.path),
             column_issues=column_issues,
-            non_existent_references=non_existent_references,
+            non_existant_model_references=non_existent_references,
             cte_issues=cte_issues,
         )
 
@@ -137,8 +139,9 @@ def _analyze_model_column_references(
 
     return ModelAnalysisResult(
         model_name=model.name,
+        model_path=str(model.path),
         column_issues=column_issues,
-        non_existent_references=non_existent_references,
+        non_existant_model_references=non_existent_references,
         cte_issues=cte_issues,
     )
 
@@ -205,11 +208,11 @@ def _handle_external_reference(
 
     if not column_exists:
         existing_column_issue = next(
-            (issue for issue in column_issues if issue.referenced_object == referenced_model), None
+            (issue for issue in column_issues if issue.referenced_table == referenced_model), None
         )
         if existing_column_issue is None:
             column_issues.append(
-                ColumnIssue(referenced_object=referenced_model, missing_columns=[col_ref.name])
+                ColumnIssue(referenced_table=referenced_model, missing_columns=[col_ref.name])
             )
         elif col_ref.name not in existing_column_issue.missing_columns:
             existing_column_issue.missing_columns.append(col_ref.name)
@@ -260,7 +263,7 @@ def analyze_column_references(
         # Only add results that have issues
         if (
             model_result.column_issues
-            or model_result.non_existent_references
+            or model_result.non_existant_model_references
             or model_result.cte_issues
         ):
             model_results.append(model_result)
