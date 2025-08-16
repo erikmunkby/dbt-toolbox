@@ -1,17 +1,23 @@
 """Module collecting all data models."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from functools import cached_property
 from hashlib import md5
-from pathlib import Path
+from typing import TYPE_CHECKING, Self
 
 import yamlium
-from sqlglot.expressions import Select
 
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.settings import settings
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from sqlglot.expressions import Select
 
 
 class DbtProfile:
@@ -246,6 +252,18 @@ class Model(ModelBase):
         """Flag the model as last build failed."""
         self.last_built = EXECUTION_TIMESTAMP
         self.last_build_failed = True
+
+    def copy_attributes(self, other_model: Model) -> Self:
+        """Copy attributes not yet set from other model.
+
+        Args:
+            other_model: The model to copy attributes from.
+
+        """
+        for attr, val in other_model.__dict__.items():
+            if getattr(self, attr, None) is None:
+                setattr(self, attr, val)
+        return self
 
     @property
     def cache_outdated(self) -> bool:
