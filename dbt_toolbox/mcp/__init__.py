@@ -3,7 +3,7 @@
 from dbt_toolbox import utils
 
 try:
-    import mcp  # noqa: F401
+    import fastmcp  # noqa: F401
 except ModuleNotFoundError:
     utils.cprint(
         "Module mcp not found. Install using: ",

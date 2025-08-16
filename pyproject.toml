@@ -26,7 +26,7 @@ dt = "dbt_toolbox.cli.main:main"
 
 [project.optional-dependencies]
 mcp = [
-    "mcp>=1.13.0",
+    "fastmcp>=2.11.3",
 ]
 
 [dependency-groups]
