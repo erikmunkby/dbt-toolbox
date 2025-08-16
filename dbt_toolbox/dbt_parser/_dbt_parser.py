@@ -144,6 +144,13 @@ class dbtParser:  # noqa: N801
         """Get all cached models."""
         return cache.get_all_cached_models()
 
+    def _build_model(self, raw_model: ModelBase, /) -> Model:
+        built_model = _build_model(
+            raw_model, jinja=self.jinja, sql_dialect=self.run_config.sql_dialect
+        )
+        built_model.yaml_docs = self.yaml_docs.get(raw_model.name)
+        return built_model
+
     def _get_model(self, model_name: str) -> Model | None:
         raw_model = self.list_raw_models.get(model_name)
         if raw_model is None:
@@ -151,11 +158,7 @@ class dbtParser:  # noqa: N801
         cached_model = self.cached_models.get(model_name)
         if not cached_model:
             try:
-                built_model = _build_model(
-                    raw_model, jinja=self.jinja, sql_dialect=self.run_config.sql_dialect
-                )
-                built_model.yaml_docs = self.yaml_docs.get(model_name)
-                return built_model  # noqa: TRY300
+                return self._build_model(raw_model)
             except ParseError:
                 cprint(
                     "Failed to parse model",
@@ -164,9 +167,13 @@ class dbtParser:  # noqa: N801
                     color="yellow",
                 )
                 return None
-        if cached_model.code_hash != raw_model.code_hash:
-            cached_model.code_changed = True
-        return cached_model
+        if cached_model.code_hash == raw_model.code_hash:
+            return cached_model
+
+        built_model = self._build_model(raw_model)
+        built_model = built_model.copy_attributes(other_model=cached_model)
+        built_model.code_changed = True
+        return built_model
 
     def get_model(self, model_name: str) -> Model | None:
         """Get a model by name."""
