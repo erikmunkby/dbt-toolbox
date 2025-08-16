@@ -2,7 +2,7 @@
 
 from typing import TypedDict
 
-from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
+from dbt_toolbox.dbt_parser import dbtParser
 
 
 class ColumnDocumentationResult(TypedDict):

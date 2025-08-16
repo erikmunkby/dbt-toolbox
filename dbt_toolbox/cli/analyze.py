@@ -15,7 +15,7 @@ from dbt_toolbox.analysees.analyze_models import (
 from dbt_toolbox.cli._common_options import Target
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.data_models import Model
-from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
+from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import _printers
 

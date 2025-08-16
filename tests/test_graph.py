@@ -3,7 +3,7 @@
 import pytest
 
 from dbt_toolbox.data_models import Model
-from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
+from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.graph.dependency_graph import DependencyGraph, NodeNotFoundError
 
 

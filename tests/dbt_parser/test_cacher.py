@@ -4,8 +4,8 @@ from pathlib import Path
 
 from yamlium import parse
 
+from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.dbt_parser._cache import Cache
-from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import build_path
 

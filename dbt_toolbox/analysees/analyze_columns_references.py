@@ -1,10 +1,11 @@
 """Module for analyzing column references in models."""
 
 from dataclasses import dataclass
+from typing import Literal
 
 from dbt_toolbox.data_models import Model, Seed, Source
+from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.dbt_parser._column_resolver import ColumnReference, TableType
-from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
 
 
@@ -38,6 +39,7 @@ class ModelAnalysisResult:
 class ColumnAnalysis:
     """Results of column reference analysis for all models."""
 
+    overall_status: Literal["OK", "ISSUES_FOUND"]
     model_results: list[ModelAnalysisResult]
 
     @property
@@ -263,4 +265,7 @@ def analyze_column_references(
         ):
             model_results.append(model_result)
 
-    return ColumnAnalysis(model_results=model_results)
+    return ColumnAnalysis(
+        model_results=model_results,
+        overall_status="OK" if len(model_results) == 0 else "ISSUES_FOUND",
+    )
