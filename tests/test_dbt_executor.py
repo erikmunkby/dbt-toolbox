@@ -148,7 +148,7 @@ class TestDbtExecutor:
         mock_execute.return_value.return_code = 0
         mock_execute.return_value.logs.failed_models = []
         # Mock analysis results showing some models need execution
-        from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
+        from dbt_toolbox.analysees.analyze_models import AnalysisResult, ExecutionReason
 
         mock_customer_model = Mock(name="customers")
         mock_customer_model.compute_time_seconds = 1.0
@@ -206,7 +206,7 @@ class TestDbtExecutor:
         mock_execute.return_value.return_code = 0
         mock_execute.return_value.logs.failed_models = []
         # Mock analysis results showing all models need execution
-        from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
+        from dbt_toolbox.analysees.analyze_models import AnalysisResult, ExecutionReason
 
         mock_customer_model = Mock(name="customers")
         mock_customer_model.compute_time_seconds = 1.0
@@ -259,7 +259,7 @@ class TestDbtExecutor:
         # Mock lineage validation to pass
         mock_validate.return_value = True
         # Mock analysis results showing no models need execution
-        from dbt_toolbox.cli._analyze_models import AnalysisResult
+        from dbt_toolbox.analysees.analyze_models import AnalysisResult
 
         mock_customer_model = Mock(name="customers")
         mock_customer_model.compute_time_seconds = 1.0
@@ -335,7 +335,7 @@ class TestDbtExecutor:
 
         # Mock lineage validation to pass
         mock_validate.return_value = True
-        from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
+        from dbt_toolbox.analysees.analyze_models import AnalysisResult, ExecutionReason
 
         mock_analysis = {
             "customers": AnalysisResult(

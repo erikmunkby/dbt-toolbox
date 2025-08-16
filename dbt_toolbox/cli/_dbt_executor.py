@@ -8,8 +8,8 @@ from typing import Annotated
 
 import typer
 
-from dbt_toolbox.cli._analyze_columns import analyze_column_references
-from dbt_toolbox.cli._analyze_models import analyze_model_statuses, print_execution_analysis
+from dbt_toolbox.analysees.analyze_columns_references import analyze_column_references
+from dbt_toolbox.analysees.analyze_models import analyze_model_statuses, print_execution_analysis
 from dbt_toolbox.cli._common_options import Target
 from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, parse_dbt_output
 from dbt_toolbox.data_models import Model
@@ -41,7 +41,7 @@ def _validate_lineage_references(dbt_parser: dbtParser) -> bool:
     _printers.cprint("🔍 Validating lineage references...", color="cyan")
 
     # Perform column analysis
-    analysis = analyze_column_references(dbt_parser.models, dbt_parser.sources, dbt_parser.seeds)
+    analysis = analyze_column_references(dbt_parser=dbt_parser)
 
     # Check if there are any issues
     if not analysis.non_existent_columns and not analysis.referenced_non_existent_models:

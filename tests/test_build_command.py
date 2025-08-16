@@ -180,7 +180,7 @@ class TestBuildCommand:
         # Mock analyze_model_statuses to return a model that needs execution
         from datetime import datetime, timezone
 
-        from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
+        from dbt_toolbox.analysees.analyze_models import AnalysisResult, ExecutionReason
 
         mock_model = Mock(spec=Mock)
         mock_model.name = "customers"

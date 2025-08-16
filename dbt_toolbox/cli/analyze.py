@@ -6,11 +6,15 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from dbt_toolbox.cli._analyze_columns import analyze_column_references
-from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason, analyze_model_statuses
+from dbt_toolbox.analysees.analyze_columns_references import analyze_column_references
+from dbt_toolbox.analysees.analyze_models import (
+    AnalysisResult,
+    ExecutionReason,
+    analyze_model_statuses,
+)
 from dbt_toolbox.cli._common_options import Target
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
-from dbt_toolbox.data_models import Model, Seed, Source
+from dbt_toolbox.data_models import Model
 from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import _printers
@@ -60,21 +64,16 @@ def _get_timestamp_info(analysis_result: AnalysisResult) -> str:
     return f"Last updated: {age_description} ago"
 
 
-def print_column_analysis_results(
-    models: dict[str, Model],
-    sources: dict[str, "Source"],
-    seeds: dict[str, "Seed"],
-) -> None:
+def print_column_analysis_results(dbt_parser: dbtParser, target_models: list[Model]) -> None:
     """Print column reference analysis results.
 
     Args:
-        models: Dictionary of model name to Model objects
-        sources: Dictionary of source full_name to Source objects
-        seeds: Dictionary of seed name to Seed objects
+        dbt_parser: The dbt parser.
+        target_models: A list of targeted models.
 
     """
     console = Console()
-    analysis = analyze_column_references(models, sources, seeds)
+    analysis = analyze_column_references(dbt_parser=dbt_parser, target_models=target_models)
 
     # Check if there are any issues to report
     if (
@@ -269,17 +268,16 @@ def analyze_command(
     print_analysis_results(analysis_results)
 
     # Perform column analysis on available models, sources, and seeds
-    models = dbt_parser.models
-    sources = dbt_parser.sources
-    seeds = dbt_parser.seeds
 
     # Filter models if selection is provided
     if model:
         target_models = dbt_parser.parse_dbt_selection(model)
-        models = {name: model_obj for name, model_obj in models.items() if name in target_models}
+        models = [m for m in dbt_parser.models.values() if m.name in target_models]
+    else:
+        models = list(dbt_parser.models.values())
 
     # Print column analysis results
-    print_column_analysis_results(models, sources, seeds)
+    print_column_analysis_results(dbt_parser=dbt_parser, target_models=models)
 
     # Summary
     models_needing_execution = sum(
