@@ -7,9 +7,10 @@ from datetime import datetime, timedelta
 from enum import Enum
 from functools import cached_property
 from hashlib import md5
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING
 
 import yamlium
+from typing_extensions import Self
 
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.settings import settings
