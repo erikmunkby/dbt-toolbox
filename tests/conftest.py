@@ -6,8 +6,8 @@ from shutil import copytree, ignore_patterns, rmtree
 
 import pytest
 
+from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.dbt_parser._cache import Cache
-from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
 
 

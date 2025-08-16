@@ -10,7 +10,7 @@ import yamlium
 from dbt_toolbox.cli.docs import YamlBuilder
 from dbt_toolbox.cli.main import app
 from dbt_toolbox.data_models import ColumnChanges
-from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
+from dbt_toolbox.dbt_parser import dbtParser
 
 
 @pytest.fixture

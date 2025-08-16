@@ -1,6 +1,6 @@
 """Test dbt parser."""
 
-from dbt_toolbox.dbt_parser.dbt_parser import dbtParser
+from dbt_toolbox.dbt_parser import dbtParser
 
 
 def test_load_models() -> None:

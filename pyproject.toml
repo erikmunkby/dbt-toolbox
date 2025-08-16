@@ -24,6 +24,11 @@ Issues = "https://github.com/erikmunkby/dbt-toolbox/issues"
 [project.scripts]
 dt = "dbt_toolbox.cli.main:main"
 
+[project.optional-dependencies]
+mcp = [
+    "mcp>=1.13.0",
+]
+
 [dependency-groups]
 dev = [
     "dbt-duckdb>=1.9.3",
