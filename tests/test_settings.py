@@ -128,15 +128,13 @@ def test_setting_precedence_env_over_default() -> None:
 def test_models_ignore_validation_integration_with_column_analysis() -> None:
     """Test that models_ignore_validation works with column analysis."""
     from dbt_toolbox import settings as settings_module
-    from dbt_toolbox.cli._analyze_columns import analyze_column_references
+    from dbt_toolbox.analysees.analyze_columns_references import analyze_column_references
 
     # Use the actual dbt parser to get real models from the test project
     from dbt_toolbox.dbt_parser import dbtParser
 
     dbt_parser = dbtParser()
     models = dbt_parser.models
-    sources = dbt_parser.sources
-    seeds = dbt_parser.seeds
 
     # Skip the test if there are no models to work with
     if not models:
@@ -153,14 +151,14 @@ def test_models_ignore_validation_integration_with_column_analysis() -> None:
             value=[], source="test", location="test"
         )
 
-        analyze_column_references(models, sources, seeds)
+        analyze_column_references(dbt_parser)
 
         # Now test with ignore list - should skip the model
         settings_module.settings._models_ignore_validation = settings_module.Setting(
             value=[test_model_name], source="test", location="test"
         )
 
-        analysis_with_ignore = analyze_column_references(models, sources, seeds)
+        analysis_with_ignore = analyze_column_references(dbt_parser)
 
         # The test model should not appear in the analysis results when ignored
         assert test_model_name not in analysis_with_ignore.non_existent_columns

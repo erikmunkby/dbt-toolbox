@@ -2,7 +2,7 @@
 
 import time
 
-from dbt_toolbox.cli._analyze_models import ExecutionReason, analyze_model_statuses
+from dbt_toolbox.analysees.analyze_models import ExecutionReason, analyze_model_statuses
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
 

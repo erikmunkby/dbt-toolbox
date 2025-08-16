@@ -1,3 +1,5 @@
+"""Module for all model analysees."""
+
 from dataclasses import dataclass
 from enum import Enum
 
@@ -7,6 +9,8 @@ from dbt_toolbox.utils import _printers
 
 
 class ExecutionReason(Enum):
+    """Enum defining reasons why a model needs execution."""
+
     UPSTREAM_MODEL_CHANGED = "upstream_model_changed"
     UPSTREAM_MACRO_CHANGED = "upstream_macro_changed"
     OUTDATED_MODEL = "outdated_model"
@@ -23,10 +27,12 @@ class AnalysisResult:
 
     @property
     def needs_execution(self) -> bool:
+        """Return True if the model needs execution."""
         return self.reason is not None
 
     @property
     def reason_description(self) -> str:
+        """Return a human-readable description of the execution reason."""
         return {
             ExecutionReason.CODE_CHANGED: "Model code changed.",
             ExecutionReason.UPSTREAM_MACRO_CHANGED: "Upstream macro changed.",

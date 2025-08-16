@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 from typer.testing import CliRunner
 
-from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason
+from dbt_toolbox.analysees.analyze_models import AnalysisResult, ExecutionReason
 from dbt_toolbox.cli.main import app
 from dbt_toolbox.data_models import Model
 
@@ -20,8 +20,11 @@ class TestAnalyzeCommand:
         assert result.exit_code == 0
         assert "analyze" in result.stdout
 
+    @patch("dbt_toolbox.cli.analyze.print_column_analysis_results")
     @patch("dbt_toolbox.cli.analyze.analyze_model_statuses")
-    def test_analyze_with_model_selection(self, mock_analyze: Mock) -> None:
+    def test_analyze_with_model_selection(
+        self, mock_analyze: Mock, mock_column_analysis: Mock
+    ) -> None:
         """Test analyze command with model selection."""
         # Mock analysis results - two valid models
         from datetime import datetime, timezone
@@ -51,8 +54,11 @@ class TestAnalyzeCommand:
         assert "Cache Analysis Results" in result.stdout
         assert "All models have valid cache!" in result.stdout
 
+    @patch("dbt_toolbox.cli.analyze.print_column_analysis_results")
     @patch("dbt_toolbox.cli.analyze.analyze_model_statuses")
-    def test_analyze_with_failed_models(self, mock_analyze: Mock) -> None:
+    def test_analyze_with_failed_models(
+        self, mock_analyze: Mock, mock_column_analysis: Mock
+    ) -> None:
         """Test analyze command with failed models."""
         # Mock analysis results with failed models
         from datetime import datetime, timezone
@@ -88,8 +94,11 @@ class TestAnalyzeCommand:
         assert "dbt_parser" in kwargs
         assert "Models needing execution: 1" in result.stdout
 
+    @patch("dbt_toolbox.cli.analyze.print_column_analysis_results")
     @patch("dbt_toolbox.cli.analyze.analyze_model_statuses")
-    def test_analyze_with_upstream_macro_changes(self, mock_analyze: Mock) -> None:
+    def test_analyze_with_upstream_macro_changes(
+        self, mock_analyze: Mock, mock_column_analysis: Mock
+    ) -> None:
         """Test analyze command detecting upstream macro changes."""
         # Mock analysis results with upstream changes
         from datetime import datetime, timezone
@@ -125,8 +134,9 @@ class TestAnalyzeCommand:
 class TestCacheAnalyzer:
     """Test the cache analyzer functionality."""
 
+    @patch("dbt_toolbox.cli.analyze.print_column_analysis_results")
     @patch("dbt_toolbox.cli.analyze.analyze_model_statuses")
-    def test_analyze_with_no_models(self, mock_analyze: Mock) -> None:
+    def test_analyze_with_no_models(self, mock_analyze: Mock, mock_column_analysis: Mock) -> None:
         """Test analyzing when no models are available."""
         mock_analyze.return_value = {}
 
