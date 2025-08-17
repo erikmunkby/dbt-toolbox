@@ -24,4 +24,9 @@ seeds:
 
 models:
   dbt_ci_testing:
+    +docs:
+      node_color: orangered
     +materialized: view
+
+    subfolder:
+      +materialized: table

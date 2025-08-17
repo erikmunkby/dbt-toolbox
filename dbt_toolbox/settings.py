@@ -17,6 +17,7 @@ class DbtProject:
         """Initialize by loading and parsing dbt_project.yml."""
         self.text = dbt_project_path.read_text()
         self.parsed: dict = yamlium.parse(self.text).to_dict()  # type: ignore
+        self._rendered_parse: yamlium.Mapping | None = None
 
     def rendered_parse(self, env: Environment) -> yamlium.Mapping:
         """Parse the project file with Jinja rendering.
@@ -28,7 +29,9 @@ class DbtProject:
             Parsed and rendered project configuration.
 
         """
-        return yamlium.parse(env.from_string(self.text).render())
+        if self._rendered_parse is None:
+            self._rendered_parse = yamlium.parse(env.from_string(self.text).render())
+        return self._rendered_parse
 
     @property
     def macro_paths(self) -> list[str]:

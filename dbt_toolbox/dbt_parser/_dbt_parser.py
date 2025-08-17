@@ -17,7 +17,7 @@ from dbt_toolbox.data_models import (
     Source,
     YamlDocs,
 )
-from dbt_toolbox.dbt_parser._builders import _build_macro, _build_model
+from dbt_toolbox.dbt_parser._builders import build_macro, build_model
 from dbt_toolbox.dbt_parser._cache import Cache, cache
 from dbt_toolbox.dbt_parser._file_fetcher import read_macros, read_models
 from dbt_toolbox.dbt_parser._jinja_handler import Jinja
@@ -34,6 +34,7 @@ class dbtParser:  # noqa: N801
         """Instantiate the dbt parser using the dbt profile."""
         self.run_config = RunConfig(target=target)
         self.jinja = Jinja(profile=self.run_config.dbt_profile)
+        self.dbt_project_dict: dict = settings.dbt_project.rendered_parse(self.jinja.env).to_dict()  # type: ignore
 
     @cached_property
     def docs_macros_paths(self) -> list[Path]:
@@ -77,6 +78,7 @@ class dbtParser:  # noqa: N801
                 result[m["name"]] = YamlDocs(
                     path=path,
                     model_description=m.get("description"),
+                    config=m.get("config", {}),
                     columns=[
                         ColDocs(name=c.get("name"), description=c.get("description"))
                         for c in m.get("columns", [])
@@ -145,11 +147,13 @@ class dbtParser:  # noqa: N801
         return cache.get_all_cached_models()
 
     def _build_model(self, raw_model: ModelBase, /) -> Model:
-        built_model = _build_model(
-            raw_model, jinja=self.jinja, sql_dialect=self.run_config.sql_dialect
+        return build_model(
+            raw_model,
+            jinja=self.jinja,
+            sql_dialect=self.run_config.sql_dialect,
+            dbt_project_dict=self.dbt_project_dict,
+            yaml_docs=self.yaml_docs.get(raw_model.name),
         )
-        built_model.yaml_docs = self.yaml_docs.get(raw_model.name)
-        return built_model
 
     def _get_model(self, model_name: str) -> Model | None:
         raw_model = self.list_raw_models.get(model_name)
@@ -226,7 +230,7 @@ class dbtParser:  # noqa: N801
                 if not m.is_test:  # Exclude test macros
                     cm = cached_macros.get(m.name)
                     if not cm or m.code_hash != cm.code_hash:
-                        final_macros[m.name] = _build_macro(m)
+                        final_macros[m.name] = build_macro(m)
                     else:
                         final_macros[m.name] = cm
 

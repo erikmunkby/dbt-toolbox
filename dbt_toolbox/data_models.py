@@ -239,6 +239,7 @@ class YamlDocs:
 
     model_description: str | None
     path: Path
+    config: dict
     columns: list[ColDocs] | None
 
 
@@ -249,6 +250,8 @@ class Model(ModelBase):
     rendered_code: str
     glot_code: Select
     upstream: DependsOn
+    # The configuration found in jinja config block or dbt_project.yml
+    config: dict = field(default_factory=dict)
     # Column references are ALL selects within the model
     # along with their origins.
     column_references: list[ColumnReference] | None = None
