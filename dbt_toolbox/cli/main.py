@@ -8,8 +8,10 @@ from dbt_toolbox.cli.build import build
 from dbt_toolbox.cli.clean import clean
 from dbt_toolbox.cli.docs import docs
 from dbt_toolbox.cli.run import run
+from dbt_toolbox.mcp.mcp import mcp_server
 from dbt_toolbox.run_config import RunConfig
 from dbt_toolbox.settings import settings
+from dbt_toolbox.utils._printers import cprint
 
 app = typer.Typer(help="dbt-toolbox CLI - Tools for working with dbt projects")
 
@@ -58,6 +60,13 @@ def settings_cmd(target: str = Target) -> None:
         if source_info.location:
             typer.secho("  location: ", fg=typer.colors.WHITE, nl=False)
             typer.secho(f"{source_info.location}", fg=typer.colors.BRIGHT_BLACK)
+
+
+@app.command(name="start-mcp-server")
+def start_mcp_server() -> None:
+    """Start the MCP server."""
+    cprint("Starting mcp server...", color="cyan")
+    mcp_server.run()
 
 
 def main() -> None:

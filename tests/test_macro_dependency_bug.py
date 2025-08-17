@@ -27,7 +27,8 @@ def test_macro_dependency_detection() -> None:
     )
 
     # Get initial state before macro change
-    initial_analysis = analyze_model_statuses(dbt_parser, "macro_change_detection_model")
+    initial_analysis_list = analyze_model_statuses(dbt_parser, "macro_change_detection_model")
+    initial_analysis = {result.model.name: result for result in initial_analysis_list}
     assert "macro_change_detection_model" in initial_analysis
     initial_needs_execution = initial_analysis["macro_change_detection_model"].needs_execution
 
@@ -54,9 +55,12 @@ def test_macro_dependency_detection() -> None:
 
         # Now analyze models - the test model should be flagged as needing execution due to
         # macro change
-        analysis_after_change = analyze_model_statuses(
+        analysis_after_change_list = analyze_model_statuses(
             dbt_parser_after_change, "macro_change_detection_model"
         )
+        analysis_after_change = {
+            result.model.name: result for result in analysis_after_change_list
+        }
         assert "macro_change_detection_model" in analysis_after_change
         after_change_needs_execution = analysis_after_change[
             "macro_change_detection_model"
@@ -127,8 +131,15 @@ def test_analyze_command_consistency_after_macro_change() -> None:
         dbt_parser_fresh = dbtParser()
 
         # Run analyze twice with the same parser and verify results are identical
-        first_analysis = analyze_model_statuses(dbt_parser_fresh, "macro_change_detection_model")
-        second_analysis = analyze_model_statuses(dbt_parser_fresh, "macro_change_detection_model")
+        first_analysis_list = analyze_model_statuses(
+            dbt_parser_fresh, "macro_change_detection_model"
+        )
+        second_analysis_list = analyze_model_statuses(
+            dbt_parser_fresh, "macro_change_detection_model"
+        )
+
+        first_analysis = {result.model.name: result for result in first_analysis_list}
+        second_analysis = {result.model.name: result for result in second_analysis_list}
 
         # Verify we have results for our test model
         assert "macro_change_detection_model" in first_analysis
@@ -166,9 +177,10 @@ def test_analyze_command_consistency_after_macro_change() -> None:
         # Now test with a completely fresh parser for the second analysis
         # This simulates running "dt analyze" twice from the command line
         dbt_parser_second_fresh = dbtParser()
-        third_analysis = analyze_model_statuses(
+        third_analysis_list = analyze_model_statuses(
             dbt_parser_second_fresh, "macro_change_detection_model"
         )
+        third_analysis = {result.model.name: result for result in third_analysis_list}
 
         assert "macro_change_detection_model" in third_analysis
         third_result = third_analysis["macro_change_detection_model"]
