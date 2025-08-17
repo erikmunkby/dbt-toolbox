@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.4.0...v0.5.0) (2025-08-17)
+
+
+### Features
+
+* add dt build as CLI tool ([4822f33](https://github.com/erikmunkby/dbt-toolbox/commit/4822f339b1d8ea4232078cd727e96a14a8ad5fb8))
+* mcp server with analyze tool ([a0670e0](https://github.com/erikmunkby/dbt-toolbox/commit/a0670e04a8955be936e346c42d93c05e28f6ffbd))
+
+
+### Bug Fixes
+
+* instant code change reflection ([936f531](https://github.com/erikmunkby/dbt-toolbox/commit/936f531fcaba00fc22e328c88d2f9743aeee2be1))
+* support model configs ([e36ca58](https://github.com/erikmunkby/dbt-toolbox/commit/e36ca58cab13ed30463fb6f93ed0e3dc0d745a04))
+
 ## [0.4.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.3.2...v0.4.0) (2025-08-15)
 
 
