@@ -1,6 +1,6 @@
 """Build command that shadows dbt build with custom behavior."""
 
-from dbt_toolbox.cli._dbt_executor import create_dbt_command_function
+from dbt_toolbox.cli._build_run_command_factory import create_dbt_command_function
 
 # Create the build command using the shared function factory
 build = create_dbt_command_function(

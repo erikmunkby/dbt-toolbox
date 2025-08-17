@@ -47,6 +47,10 @@ A powerful CLI toolkit that supercharges your dbt development workflow with inte
 - Target-specific options for environment control
 - Intelligent pre/post processing hooks
 
+**LLM Ready via MCP server**
+- Contains mcp server to make your LLM powered `dbt` development even better.
+- Tools support the most common `dbt-toolbox` featuers.
+
 **Intelligent Documentation**
 - `dt docs` - YAML documentation generator with smart column inheritance
 - Automatically inherits descriptions from upstream models and macros
@@ -72,6 +76,9 @@ uv add dbt-toolbox
 
 # Or install with pip
 pip install dbt-toolbox
+
+# Install with MCP server support
+uv add "dbt-toolbox[mcp]"
 ```
 
 ## ⚡ Quick Start
@@ -104,6 +111,27 @@ dt docs -m orders --clipboard # Copy to clipboard
 | `dt analyze` | Analyze cache state and model dependencies without execution |
 | `dt clean` | Clear all cached data with detailed reporting |
 | `dt settings` | Inspect configuration from all sources |
+
+### MCP Server Integration
+
+dbt-toolbox can also run as an [MCP (Model Context Protocol)](https://www.anthropic.com/news/model-context-protocol) server, enabling integration with external tools and AI assistants like Claude Code.
+
+**Key Features:**
+- Expose dbt-toolbox functionality through standardized MCP protocol
+- Same intelligent caching and validation as CLI commands
+- Perfect for AI-assisted dbt development workflows
+
+**Quick Setup:**
+```bash
+# Install with MCP support
+uv add "dbt-toolbox[mcp]"
+
+# Available MCP tools:
+# - analyze_models: Validate model references and column lineage
+# - build_models: Build models with intelligent execution
+```
+
+For detailed MCP server setup and usage, see [MCP.md](https://github.com/erikmunkby/dbt-toolbox/blob/main/MCP.md).
 
 ## 🏗️ Key Features
 
@@ -145,7 +173,7 @@ dbt-toolbox supports configuration through multiple sources with the following p
 5. **Defaults** (lowest priority)
 
 ### Key Configuration Options
-For an exhaustive list see [CLI.md](./CLI.md)
+For an exhaustive list see [CLI.md](https://github.com/erikmunkby/dbt-toolbox/blob/main/CLI.md)
 
 | Setting | Description | Default |
 |---------|-------------|---------|
@@ -178,6 +206,7 @@ cache_validity_minutes = 720 # Default=1440
 ## 📚 Documentation
 
 - [CLI Reference](https://github.com/erikmunkby/dbt-toolbox/blob/main/CLI.md) - Detailed command documentation and examples
+- [MCP Server Guide](https://github.com/erikmunkby/dbt-toolbox/blob/main/MCP.md) - MCP server setup and integration
 - [Contributing Guide](https://github.com/erikmunkby/dbt-toolbox/blob/main/CONTRIBUTING.md) - Development setup and guidelines
 
 ## 🧪 Testing Integration
@@ -198,8 +227,9 @@ def test_model_documentation():
 
 - [X] **`dt docs`**: <strike>Automatic yaml docs generation.</strike>
 - [x] **`Smart model selection`**: <strike>Smart caching and model selection for optimized executions.</strike>
+- [x] **`MCP Server`**: Publish commands via MCP server.
 - [ ] **`Expand testing stack`**: Build out the `dbt_toolbox.testing` stack.
-- [ ] **`MCP Server`**: Publish commands via MCP server.
+- [ ] **`dt test`** Command, with test parsing and caching.
 
 ## 🤝 Contributing
 

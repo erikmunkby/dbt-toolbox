@@ -36,10 +36,10 @@ class TestAnalyzeCommand:
         mock_model2.name = "orders"
         mock_model2.last_built = datetime.now(tz=timezone.utc)
 
-        mock_analyze.return_value = {
-            "customers": AnalysisResult(model=mock_model1),
-            "orders": AnalysisResult(model=mock_model2),
-        }
+        mock_analyze.return_value = [
+            AnalysisResult(model=mock_model1, needs_execution=False),
+            AnalysisResult(model=mock_model2, needs_execution=False),
+        ]
 
         cli_runner = CliRunner()
         result = cli_runner.invoke(app, ["analyze", "--model", "customers+"])
@@ -73,14 +73,14 @@ class TestAnalyzeCommand:
         mock_model2.name = "orders"
         mock_model2.last_built = datetime.now(tz=timezone.utc)
 
-        mock_analyze.return_value = {
-            "failed_model": AnalysisResult(
+        mock_analyze.return_value = [
+            AnalysisResult(
                 model=mock_failed_model,
                 reason=ExecutionReason.LAST_EXECUTION_FAILED,
             ),
-            "customers": AnalysisResult(model=mock_model1),
-            "orders": AnalysisResult(model=mock_model2),
-        }
+            AnalysisResult(model=mock_model1, needs_execution=False),
+            AnalysisResult(model=mock_model2, needs_execution=False),
+        ]
 
         cli_runner = CliRunner()
         result = cli_runner.invoke(app, ["analyze"])
@@ -110,13 +110,13 @@ class TestAnalyzeCommand:
         mock_other_model.name = "other_model"
         mock_other_model.last_built = datetime.now(tz=timezone.utc)
 
-        mock_analyze.return_value = {
-            "affected_model": AnalysisResult(
+        mock_analyze.return_value = [
+            AnalysisResult(
                 model=mock_affected_model,
                 reason=ExecutionReason.UPSTREAM_MACRO_CHANGED,
             ),
-            "other_model": AnalysisResult(model=mock_other_model),
-        }
+            AnalysisResult(model=mock_other_model, needs_execution=False),
+        ]
 
         cli_runner = CliRunner()
         result = cli_runner.invoke(app, ["analyze"])
@@ -138,7 +138,7 @@ class TestCacheAnalyzer:
     @patch("dbt_toolbox.cli.analyze.analyze_model_statuses")
     def test_analyze_with_no_models(self, mock_analyze: Mock, mock_column_analysis: Mock) -> None:
         """Test analyzing when no models are available."""
-        mock_analyze.return_value = {}
+        mock_analyze.return_value = []
 
         cli_runner = CliRunner()
         result = cli_runner.invoke(app, ["analyze"])

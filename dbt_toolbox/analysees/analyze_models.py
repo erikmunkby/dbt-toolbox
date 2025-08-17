@@ -1,5 +1,6 @@
 """Module for all model analysees."""
 
+import copy
 from dataclasses import dataclass
 from enum import Enum
 
@@ -23,12 +24,8 @@ class AnalysisResult:
     """Results of the analysis."""
 
     model: Model
+    needs_execution: bool = True
     reason: ExecutionReason | None = None
-
-    @property
-    def needs_execution(self) -> bool:
-        """Return True if the model needs execution."""
-        return self.reason is not None
 
     @property
     def reason_description(self) -> str:
@@ -43,7 +40,7 @@ class AnalysisResult:
         }[self.reason]
 
 
-def _analyze_model(model: Model) -> AnalysisResult | None:
+def _analyze_model(model: Model) -> AnalysisResult:
     """Will analyze the model to see if it needs updating.
 
     Prio order:
@@ -61,12 +58,12 @@ def _analyze_model(model: Model) -> AnalysisResult | None:
         return AnalysisResult(model=model, reason=ExecutionReason.UPSTREAM_MACRO_CHANGED)
     if model.cache_outdated:
         return AnalysisResult(model=model, reason=ExecutionReason.OUTDATED_MODEL)
-    return None
+    return AnalysisResult(model=model, needs_execution=False)
 
 
 def analyze_model_statuses(
     dbt_parser: dbtParser, dbt_selection: str | None = None
-) -> dict[str, AnalysisResult]:
+) -> list[AnalysisResult]:
     """Analyze the execution status of models based on their dependencies and cache.
 
     Args:
@@ -77,47 +74,38 @@ def analyze_model_statuses(
         A list of AnalysisResult objects representing the analysis of each model's status.
 
     """
-    # Placeholder implementation
     models_selected = dbt_parser.parse_dbt_selection(selection=dbt_selection)
-    results = {}
-
-    # Get all changed macros
-
     # First do a simple analysis of models, freshness and last execution status
-    for model_name in models_selected:
-        analysis = _analyze_model(dbt_parser.models[model_name])
-        if analysis:
-            results[model_name] = analysis
+    analysees: dict[str, AnalysisResult] = {
+        name: _analyze_model(dbt_parser.models[name]) for name in models_selected
+    }
 
     # Then flag all downstream models, if they're not already part of list.
-    for model_name in list(results.keys()):
-        for downstream_model in dbt_parser.get_downstream_models(model_name):
-            if downstream_model.name not in results:
-                results[downstream_model.name] = AnalysisResult(
-                    model=downstream_model, reason=ExecutionReason.UPSTREAM_MODEL_CHANGED
-                )
+    for model_name, analysis in copy.copy(analysees).items():
+        if analysis.needs_execution:
+            for downstream_model in dbt_parser.get_downstream_models(model_name):
+                if downstream_model.name not in analysees:
+                    analysees[downstream_model.name] = AnalysisResult(
+                        model=downstream_model, reason=ExecutionReason.UPSTREAM_MODEL_CHANGED
+                    )
 
-    # Finally prune any not in selection
-    # Also add any that do not need execution
-    return {
-        name: results.get(name, AnalysisResult(model=dbt_parser.models[name]))
-        for name in models_selected
-    }
+    # Finally prune any not in selection and return as list
+    return [result for model_name, result in analysees.items() if model_name in models_selected]
 
 
 def print_execution_analysis(
-    analyses: dict[str, AnalysisResult],
+    analyses: list[AnalysisResult],
     verbose: bool = False,
 ) -> None:
     """Print a summary of the execution analysis.
 
     Args:
-        analyses: Dictionary of model execution analyses.
+        analyses: List of model execution analyses.
         verbose: Whether to list all models that need execution.
 
     """
     total_models = len(analyses)
-    models_to_execute = sum(1 for a in analyses.values() if a.needs_execution)
+    models_to_execute = sum(1 for a in analyses if a.needs_execution)
     models_to_skip = total_models - models_to_execute
 
     _printers.cprint("🔍 Build Execution Analysis", color="cyan")
@@ -127,8 +115,9 @@ def print_execution_analysis(
 
     if verbose and models_to_execute > 0:
         _printers.cprint("\n📋 Models requiring execution:", color="yellow")
-        for model_name, analysis in analyses.items():
+        for analysis in analyses:
             if analysis.needs_execution:
                 _printers.cprint(
-                    f"  • {model_name} ({analysis.reason_description})", color="bright_black"
+                    f"  • {analysis.model.name} ({analysis.reason_description})",
+                    color="bright_black",
                 )

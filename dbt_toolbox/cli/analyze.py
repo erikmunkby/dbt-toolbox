@@ -160,7 +160,7 @@ def print_column_analysis_results(dbt_parser: dbtParser, target_models: list[Mod
         print()  # noqa: T201 blankline
 
 
-def print_analysis_results(analysis_results: dict[str, AnalysisResult]) -> None:
+def print_analysis_results(analysis_results: list[AnalysisResult]) -> None:
     """Print cache analysis results in a formatted way.
 
     Args:
@@ -170,10 +170,8 @@ def print_analysis_results(analysis_results: dict[str, AnalysisResult]) -> None:
     console = Console()
 
     # Separate into categories
-    models_needing_execution = [
-        result for result in analysis_results.values() if result.needs_execution
-    ]
-    valid_models = [result for result in analysis_results.values() if not result.needs_execution]
+    models_needing_execution = [result for result in analysis_results if result.needs_execution]
+    valid_models = [result for result in analysis_results if not result.needs_execution]
 
     # Header
     _printers.cprint("🔍 Cache Analysis Results", color="cyan")
@@ -280,9 +278,7 @@ def analyze_command(
     print_column_analysis_results(dbt_parser=dbt_parser, target_models=models)
 
     # Summary
-    models_needing_execution = sum(
-        1 for result in analysis_results.values() if result.needs_execution
-    )
+    models_needing_execution = sum(1 for result in analysis_results if result.needs_execution)
     if models_needing_execution:
         _printers.cprint(
             f"\n💡 Tip: Run 'dt build' to execute the {models_needing_execution} "

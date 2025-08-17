@@ -24,17 +24,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `dt --help` - Show all available commands
 - `dt --target prod` - Global option to specify dbt target
 
+### MCP Server Usage
+- Server can be started as MCP server for external tool integration
+- Provides `analyze_models` and `build_models` tools
+- Respects same configuration as CLI commands
+
 ## Architecture Overview
 
 ### Core Components
 
 **CLI System (`dbt_toolbox/cli/`)**
 - `main.py` - Main CLI application with Typer, global options, and settings command
-- `_dbt_executor.py` - Shared dbt execution engine for build and run commands
+- `_build_run_command_factory.py` - Shared command factory for build and run commands with smart execution
 - `build.py` - Shadows `dbt build` with intelligent execution and enhanced output
 - `run.py` - Shadows `dbt run` with smart cache-based execution
-- `_analyze_models.py` - Model execution analysis logic with ExecutionReason and AnalysisResult classes
-- `_analyze_columns.py` - Column lineage analysis and validation logic
 - `_common_options.py` - Shared CLI options and types (Target, etc.)
 - `_dbt_output_parser.py` - Parses dbt command output for execution results
 - `analyze.py` - Cache state analysis command implementation
@@ -42,7 +45,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `docs.py` - YAML documentation generation with YamlBuilder class
 
 **dbt Parser System (`dbt_toolbox/dbt_parser/`)**
-- `dbt_parser.py` - Main parsing interface and model/macro management with dbtParser class
+- `_dbt_parser.py` - Main parsing interface and model/macro management with dbtParser class
 - `_cache.py` - Caching implementation with pickle-based persistence
 - `_file_fetcher.py` - Fetches macros and models from filesystem
 - `_jinja_handler.py` - Handles Jinja environment and template rendering
@@ -53,6 +56,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `dependency_graph.py` - Lightweight DAG implementation for tracking model and macro dependencies
 - Supports upstream/downstream traversal, node type tracking, and statistics
 
+**Analysis System (`dbt_toolbox/analysees/`)**
+- `analyze_models.py` - Model execution analysis logic with ExecutionReason and AnalysisResult classes
+- `analyze_columns_references.py` - Column lineage analysis and validation logic with ColumnIssue, CTEIssue, ModelAnalysisResult
+- `dbt_executor.py` - Core dbt execution engine with ExecutionPlan, DbtCommandResult, and DbtExecutionResults
+
+**MCP Server (`dbt_toolbox/mcp/`)**
+- `mcp.py` - FastMCP server implementation with analyze_models and build_models tools for external integration
+
 **Data Models (`data_models.py`)**
 - `RawMacro` - Represents raw macro files with metadata
 - `Model` - Complete model with rendered code and SQL parsing
@@ -60,6 +71,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `DependsOn` - Tracks model dependencies (refs, sources, macros)
 - `YamlDocs` - Documentation from schema.yml files
 - `ColumnChanges` - Tracks column additions, removals, and reordering
+- `DbtExecutionParams` - Parameters for dbt execution commands (build, run, etc.)
 
 **Configuration System**
 - `settings.py` - Advanced settings management with source tracking and Setting class
@@ -80,8 +92,8 @@ This module is NOT tests for the project itself, but helper functions for users 
 ### Key Design Patterns
 
 1. **Intelligent Execution**: Smart cache-based execution that analyzes which models need rebuilding
-2. **Shared Command Infrastructure**: Common dbt execution logic via `_dbt_executor.py` factory pattern
-3. **Instance-based Parser**: dbtParser is now instantiated with target parameter instead of singleton pattern
+2. **Shared Command Infrastructure**: Common dbt execution logic via `_build_run_command_factory.py` and `dbt_executor.py`
+3. **Instance-based Parser**: dbtParser is instantiated with target parameter for better isolation
 4. **Caching Strategy**: Uses pickle serialization for caching parsed models, macros, and Jinja environments
 5. **Dependency Tracking**: Lightweight DAG with efficient upstream/downstream traversal
 6. **SQL Processing**: Uses SQLGlot for parsing and optimizing SQL queries with advanced column resolution
@@ -89,6 +101,8 @@ This module is NOT tests for the project itself, but helper functions for users 
 8. **Configuration Hierarchy**: Multi-source settings with precedence and source tracking
 9. **Lineage Validation**: Optional column and model reference validation before execution
 10. **Target Management**: Runtime configuration with support for dbt target environments
+11. **MCP Integration**: FastMCP server for external tool integration with analyze and build capabilities
+12. **Modular Analysis**: Separated analysis logic into dedicated modules for maintainability
 
 ### CLI Commands
 
@@ -98,6 +112,7 @@ This module is NOT tests for the project itself, but helper functions for users 
   - Analyzes which models need execution based on cache validity and dependency changes
   - **Lineage validation**: Validates column and model references before execution (configurable)
   - Only executes models that actually need to be rebuilt
+  - Tracks execution times and models skipped for performance insights
 - Supports common dbt options: `--model`, `--select`, `--full-refresh`, `--threads`, `--target`, `--vars`
 - Special options: `--analyze` (show analysis only), `--disable-smart` (force all models, skip lineage validation)
 - Enhanced output with colored progress indicators and execution analysis
@@ -108,6 +123,7 @@ This module is NOT tests for the project itself, but helper functions for users 
   - Analyzes which models need execution based on cache validity and dependency changes
   - **Lineage validation**: Validates column and model references before execution (configurable)
   - Only executes models that actually need to be rebuilt
+  - Tracks execution times and models skipped for performance insights
 - Supports common dbt options: `--model`, `--select`, `--full-refresh`, `--threads`, `--target`, `--vars`
 - Special options: `--analyze` (show analysis only), `--disable-smart` (force all models, skip lineage validation)
 - Enhanced output with colored progress indicators and execution analysis
@@ -136,6 +152,17 @@ This module is NOT tests for the project itself, but helper functions for users 
 - Shows all settings with their values, sources, and locations
 - Color-coded by source type (env vars, TOML, dbt, defaults)
 
+### MCP Server Integration
+
+**MCP Server (`dbt-toolbox` as MCP server)**
+- Provides FastMCP server implementation for external tool integration
+- **Available tools**:
+  - `analyze_models()` - Analyze and validate all model references, column references, and CTE references
+  - `build_models()` - Build dbt models with intelligent cache-based execution (same functionality as CLI)
+- **Usage**: Can be used with MCP-compatible clients like Claude Code for external integration
+- **Configuration**: Respects same settings as CLI commands (pyproject.toml, environment variables)
+- **Benefits**: Enables dbt-toolbox functionality in external tools and workflows
+
 ### dbt Integration
 
 - Configured to work with sample dbt project in `tests/dbt_sample_project/`
@@ -151,13 +178,18 @@ This module is NOT tests for the project itself, but helper functions for users 
 - Benefits: Target isolation, better testability, cleaner dependency management
 
 **Function Signatures:**
-- `execute_dbt_command(dbt_parser: dbtParser, base_command: list[str])` - requires dbt_parser instance
+- `create_execution_plan(params: DbtExecutionParams)` - creates ExecutionPlan with DbtExecutionParams
 - `analyze_model_statuses(dbt_parser: dbtParser, dbt_selection: str | None = None)` - requires dbt_parser instance
+- `analyze_column_references(dbt_parser: dbtParser)` - validates column and model references
 - All CLI commands accept `target: str | None = Target` parameter
 
 **Key Classes and Enums:**
 - `ExecutionReason` enum: `UPSTREAM_MODEL_CHANGED`, `UPSTREAM_MACRO_CHANGED`, `OUTDATED_MODEL`, `LAST_EXECUTION_FAILED`, `CODE_CHANGED`
 - `AnalysisResult` dataclass: Contains model analysis results with `needs_execution` property
+- `DbtExecutionParams` dataclass: Parameters for dbt execution commands with `to_execute_kwargs()` method
+- `ExecutionPlan` class: Manages dbt execution with smart selection and execution tracking
+- `DbtCommandResult` and `DbtExecutionResults` classes: Handle execution results and logging
+- `ColumnAnalysis`, `ModelAnalysisResult`, `ColumnIssue`, `CTEIssue`: Column validation data structures
 - `RunConfig` class: Manages runtime configuration and dbt profile handling
 - `Target` type: Common CLI option type for dbt target specification
 
@@ -173,6 +205,22 @@ This module is NOT tests for the project itself, but helper functions for users 
 A test dbt project exists within `tests/dbt_sample_project`.
 This project is temporarily copied for each test by the `dbt_project_setup` fixture.
 This fixture is automatically applied to all tests and do not need to be included in the tests signature.
+
+### MCP Server Setup
+
+**Running as MCP Server:**
+- The `dbt_toolbox.mcp.mcp:app` FastMCP application can be used as an MCP server
+- Provides external tool integration with dbt-toolbox functionality
+- Supports the same configuration system as CLI commands (environment variables, TOML, dbt profiles)
+
+**Available MCP Tools:**
+- `analyze_models()` - Validates all model references, column references, and CTE references
+- `build_models(model, full_refresh, threads, vars, target, analyze_only, disable_smart)` - Builds models with intelligent execution
+
+**Integration Benefits:**
+- Enables dbt-toolbox features in external tools and workflows
+- Maintains consistency with CLI functionality
+- Provides JSON-structured responses for programmatic consumption
 
 ## Configuration
 
@@ -213,43 +261,50 @@ models_ignore_validation = ["legacy_model", "staging_temp"]
 
 ## General instructions
 
-- After building any implementations, run the following command: `make fix`.
+- After building any implementations, run the following command: `make fix`
 - When running tests, use `uv run pytest -x`
-- When building complex return statements, instead build a dataclass.
-- Never run code in notebooks when testing, instead either build tests or run as `python -c `.
+- When building complex return statements, instead build a dataclass
+- Never run code in notebooks when testing, instead either build tests or run as `python -c`
 - When implementing new features always do the following:
-  1. Implement a minimal test (if one not already exists).
-  2. Implement minimal amount of code for the test to succeed.
+  1. Implement a minimal test (if one not already exists)
+  2. Implement minimal amount of code for the test to succeed
 - Any time we do feature implementations or structural changes, remember to update:
-  1. `README.md` regarding any high-level project information and getting started stuff. The `README.md` should primarily be targeted towards users of the tool.
-  2. `CLI.md` regarding any CLI functionality. Also targeted towards users of the tool.
-  3. `CONTRIBUTING.md` regarding any development changes for other contributors to know.
+  1. `README.md` regarding any high-level project information and getting started stuff. The `README.md` should primarily be targeted towards users of the tool
+  2. `CLI.md` regarding any CLI functionality. Also targeted towards users of the tool
+  3. `CONTRIBUTING.md` regarding any development changes for other contributors to know
 - For any dbt log parsing purposes, you will find some example logs in tests/
+- When working with MCP functionality, ensure consistency between CLI and MCP tool interfaces
 
 ## Development Patterns
 
 **When adding new CLI commands:**
 1. Add `target: str | None = Target` parameter to command function
 2. Create `dbt_parser = dbtParser(target=target)` instance
-3. Pass dbt_parser instance to functions that need it
-4. Use `from dbt_toolbox.cli._common_options import Target` for target type
+3. Use `DbtExecutionParams` for standardized parameter handling
+4. Use `create_execution_plan()` for dbt command execution
+5. Use `from dbt_toolbox.cli._common_options import Target` for target type
 
 **When writing tests:**
 1. Mock `dbtParser` constructor calls: `@patch("module.dbtParser")`
-2. For execute_dbt_command tests: Access `kwargs["base_command"]` instead of positional args
-3. For analyze_model_statuses tests: Use `AnalysisResult` with proper `ExecutionReason` enum values
+2. For dbt execution tests: Use `DbtExecutionParams` and mock `create_execution_plan`
+3. For analysis tests: Use `AnalysisResult` with proper `ExecutionReason` enum values
 4. Always provide mock dbt_parser instances to functions that require them
+5. Use `ColumnAnalysis` and related classes for column validation tests
 
 **When working with utilities:**
 - Use `from dbt_toolbox.utils import _printers` for colored console output
 - Use `_printers.cprint()` for colored console output
 - Use `from dbt_toolbox.utils._paths import build_path` for path utilities
+- Use `from dbt_toolbox.utils.dict_utils import remove_empty_values` for clean data structures
 
 **Import patterns:**
-- `from dbt_toolbox.dbt_parser import dbtParser`
-- `from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason`
+- `from dbt_toolbox.dbt_parser._dbt_parser import dbtParser`
+- `from dbt_toolbox.analysees.analyze_models import AnalysisResult, ExecutionReason`
+- `from dbt_toolbox.analysees.analyze_columns_references import analyze_column_references, ColumnAnalysis`
+- `from dbt_toolbox.analysees.dbt_executor import create_execution_plan, DbtExecutionParams`
 - `from dbt_toolbox.run_config import RunConfig`
 - `from dbt_toolbox.cli._common_options import Target`
+- `from dbt_toolbox.data_models import DbtExecutionParams`
 
 ## Documentation Guidelines
 
