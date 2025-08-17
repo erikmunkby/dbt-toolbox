@@ -2,13 +2,13 @@
 
 import typer
 
+from dbt_toolbox import utils
 from dbt_toolbox.cli._common_options import Target
 from dbt_toolbox.cli.analyze import analyze_command
 from dbt_toolbox.cli.build import build
 from dbt_toolbox.cli.clean import clean
 from dbt_toolbox.cli.docs import docs
 from dbt_toolbox.cli.run import run
-from dbt_toolbox.mcp.mcp import mcp_server
 from dbt_toolbox.run_config import RunConfig
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils._printers import cprint
@@ -66,7 +66,20 @@ def settings_cmd(target: str = Target) -> None:
 def start_mcp_server() -> None:
     """Start the MCP server."""
     cprint("Starting mcp server...", color="cyan")
-    mcp_server.run()
+    try:
+        from dbt_toolbox.mcp.mcp import mcp_server  # noqa: PLC0415
+
+        mcp_server.run()
+    except ModuleNotFoundError as e:
+        utils.cprint(
+            "Module mcp not found. Install using: ",
+            'uv add "dbt-toolbox[mcp]"',
+            highlight_idx=1,
+            color="red",
+        )
+        raise ModuleNotFoundError(
+            'Missing modules, did you install using `uv add "dbt-toolbox[mcp]"` ?'
+        ) from e
 
 
 def main() -> None:
