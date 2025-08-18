@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.5.0...v0.5.1) (2025-08-18)
+
+
+### Bug Fixes
+
+* config kwarg update ([2742904](https://github.com/erikmunkby/dbt-toolbox/commit/27429047eb9708b27ca44b8235a4f36d8a12391a))
+
 ## [0.5.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.4.0...v0.5.0) (2025-08-17)
 
 
