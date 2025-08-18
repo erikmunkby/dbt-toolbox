@@ -1,3 +1,8 @@
+{{
+    config(
+        materialized="ephemeral",
+    )
+}}
 with customers as (
     select customer_id, full_name from {{ ref("customers") }}
 ),

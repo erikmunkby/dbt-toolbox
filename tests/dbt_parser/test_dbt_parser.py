@@ -34,3 +34,10 @@ def test_code_changes_instant_reflect(temp_model_path: tuple[str, Path]) -> None
     assert m is not None
     assert m.raw_code == code2
     assert m.code_changed  # Now the code should be flagged as changed
+
+
+def test_materialized_config() -> None:
+    """Make sure the materialized config is properly picked up."""
+    m = dbtParser().get_model("customer_orders")
+    assert m is not None
+    assert m.config["materialized"] == "ephemeral"
