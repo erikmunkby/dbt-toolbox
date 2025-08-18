@@ -231,7 +231,8 @@ def build_model(
                 node_name: str = node.node.name  # type: ignore
                 # When we find {{ ref() }}
                 if node_name == "config":
-                    config_kwargs.update(_parse_config_kwargs(node.kwargs))
+                    for kwarg in _parse_config_kwargs(node.kwargs):
+                        config_kwargs.update(kwarg)
                 elif node_name == "ref":
                     deps.models.append(node.args[0].value)  # type: ignore
                 # When we find {{ source() }}
