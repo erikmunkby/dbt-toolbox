@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.5.1...v0.6.0) (2025-08-21)
+
+
+### Features
+
+* docs as mcp tool ([74c1a73](https://github.com/erikmunkby/dbt-toolbox/commit/74c1a732d263a3cfb94035577e6facfac65a3a52))
+
+
+### Bug Fixes
+
+* automatic search for closest yaml ([68fbb5b](https://github.com/erikmunkby/dbt-toolbox/commit/68fbb5b1522fbfd1a2c811cd1d74c216799ed168))
+* compacted settings output ([b01aeed](https://github.com/erikmunkby/dbt-toolbox/commit/b01aeed7496ee0f231e20703e796326e3de7a460))
+* pbcopy in ci ([797f270](https://github.com/erikmunkby/dbt-toolbox/commit/797f27006e29882b9ca148c2803e922f6d5f267a))
+
 ## [0.5.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.5.0...v0.5.1) (2025-08-18)
 
 
