@@ -176,6 +176,8 @@ class TestDocsCommand:
                 nbr_columns_with_placeholders=0,
                 yaml_content=None,  # No YAML content when fix_inplace=True
                 error_message=None,
+                yaml_path=None,
+                mode=None,
             )
 
             result = cli_runner.invoke(app, ["docs", "--model", "customers"])
@@ -199,6 +201,8 @@ class TestDocsCommand:
                 nbr_columns_with_placeholders=0,
                 yaml_content="models:\n  - name: customers\n    columns: []",
                 error_message=None,
+                yaml_path=None,
+                mode=None,
             )
 
             result = cli_runner.invoke(app, ["docs", "--model", "customers", "--clipboard"])
@@ -222,6 +226,8 @@ class TestDocsCommand:
                 nbr_columns_with_placeholders=0,
                 yaml_content="models:\n  - name: customers\n    columns: []",
                 error_message=None,
+                yaml_path=None,
+                mode=None,
             )
 
             result = cli_runner.invoke(app, ["docs", "-m", "customers", "-c"])
@@ -315,6 +321,8 @@ class TestDocsCommand:
                     "Permission denied when writing to schema file: "
                     "[Errno 13] Permission denied: 'schema.yml'"
                 ),
+                yaml_path=None,
+                mode=None,
             )
 
             result = cli_runner.invoke(app, ["docs", "--model", "customers"])
@@ -339,6 +347,8 @@ class TestDocsCommand:
                 nbr_columns_with_placeholders=0,
                 yaml_content=None,
                 error_message="Failed to generate YAML content: Invalid YAML structure",
+                yaml_path=None,
+                mode=None,
             )
 
             result = cli_runner.invoke(app, ["docs", "--model", "customers", "--clipboard"])
