@@ -1,5 +1,6 @@
 """Tests for the CLI docs command."""
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -191,7 +192,10 @@ class TestDocsCommand:
         dbt_project_setup: None,
     ) -> None:
         """Test docs command with valid model and clipboard option."""
-        with patch.object(YamlBuilder, "build") as mock_build:
+        with (
+            patch.object(YamlBuilder, "build") as mock_build,
+            patch("subprocess.Popen") as mock_popen,
+        ):
             # Mock the return value to be a proper DocsResult
             mock_build.return_value = DocsResult(
                 model_name="customers",
@@ -205,10 +209,15 @@ class TestDocsCommand:
                 mode=None,
             )
 
+            # Mock subprocess.Popen for clipboard functionality
+            mock_process = MagicMock()
+            mock_popen.return_value = mock_process
+
             result = cli_runner.invoke(app, ["docs", "--model", "customers", "--clipboard"])
 
             assert result.exit_code == 0
             mock_build.assert_called_once_with(fix_inplace=False)
+            mock_popen.assert_called_once_with(args="pbcopy", stdin=subprocess.PIPE)
 
     def test_docs_command_short_options(
         self,
@@ -216,7 +225,10 @@ class TestDocsCommand:
         dbt_project_setup: None,
     ) -> None:
         """Test docs command with short option flags."""
-        with patch.object(YamlBuilder, "build") as mock_build:
+        with (
+            patch.object(YamlBuilder, "build") as mock_build,
+            patch("subprocess.Popen") as mock_popen,
+        ):
             # Mock the return value to be a proper DocsResult
             mock_build.return_value = DocsResult(
                 model_name="customers",
@@ -230,10 +242,15 @@ class TestDocsCommand:
                 mode=None,
             )
 
+            # Mock subprocess.Popen for clipboard functionality
+            mock_process = MagicMock()
+            mock_popen.return_value = mock_process
+
             result = cli_runner.invoke(app, ["docs", "-m", "customers", "-c"])
 
             assert result.exit_code == 0
             mock_build.assert_called_once_with(fix_inplace=False)
+            mock_popen.assert_called_once_with(args="pbcopy", stdin=subprocess.PIPE)
 
     def test_build_clipboard_mode_returns_yaml_content(
         self,
