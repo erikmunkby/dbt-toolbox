@@ -299,9 +299,9 @@ models_ignore_validation = ["legacy_model", "staging_temp"]
 
 **Import patterns:**
 - `from dbt_toolbox.dbt_parser._dbt_parser import dbtParser`
-- `from dbt_toolbox.analysees.analyze_models import AnalysisResult, ExecutionReason`
-- `from dbt_toolbox.analysees.analyze_columns_references import analyze_column_references, ColumnAnalysis`
-- `from dbt_toolbox.analysees.dbt_executor import create_execution_plan, DbtExecutionParams`
+- `from dbt_toolbox.actions.analyze_models import AnalysisResult, ExecutionReason`
+- `from dbt_toolbox.actions.analyze_columns_references import analyze_column_references, ColumnAnalysis`
+- `from dbt_toolbox.actions.dbt_executor import create_execution_plan, DbtExecutionParams`
 - `from dbt_toolbox.run_config import RunConfig`
 - `from dbt_toolbox.cli._common_options import Target`
 - `from dbt_toolbox.data_models import DbtExecutionParams`

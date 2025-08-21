@@ -4,8 +4,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from dbt_toolbox.analysees.analyze_columns_references import analyze_column_references
-from dbt_toolbox.analysees.analyze_models import AnalysisResult, analyze_model_statuses
+from dbt_toolbox.actions.analyze_columns_references import analyze_column_references
+from dbt_toolbox.actions.analyze_models import AnalysisResult, analyze_model_statuses
 from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, parse_dbt_output
 from dbt_toolbox.data_models import DbtExecutionParams, Model
 from dbt_toolbox.dbt_parser import dbtParser

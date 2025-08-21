@@ -26,6 +26,17 @@ from dbt_toolbox.run_config import RunConfig
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import cprint, list_files
 
+# Finds docs macros in the docs.md files. Example:
+# {% docs customer %}
+# Some customer description
+# {% enddocs %}
+_re_find_docs_macro_definitions = re.compile(
+    r"{%\s*docs\s+(\w+)\s*%}\s*(.*?)\s*{%\s*enddocs\s*%}", re.DOTALL
+)
+# Find doc macros referenced in descriptions. Example:
+# description: '{{ doc('some_doc_macro')}}'
+_re_find_docs_macro_reference = r'({{\s*doc\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*}})'
+
 
 class dbtParser:  # noqa: N801
     """dbt parser class."""
@@ -44,6 +55,42 @@ class dbtParser:  # noqa: N801
             for docs_path in settings.dbt_project.docs_paths
             for path in list_files(docs_path, file_suffix=".md")
         ]
+
+    @cached_property
+    def column_macro_docs(self) -> dict[str, str]:
+        """Get all docs macros."""
+        result = {}
+        for p in self.docs_macros_paths:
+            for match in _re_find_docs_macro_definitions.findall(p.read_text()):
+                result[match[0]] = match[1].strip()
+        return result
+
+    def _create_column_docs(self, col_data: dict) -> ColDocs:
+        """Create ColDocs with macro references replaced by their text.
+
+        Args:
+            col_data: Dictionary potentially containing "name" and "description" keys
+
+        """
+        name = col_data.get("name", "")
+        raw_description: str | None = col_data.get("description")
+
+        if not raw_description:
+            return ColDocs(name=name, description=None, raw_description=raw_description)
+
+        # Replace doc macro references with their actual text
+        resolved_description = raw_description
+        for match in re.finditer(_re_find_docs_macro_reference, raw_description):
+            full_reference = match.group(1)  # Full {{ doc('macro_name') }}
+            macro_name = match.group(2)  # Just the macro_name
+
+            # Look up the macro text from column_macro_docs
+            macro_text = self.column_macro_docs.get(macro_name, full_reference)
+            resolved_description = resolved_description.replace(full_reference, macro_text)
+
+        return ColDocs(
+            name=name, description=resolved_description, raw_description=raw_description
+        )
 
     @cached_property
     def model_paths(self) -> list[Path]:
@@ -79,10 +126,7 @@ class dbtParser:  # noqa: N801
                     path=path,
                     model_description=m.get("description"),
                     config=m.get("config", {}),
-                    columns=[
-                        ColDocs(name=c.get("name"), description=c.get("description"))
-                        for c in m.get("columns", [])
-                    ],
+                    columns=[self._create_column_docs(c) for c in m.get("columns", [])],
                 )
         return result
 
@@ -102,10 +146,7 @@ class dbtParser:  # noqa: N801
                         source_name=source_name,
                         description=table.get("description"),
                         path=path,
-                        columns=[
-                            ColDocs(name=c.get("name"), description=c.get("description"))
-                            for c in table.get("columns", [])
-                        ],
+                        columns=[self._create_column_docs(c) for c in table.get("columns", [])],
                     )
         return result
 
@@ -124,16 +165,6 @@ class dbtParser:  # noqa: N801
                         name=seed_name,
                         path=csv_file,
                     )
-        return result
-
-    @cached_property
-    def column_macro_docs(self) -> dict[str, str]:
-        """Get all docs macros."""
-        pattern = re.compile(r"{%\s*docs\s+(\w+)\s*%}\s*(.*?)\s*{%\s*enddocs\s*%}", re.DOTALL)
-        result = {}
-        for p in self.docs_macros_paths:
-            for match in pattern.findall(p.read_text()):
-                result[match[0]] = match[1].strip()
         return result
 
     @cached_property
