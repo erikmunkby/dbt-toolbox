@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 from typer.testing import CliRunner
 
-from dbt_toolbox.analysees.analyze_models import AnalysisResult, ExecutionReason
+from dbt_toolbox.actions.analyze_models import AnalysisResult, ExecutionReason
 from dbt_toolbox.cli.main import app
 from dbt_toolbox.data_models import Model
 

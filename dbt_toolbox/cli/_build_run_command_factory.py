@@ -6,8 +6,8 @@ from typing import Annotated
 
 import typer
 
-from dbt_toolbox.analysees.analyze_models import print_execution_analysis
-from dbt_toolbox.analysees.dbt_executor import create_execution_plan
+from dbt_toolbox.actions.analyze_models import print_execution_analysis
+from dbt_toolbox.actions.dbt_executor import create_execution_plan
 from dbt_toolbox.cli._common_options import Target
 from dbt_toolbox.data_models import DbtExecutionParams, Model
 from dbt_toolbox.utils import _printers

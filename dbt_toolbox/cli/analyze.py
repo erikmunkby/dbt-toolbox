@@ -6,8 +6,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from dbt_toolbox.analysees.analyze_columns_references import analyze_column_references
-from dbt_toolbox.analysees.analyze_models import (
+from dbt_toolbox.actions.analyze_columns_references import analyze_column_references
+from dbt_toolbox.actions.analyze_models import (
     AnalysisResult,
     ExecutionReason,
     analyze_model_statuses,

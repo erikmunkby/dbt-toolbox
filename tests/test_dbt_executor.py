@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from dbt_toolbox.analysees.dbt_executor import _execute_dbt_raw
+from dbt_toolbox.actions.dbt_executor import _execute_dbt_raw
 from dbt_toolbox.cli._build_run_command_factory import execute_dbt_with_smart_selection
 from dbt_toolbox.data_models import DbtExecutionParams
 
@@ -12,10 +12,10 @@ from dbt_toolbox.data_models import DbtExecutionParams
 class TestDbtExecutor:
     """Test the shared dbt execution engine."""
 
-    @patch("dbt_toolbox.analysees.dbt_executor._stream_process_output")
-    @patch("dbt_toolbox.analysees.dbt_executor._printers")
-    @patch("dbt_toolbox.analysees.dbt_executor.settings")
-    @patch("dbt_toolbox.analysees.dbt_executor.parse_dbt_output")
+    @patch("dbt_toolbox.actions.dbt_executor._stream_process_output")
+    @patch("dbt_toolbox.actions.dbt_executor._printers")
+    @patch("dbt_toolbox.actions.dbt_executor.settings")
+    @patch("dbt_toolbox.actions.dbt_executor.parse_dbt_output")
     @patch("subprocess.Popen")
     def test_execute_dbt_command_success(
         self,
@@ -60,9 +60,9 @@ class TestDbtExecutor:
         assert "--profiles-dir" in called_args
         assert "/test/profiles" in called_args
 
-    @patch("dbt_toolbox.analysees.dbt_executor._printers")
-    @patch("dbt_toolbox.analysees.dbt_executor.settings")
-    @patch("dbt_toolbox.analysees.dbt_executor.parse_dbt_output")
+    @patch("dbt_toolbox.actions.dbt_executor._printers")
+    @patch("dbt_toolbox.actions.dbt_executor.settings")
+    @patch("dbt_toolbox.actions.dbt_executor.parse_dbt_output")
     @patch("subprocess.Popen")
     def test_execute_dbt_command_failure(
         self,
