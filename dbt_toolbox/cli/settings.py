@@ -15,14 +15,14 @@ def settings_cmd(target: str = Target) -> None:
 
     for setting_name, source_info in all_settings.items():
         typer.echo()
-        typer.secho(f"{setting_name}:", fg=typer.colors.BRIGHT_WHITE, bold=True)
 
         # Color value based on source
         value_color = (
             typer.colors.BRIGHT_BLACK if source_info.source == "default" else typer.colors.CYAN
         )
 
-        typer.secho("  value: ", fg=typer.colors.WHITE, nl=False)
+        # Setting name and value on same line
+        typer.secho(f"{setting_name}: ", fg=typer.colors.BRIGHT_WHITE, bold=True, nl=False)
         typer.secho(f"{source_info.value}", fg=value_color)
 
         # Color source
