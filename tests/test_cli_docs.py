@@ -1,13 +1,12 @@
 """Tests for the CLI docs command."""
 
-import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
 import typer.testing
 import yamlium
 
-from dbt_toolbox.cli.docs import YamlBuilder
+from dbt_toolbox.actions.build_docs import DocsResult, YamlBuilder
 from dbt_toolbox.cli.main import app
 from dbt_toolbox.data_models import ColumnChanges
 from dbt_toolbox.dbt_parser import dbtParser
@@ -168,10 +167,21 @@ class TestDocsCommand:
     ) -> None:
         """Test docs command with valid model without clipboard option."""
         with patch.object(YamlBuilder, "build") as mock_build:
+            # Mock the return value to be a proper DocsResult for file update mode
+            mock_build.return_value = DocsResult(
+                model_name="customers",
+                model_path="/path/to/customers.sql",
+                success=True,
+                changes=ColumnChanges(added=[], removed=[], reordered=False),
+                nbr_columns_with_placeholders=0,
+                yaml_content=None,  # No YAML content when fix_inplace=True
+                error_message=None,
+            )
+
             result = cli_runner.invoke(app, ["docs", "--model", "customers"])
 
             assert result.exit_code == 0
-            mock_build.assert_called_once_with(print_only=False)
+            mock_build.assert_called_once_with(fix_inplace=True)
 
     def test_docs_command_valid_model_with_clipboard(
         self,
@@ -180,10 +190,21 @@ class TestDocsCommand:
     ) -> None:
         """Test docs command with valid model and clipboard option."""
         with patch.object(YamlBuilder, "build") as mock_build:
+            # Mock the return value to be a proper DocsResult
+            mock_build.return_value = DocsResult(
+                model_name="customers",
+                model_path="/path/to/customers.sql",
+                success=True,
+                changes=ColumnChanges(added=[], removed=[], reordered=False),
+                nbr_columns_with_placeholders=0,
+                yaml_content="models:\n  - name: customers\n    columns: []",
+                error_message=None,
+            )
+
             result = cli_runner.invoke(app, ["docs", "--model", "customers", "--clipboard"])
 
             assert result.exit_code == 0
-            mock_build.assert_called_once_with(print_only=True)
+            mock_build.assert_called_once_with(fix_inplace=False)
 
     def test_docs_command_short_options(
         self,
@@ -192,39 +213,38 @@ class TestDocsCommand:
     ) -> None:
         """Test docs command with short option flags."""
         with patch.object(YamlBuilder, "build") as mock_build:
+            # Mock the return value to be a proper DocsResult
+            mock_build.return_value = DocsResult(
+                model_name="customers",
+                model_path="/path/to/customers.sql",
+                success=True,
+                changes=ColumnChanges(added=[], removed=[], reordered=False),
+                nbr_columns_with_placeholders=0,
+                yaml_content="models:\n  - name: customers\n    columns: []",
+                error_message=None,
+            )
+
             result = cli_runner.invoke(app, ["docs", "-m", "customers", "-c"])
 
             assert result.exit_code == 0
-            mock_build.assert_called_once_with(print_only=True)
+            mock_build.assert_called_once_with(fix_inplace=False)
 
-    @patch("subprocess.Popen")
-    @patch("dbt_toolbox.utils._printers.cprint")
-    def test_build_print_only_mode(
+    def test_build_clipboard_mode_returns_yaml_content(
         self,
-        mock_cprint,  # noqa: ANN001
-        mock_popen,  # noqa: ANN001
         dbt_project_setup: None,
         dbt_parser: dbtParser,
     ) -> None:
-        """Test YamlBuilder.build in print_only mode."""
-        # Setup mock subprocess for clipboard
-        mock_process = MagicMock()
-        mock_popen.return_value = mock_process
-
+        """Test YamlBuilder.build in clipboard mode (fix_inplace=False)."""
         builder = YamlBuilder("customers", dbt_parser)
-        builder.build(print_only=True)
+        result = builder.build(fix_inplace=False)
 
-        # Verify subprocess was called for clipboard
-        mock_popen.assert_called_once_with(args="pbcopy", stdin=subprocess.PIPE)
-        mock_process.communicate.assert_called_once()
+        # Should return YAML content when fix_inplace=False
+        assert result.yaml_content is not None
+        assert result.success is True
+        assert "models:" in result.yaml_content
 
-        # Verify print was called
-        assert mock_cprint.call_count >= 1
-
-    @patch("dbt_toolbox.utils._printers.cprint")
     def test_build_update_mode_no_changes(
         self,
-        mock_cprint,  # noqa: ANN001
         dbt_project_setup: None,
         dbt_parser: dbtParser,
     ) -> None:
@@ -239,17 +259,17 @@ class TestDocsCommand:
                 reordered=False,
             )
 
-            builder.build(print_only=False)
+            result = builder.build(fix_inplace=True)
 
-            # Should print "no changes" message
-            mock_cprint.assert_called_once()
-            call_args = mock_cprint.call_args[0]
-            assert "No column changes detected" in call_args[0]
+            # Should return successful result with no changes
+            assert result.success is True
+            assert result.yaml_content is None  # No YAML content when fix_inplace=True
+            assert not result.changes.added
+            assert not result.changes.removed
+            assert not result.changes.reordered
 
-    @patch("dbt_toolbox.utils._printers.cprint")
     def test_build_update_mode_with_changes(
         self,
-        mock_cprint,  # noqa: ANN001
         dbt_project_setup: None,
         dbt_parser: dbtParser,
     ) -> None:
@@ -266,16 +286,66 @@ class TestDocsCommand:
                     reordered=False,
                 )
 
-                builder.build(print_only=False)
+                result = builder.build(fix_inplace=True)
 
                 # Should call update_model_yaml
                 mock_update.assert_called_once()
 
-                # Should not print "no changes" message
-                assert not any(
-                    "No column changes detected" in str(call)
-                    for call in mock_cprint.call_args_list
-                )
+                # Should return successful result with changes
+                assert result.success is True
+                assert result.yaml_content is None  # No YAML content when fix_inplace=True
+                assert "new_column" in result.changes.added
+
+    def test_error_handling_with_detailed_message(
+        self,
+        cli_runner: typer.testing.CliRunner,
+        dbt_project_setup: None,
+    ) -> None:
+        """Test that detailed error messages are displayed when build fails."""
+        with patch.object(YamlBuilder, "build") as mock_build:
+            # Mock the return value to be a failed DocsResult with error message
+            mock_build.return_value = DocsResult(
+                model_name="customers",
+                model_path="/path/to/customers.sql",
+                success=False,
+                changes=ColumnChanges(added=[], removed=[], reordered=False),
+                nbr_columns_with_placeholders=0,
+                yaml_content=None,
+                error_message=(
+                    "Permission denied when writing to schema file: "
+                    "[Errno 13] Permission denied: 'schema.yml'"
+                ),
+            )
+
+            result = cli_runner.invoke(app, ["docs", "--model", "customers"])
+
+            assert result.exit_code == 1
+            assert "Failed to update model" in result.stdout
+            assert "Permission denied when writing to schema file" in result.stdout
+
+    def test_error_handling_clipboard_mode_with_detailed_message(
+        self,
+        cli_runner: typer.testing.CliRunner,
+        dbt_project_setup: None,
+    ) -> None:
+        """Test that detailed error messages are displayed when clipboard mode fails."""
+        with patch.object(YamlBuilder, "build") as mock_build:
+            # Mock the return value to be a failed DocsResult with error message
+            mock_build.return_value = DocsResult(
+                model_name="customers",
+                model_path="/path/to/customers.sql",
+                success=False,
+                changes=ColumnChanges(added=[], removed=[], reordered=False),
+                nbr_columns_with_placeholders=0,
+                yaml_content=None,
+                error_message="Failed to generate YAML content: Invalid YAML structure",
+            )
+
+            result = cli_runner.invoke(app, ["docs", "--model", "customers", "--clipboard"])
+
+            assert result.exit_code == 1
+            assert "Failed to generate YAML for model" in result.stdout
+            assert "Failed to generate YAML content" in result.stdout
 
 
 class TestCLIIntegration:

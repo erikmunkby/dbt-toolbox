@@ -477,7 +477,7 @@ wheels = [
 
 [[package]]
 name = "dbt-toolbox"
-version = "0.5.0"
+version = "0.5.1"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
