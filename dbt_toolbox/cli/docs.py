@@ -64,6 +64,11 @@ def _handle_update_mode(result: DocsResult) -> None:
     for msg in change_messages:
         _printers.cprint(f"   {msg}", color="cyan")
 
+    # Display YAML file operation information
+    if result.yaml_path and result.mode:
+        _printers.cprint(f"   Mode: {result.mode}", color="yellow")
+        _printers.cprint(f"   YAML file: {result.yaml_path}", color="bright_black")
+
 
 def docs(
     model: Annotated[

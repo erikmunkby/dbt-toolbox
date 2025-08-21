@@ -1,6 +1,7 @@
 """Build dbt yaml docs."""
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import yamlium
 
@@ -23,6 +24,8 @@ class DocsResult:
     nbr_columns_with_placeholders: int
     yaml_content: str | None = None
     error_message: str | None = None
+    yaml_path: str | None = None
+    mode: str | None = None
 
 
 class YamlBuilder:
@@ -132,6 +135,93 @@ class YamlBuilder:
 
         return final_columns
 
+    def _find_existing_yml_file(self) -> Path | None:
+        """Find an existing .yml or .yaml file in the same directory as the model.
+
+        Returns:
+            Path to the first .yml/.yaml file found, or None if none exist.
+
+        """
+        model_dir = self.model.path.parent
+
+        # Look for .yml files first, then .yaml files
+        for pattern in ["*.yml", "*.yaml"]:
+            yml_files = list(model_dir.glob(pattern))
+            if yml_files:
+                return yml_files[0]  # Return the first one found
+
+        return None
+
+    def _create_new_yml_file(self) -> Path:
+        """Create a new .yml file in the same directory as the model.
+
+        Returns:
+            Path to the newly created .yml file.
+
+        """
+        model_dir = self.model.path.parent
+        return model_dir / "schema.yml"
+
+    def _append_to_existing_yml(self, yml_file: Path) -> str:
+        """Append the model documentation to an existing .yml file.
+
+        Args:
+            yml_file: Path to the existing .yml file to append to.
+
+        Returns:
+            String indicating the mode of operation.
+
+        """
+        try:
+            existing_yaml = yamlium.parse(yml_file)
+
+            # Ensure models section exists
+            if "models" not in existing_yaml:
+                existing_yaml["models"] = []
+
+            # Check if this model already exists in the file
+            models_list = existing_yaml["models"]
+            model_exists = False
+
+            for i, model in enumerate(models_list):
+                if model.get("name") == self.model.name:
+                    # Replace existing model
+                    models_list[i] = self.yml
+                    model_exists = True
+                    break
+
+            if not model_exists:
+                # Add new model
+                models_list.append(self.yml)
+
+            # Write back to file
+            yml_file.write_text(
+                "\n".join([x for x in existing_yaml.to_yaml().split("\n") if x]) + "\n"
+            )
+        except Exception as e:
+            raise ValueError(f"Failed to append to existing YAML file {yml_file}: {e}") from e
+        else:
+            return "updated existing" if model_exists else "added to existing file"
+
+    def _create_new_yml_with_model(self, yml_file: Path) -> str:
+        """Create a new .yml file with the model documentation.
+
+        Args:
+            yml_file: Path to the new .yml file to create.
+
+        Returns:
+            String indicating the mode of operation ("created new file").
+
+        """
+        try:
+            new_yaml = yamlium.from_dict({"models": [self.yml]})
+
+            yml_file.write_text("\n".join([x for x in new_yaml.to_yaml().split("\n") if x]) + "\n")
+        except Exception as e:
+            raise ValueError(f"Failed to create new YAML file {yml_file}: {e}") from e
+        else:
+            return "created new file"
+
     def build(self, fix_inplace: bool) -> DocsResult:
         """Build the new yaml for the model.
 
@@ -154,6 +244,8 @@ class YamlBuilder:
                 nbr_columns_with_placeholders=0,
                 yaml_content=None,
                 error_message=f"Failed to load column descriptions: {e}",
+                yaml_path=None,
+                mode=None,
             )
 
         try:
@@ -167,6 +259,8 @@ class YamlBuilder:
                 nbr_columns_with_placeholders=0,
                 yaml_content=None,
                 error_message=f"Failed to detect column changes: {e}",
+                yaml_path=None,
+                mode=None,
             )
 
         # Count columns with placeholder descriptions
@@ -181,6 +275,8 @@ class YamlBuilder:
         yaml_content = None
         success = True
         error_message = None
+        yaml_path = None
+        mode = None
 
         if fix_inplace:
             # Check if any changes were made
@@ -188,13 +284,34 @@ class YamlBuilder:
 
             if has_changes:
                 try:
-                    self.model.update_model_yaml(self.yml)
+                    # Try to update existing YAML docs first
+                    if self.model.yaml_docs is not None:
+                        self.model.update_model_yaml(self.yml)
+                        yaml_path = str(self.model.yaml_docs.path)
+                        mode = "updated existing"
+                    else:
+                        # No existing YAML docs - find or create a YAML file
+                        existing_yml = self._find_existing_yml_file()
+
+                        if existing_yml:
+                            # Append to existing file
+                            mode = self._append_to_existing_yml(existing_yml)
+                            yaml_path = str(existing_yml)
+                        else:
+                            # Create new file
+                            new_yml = self._create_new_yml_file()
+                            mode = self._create_new_yml_with_model(new_yml)
+                            yaml_path = str(new_yml)
+
                 except FileNotFoundError as e:
                     success = False
                     error_message = f"Schema file not found: {e}"
                 except PermissionError as e:
                     success = False
                     error_message = f"Permission denied when writing to schema file: {e}"
+                except ValueError as e:
+                    success = False
+                    error_message = str(e)
                 except Exception as e:  # noqa: BLE001
                     success = False
                     error_message = f"Failed to update schema file: {e}"
@@ -214,4 +331,6 @@ class YamlBuilder:
             nbr_columns_with_placeholders=nbr_placeholders,
             yaml_content=yaml_content,
             error_message=error_message,
+            yaml_path=yaml_path,
+            mode=mode,
         )
