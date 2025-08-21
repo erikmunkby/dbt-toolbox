@@ -2,9 +2,8 @@
 
 import typer
 
+from dbt_toolbox.actions.all_settings import get_all_settings
 from dbt_toolbox.cli._common_options import Target
-from dbt_toolbox.run_config import RunConfig
-from dbt_toolbox.settings import settings
 
 
 def settings_cmd(target: str = Target) -> None:
@@ -12,10 +11,7 @@ def settings_cmd(target: str = Target) -> None:
     typer.secho("dbt-toolbox Settings:", fg=typer.colors.BRIGHT_CYAN, bold=True)
     typer.secho("=" * 50, fg=typer.colors.CYAN)
 
-    all_settings = {
-        **settings.get_all_settings_with_sources(),
-        **RunConfig(target=target).get_all_config_with_sources(),
-    }
+    all_settings = get_all_settings(target=target)
 
     for setting_name, source_info in all_settings.items():
         typer.echo()
