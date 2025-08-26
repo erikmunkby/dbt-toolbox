@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.6.0...v0.6.1) (2025-08-26)
+
+
+### Bug Fixes
+
+* expose common api functions ([ccdf3d3](https://github.com/erikmunkby/dbt-toolbox/commit/ccdf3d3d667dfaa5effb02d37fdc3e6526bbfbcc))
+
 ## [0.6.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.5.1...v0.6.0) (2025-08-21)
 
 
