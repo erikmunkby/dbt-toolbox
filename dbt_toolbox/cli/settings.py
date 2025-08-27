@@ -3,10 +3,10 @@
 import typer
 
 from dbt_toolbox.actions.all_settings import get_all_settings
-from dbt_toolbox.cli._common_options import Target
+from dbt_toolbox.cli._common_options import OptionTarget
 
 
-def settings_cmd(target: str = Target) -> None:
+def settings_cmd(target: OptionTarget = None) -> None:
     """Show all found settings and their sources."""
     typer.secho("dbt-toolbox Settings:", fg=typer.colors.BRIGHT_CYAN, bold=True)
     typer.secho("=" * 50, fg=typer.colors.CYAN)

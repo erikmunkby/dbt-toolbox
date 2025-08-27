@@ -2,7 +2,6 @@
 
 from datetime import timedelta
 
-import typer
 from rich.console import Console
 from rich.table import Table
 
@@ -12,7 +11,7 @@ from dbt_toolbox.actions.analyze_models import (
     ExecutionReason,
     analyze_model_statuses,
 )
-from dbt_toolbox.cli._common_options import Target
+from dbt_toolbox.cli._common_options import OptionModelSelection, OptionTarget
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.data_models import Model
 from dbt_toolbox.dbt_parser import dbtParser
@@ -241,15 +240,8 @@ def print_analysis_results(analysis_results: list[AnalysisResult]) -> None:
 
 
 def analyze_command(
-    target: str | None = Target,
-    model: str | None = typer.Option(
-        None,
-        "--model",
-        "-m",
-        "--select",
-        "-s",
-        help="Analyze specific models (dbt selection syntax)",
-    ),
+    target: OptionTarget = None,
+    model: OptionModelSelection = None,
 ) -> None:
     """Analyze cache state and column references without manipulating them.
 

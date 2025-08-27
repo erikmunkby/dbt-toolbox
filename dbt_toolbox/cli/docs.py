@@ -6,7 +6,7 @@ from typing import Annotated
 import typer
 
 from dbt_toolbox.actions.build_docs import DocsResult, YamlBuilder
-from dbt_toolbox.cli._common_options import Target
+from dbt_toolbox.cli._common_options import OptionModelSelection, OptionTarget
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.utils import _printers
 
@@ -15,9 +15,7 @@ def _handle_clipboard_mode(result: DocsResult) -> None:
     """Handle clipboard mode output and errors."""
     if not result.success:
         _printers.cprint(
-            "❌ Failed to generate YAML for model",
-            result.model_name,
-            highlight_idx=1,
+            f"❌ Failed to generate YAML for model {result.model_name}",
             color="red",
         )
         if result.error_message:
@@ -34,9 +32,7 @@ def _handle_clipboard_mode(result: DocsResult) -> None:
 def _handle_update_mode(result: DocsResult) -> None:
     """Handle file update mode output and errors."""
     if not result.success:
-        _printers.cprint(
-            "❌ Failed to update model", result.model_name, highlight_idx=1, color="red"
-        )
+        _printers.cprint(f"❌ Failed to update model {result.model_name}", color="red")
         if result.error_message:
             _printers.cprint(f"   Error: {result.error_message}", color="red")
         raise typer.Exit(1)
@@ -45,40 +41,35 @@ def _handle_update_mode(result: DocsResult) -> None:
 
     if not has_changes:
         _printers.cprint(
-            "ℹ️  No column changes detected for model",  # noqa: RUF001
-            result.model_name,
-            highlight_idx=1,
+            f"ℹ️  No column changes detected for model {result.model_name}",  # noqa: RUF001
+            color="bright_black",
         )
         return
 
-    # Print detailed change information
-    change_messages = []
+    # Print success message with model name - remove highlight to avoid color mixing
+    _printers.cprint(f"✅ updated model {result.model_name}", color="green")
+
+    # Print detailed change information in a consistent subdued color
     if result.changes.added:
-        change_messages.append(f"Added columns: {', '.join(result.changes.added)}")
+        _printers.cprint(
+            f"   Added columns: {', '.join(result.changes.added)}", color="bright_black"
+        )
     if result.changes.removed:
-        change_messages.append(f"Removed columns: {', '.join(result.changes.removed)}")
+        _printers.cprint(
+            f"   Removed columns: {', '.join(result.changes.removed)}", color="bright_black"
+        )
     if result.changes.reordered:
-        change_messages.append("Column order changed")
+        _printers.cprint("   Column order changed", color="bright_black")
 
-    _printers.cprint("✅ updated model", result.model_name, highlight_idx=1)
-    for msg in change_messages:
-        _printers.cprint(f"   {msg}", color="cyan")
-
-    # Display YAML file operation information
+    # Display YAML file operation information in subdued color
     if result.yaml_path and result.mode:
-        _printers.cprint(f"   Mode: {result.mode}", color="yellow")
+        _printers.cprint(f"   Mode: {result.mode}", color="bright_black")
         _printers.cprint(f"   YAML file: {result.yaml_path}", color="bright_black")
 
 
 def docs(
-    model: Annotated[
-        str,
-        typer.Option(
-            "--model",
-            "-m",
-            help="Model name to generate documentation for",
-        ),
-    ],
+    model: OptionModelSelection,
+    target: OptionTarget = None,
     clipboard: Annotated[
         bool,
         typer.Option(
@@ -87,7 +78,6 @@ def docs(
             help="Copy output to clipboard",
         ),
     ] = False,
-    target: str | None = Target,
 ) -> None:
     """Generate documentation for a specific dbt model.
 
@@ -101,15 +91,15 @@ def docs(
         raise typer.Exit(1) from None
 
     if model not in dbt_parser.models:
-        _printers.cprint("❌ Model", model, "not found", highlight_idx=1, color="red")
+        _printers.cprint(f"❌ Model {model} not found", color="red")
         max_models_to_show = 5
         available_models = list(dbt_parser.models.keys())[:max_models_to_show]
         if available_models:
             models_str = f"   Available models include: {', '.join(available_models)}"
-            _printers.cprint(models_str, color="yellow")
+            _printers.cprint(models_str, color="bright_black")
             if len(dbt_parser.models) > max_models_to_show:
                 remaining = len(dbt_parser.models) - max_models_to_show
-                _printers.cprint(f"   ... and {remaining} more", color="yellow")
+                _printers.cprint(f"   ... and {remaining} more", color="bright_black")
         raise typer.Exit(1)
 
     try:

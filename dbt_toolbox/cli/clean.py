@@ -1,24 +1,14 @@
 """Clean command for dbt-toolbox CLI."""
 
-from typing import Annotated
-
 import typer
 
-from dbt_toolbox.cli._common_options import Target
+from dbt_toolbox.cli._common_options import OptionModelSelection, OptionTarget
 from dbt_toolbox.dbt_parser import dbtParser
 
 
 def clean(
-    target: str | None = Target,
-    models: Annotated[
-        str | None,
-        typer.Option(
-            "--models",
-            "-m",
-            help="Specific models to clean from cache (comma-separated). "
-            "If not provided, cleans entire cache.",
-        ),
-    ] = None,
+    target: OptionTarget = None,
+    models: OptionModelSelection = None,
 ) -> None:
     """Clean the cache completely or for specific models."""
     dbt_parser = dbtParser(target=target)

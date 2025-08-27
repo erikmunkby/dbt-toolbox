@@ -52,7 +52,7 @@ class YamlBuilder:
 
         # Build the currently existing docs
         if not settings.skip_placeholders and _DESC not in yml:
-            yml[_DESC] = settings.placeholder_description
+            yml[_DESC] = f'"{settings.placeholder_description}"'
         self.yml = yml
         self.yaml_docs = {c[_NAME]: c for c in self.yml.get("columns", [])}
 
