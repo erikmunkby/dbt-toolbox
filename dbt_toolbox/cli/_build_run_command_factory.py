@@ -8,7 +8,7 @@ import typer
 
 from dbt_toolbox.actions.analyze_models import print_execution_analysis
 from dbt_toolbox.actions.dbt_executor import create_execution_plan
-from dbt_toolbox.cli._common_options import Target
+from dbt_toolbox.cli._common_options import OptionModelSelection, OptionTarget
 from dbt_toolbox.data_models import DbtExecutionParams, Model
 from dbt_toolbox.utils import _printers
 
@@ -124,18 +124,8 @@ def create_dbt_command_function(command_name: str, help_text: str) -> Callable:
     """
 
     def dbt_command(  # noqa: PLR0913
-        target: str | None = Target,
-        model: Annotated[
-            str | None,
-            typer.Option(
-                "--model",
-                "-m",
-                "--select",
-                "-s",
-                "--models",
-                help=f"Select models to {command_name} (same as dbt --select/--model)",
-            ),
-        ] = None,
+        target: OptionTarget = None,
+        model: OptionModelSelection = None,
         full_refresh: Annotated[
             bool,
             typer.Option("--full-refresh", help="Drop incremental models and rebuild"),

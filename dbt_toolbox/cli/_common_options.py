@@ -6,6 +6,19 @@ def my_command(target: Target):
     ...
 """
 
+from typing import Annotated
+
 import typer
 
-Target = typer.Option(None, "--target", "-t", help="The dbt target.")
+OptionTarget = Annotated[str | None, typer.Option("--target", "-t", help="The dbt target.")]
+OptionModelSelection = Annotated[
+    str | None,
+    typer.Option(
+        "--model",
+        "-m",
+        "--select",
+        "-s",
+        "--models",
+        help="Choose specific model (same as dbt --select/--model)",
+    ),
+]
