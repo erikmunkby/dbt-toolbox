@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.2](https://github.com/erikmunkby/dbt-toolbox/compare/v0.6.1...v0.6.2) (2025-08-27)
+
+
+### Bug Fixes
+
+* ephemeral -&gt; table ([41d58f3](https://github.com/erikmunkby/dbt-toolbox/commit/41d58f354e807d6a29dc6a407c6a305adfcf116e))
+* generalize model input options ([3e0cbb1](https://github.com/erikmunkby/dbt-toolbox/commit/3e0cbb1916be015cb532200ad9ae955ab250f1b0))
+
 ## [0.6.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.6.0...v0.6.1) (2025-08-26)
 
 
