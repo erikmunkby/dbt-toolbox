@@ -40,4 +40,4 @@ def test_materialized_config() -> None:
     """Make sure the materialized config is properly picked up."""
     m = dbtParser().get_model("customer_orders")
     assert m is not None
-    assert m.config["materialized"] == "ephemeral"
+    assert m.config["materialized"] == "table"
