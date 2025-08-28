@@ -477,7 +477,7 @@ wheels = [
 
 [[package]]
 name = "dbt-toolbox"
-version = "0.6.1"
+version = "0.6.2"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
@@ -496,6 +496,7 @@ mcp = [
 [package.dev-dependencies]
 dev = [
     { name = "dbt-duckdb" },
+    { name = "fastmcp" },
     { name = "ipykernel" },
     { name = "pytest" },
     { name = "pytest-env" },
@@ -517,6 +518,7 @@ provides-extras = ["mcp"]
 [package.metadata.requires-dev]
 dev = [
     { name = "dbt-duckdb", specifier = ">=1.9.3" },
+    { name = "fastmcp", specifier = ">=2.11.3" },
     { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "pytest", specifier = ">=8.4.0" },
     { name = "pytest-env", specifier = ">=1.1.5" },

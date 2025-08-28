@@ -10,4 +10,4 @@ with orders as (
     from {{ ref("raw_orders") }}
 )
 -- my_comment, xxx
-select * from orders
+select *, {{asdf()}} from orders

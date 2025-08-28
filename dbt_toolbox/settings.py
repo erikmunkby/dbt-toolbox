@@ -106,7 +106,10 @@ def _find_toml_settings(filename: str = "pyproject.toml") -> tuple[dict, Path | 
             toml_path = p
             break
     if toml:
-        return toml.get("tool", {}).get("dbt_toolbox", {}), toml_path
+        tools = toml.get("tool", {})
+        for k in ["dbt_toolbox", "dbt-toolbox"]:
+            if k in tools:
+                return tools[k], toml_path
     return {}, None
 
 
@@ -153,7 +156,7 @@ def _get_setting(name: str, default: str | None = None, /) -> Setting:
         )
 
     toml_setting = toml.get(name)
-    if toml_setting:
+    if toml_setting is not None:  # Changed to handle False/0/empty string values
         return Setting(
             value=toml_setting,
             source="TOML file",
@@ -350,6 +353,15 @@ class Settings:
         """List of model names to ignore during validation checks."""
         return self._models_ignore_validation.value
 
+    @cached_property
+    def _warnings_ignored(self) -> Setting:
+        return _get_list_setting("warnings_ignored", [])
+
+    @cached_property
+    def warnings_ignored(self) -> list[str]:
+        """List of warning types to ignore."""
+        return self._warnings_ignored.value
+
     def get_all_settings_with_sources(self) -> dict[str, Setting]:
         """Get all settings with their source information.
 
@@ -369,6 +381,7 @@ class Settings:
                 "cache_validity_minutes",
                 "enforce_lineage_validation",
                 "models_ignore_validation",
+                "warnings_ignored",
             ]
         }
 

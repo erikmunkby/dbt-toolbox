@@ -144,6 +144,10 @@ class Cache:
         return _SetCache(self.cache_path / "macro_watcher.cache")
 
     @cached_property
+    def _cache_warned_macros(self) -> _SetCache:
+        return _SetCache(self.cache_path / "warned_macros.cache")
+
+    @cached_property
     def _cache_dbt_project(self) -> _ByteCache:
         return _ByteCache(self.cache_path / "dbt_project.cache")
 
@@ -229,6 +233,15 @@ class Cache:
     def cache_macros(self) -> _ByteCache:
         """Cache handler for dbt macros."""
         return _ByteCache(self.cache_path / "macros.cache")
+
+    def get_warned_macros_cache(self) -> _SetCache:
+        """Get cache handler for warned macros.
+
+        Returns:
+            Cache handler for storing warned macro names.
+
+        """
+        return self._cache_warned_macros
 
     def _validate_macro_cache(self) -> bool:
         """Check if any macro has changed since last execution."""
