@@ -3,7 +3,7 @@
 import pickle
 from typing import Any, Literal
 
-from jinja2 import Environment, FileSystemBytecodeCache, FileSystemLoader
+from jinja2 import Environment, FileSystemBytecodeCache, FileSystemLoader, Undefined
 from jinja2.nodes import Template
 
 from dbt_toolbox import utils
@@ -53,6 +53,57 @@ class VarsFetcher:
 
         """
         return self.vars[name]
+
+
+class WarnUndefined(Undefined):
+    """Custom Jinja undefined class that warns about unknown macros instead of failing."""
+
+    def __init__(self, hint=None, obj=None, name=None, exc=None) -> None:  # noqa: ANN001
+        super().__init__(hint=hint, obj=obj, name=name, exc=exc)
+        # Only warn about the main macro name, not internal Jinja attributes
+        if name and not name.startswith("jinja_"):
+            self._warn_about_unknown_macro(name)
+
+    def _warn_about_unknown_macro(self, macro_name: str) -> None:
+        """Warn about unknown macro if not already warned and not ignored."""
+        # Check if this warning type is ignored
+        if "unknown_jinja_macro" in settings.warnings_ignored:
+            return
+
+        # Get cached set of warned macros
+        warned_macros_cache = cache.get_warned_macros_cache()
+        warned_macros = warned_macros_cache.read()
+
+        # Only warn if we haven't already warned about this macro
+        if macro_name not in warned_macros:
+            utils.log(
+                f"Warning: Unknown macro '{macro_name}' encountered in template", level="WARN"
+            )
+            # Add to cache and save
+            warned_macros.add(macro_name)
+            warned_macros_cache.write(warned_macros)
+
+    def _replacement_macro(self, is_called: bool = False) -> str:
+        if self._undefined_name and not self._undefined_name.startswith("jinja_"):
+            return f"{{{{ {self._undefined_name}{'()' if is_called else ''} }}}}"
+        return super().__str__()
+
+    def __str__(self) -> str:
+        # Return the macro as-is when not found
+        return self._replacement_macro()
+
+    def __getattr__(self, name: str) -> "WarnUndefined":
+        # Handle chained attributes like unknown_macro.some_attr
+        # Don't warn about internal jinja attributes
+        if name.startswith("jinja_"):
+            return WarnUndefined(name=name)
+
+        full_name = f"{self._undefined_name}.{name}" if self._undefined_name else name
+        return WarnUndefined(name=full_name)
+
+    def __call__(self, *args, **kwargs) -> str:  # noqa: ANN002, ANN003, ARG002
+        # Handle macro calls with arguments
+        return self._replacement_macro(is_called=True)
 
 
 def _ref(x) -> str:  # noqa: ANN001
@@ -127,6 +178,7 @@ def _get_base_env(profile: DbtProfile) -> Environment:
         loader=FileSystemLoader("templates"),
         bytecode_cache=bytecode_cache,
         autoescape=False,  # noqa: S701
+        undefined=WarnUndefined,
     )
     # Other dummy functions
     _dummy_functions = {
