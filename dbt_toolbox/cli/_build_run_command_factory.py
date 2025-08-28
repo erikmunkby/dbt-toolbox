@@ -45,7 +45,6 @@ def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
         sys.exit(execution_results.return_code)
 
     # Handle regular execution with analysis
-
     print_execution_analysis(plan.analyses)
     if not plan.models_to_execute:
         _printers.cprint(
