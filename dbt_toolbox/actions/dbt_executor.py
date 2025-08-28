@@ -64,12 +64,12 @@ class ExecutionPlan:
         return _execute_dbt_raw(dbt_parser=self._dbt_parser, dbt_command=self.dbt_command)
 
 
-def _validate_lineage_references(dbt_parser: dbtParser) -> bool:
+def _validate_lineage_references(dbt_parser: dbtParser, selection_query: str | None) -> bool:
     """Validate lineage references for models before execution.
 
     Args:
         dbt_parser: The dbt parser object.
-        models_to_check: List of model names to validate. If None, validates all models.
+        selection_query: A dbt selection query e.g. customers+
 
     Returns:
         True if all lineage references are valid, False otherwise.
@@ -79,7 +79,12 @@ def _validate_lineage_references(dbt_parser: dbtParser) -> bool:
         return True
 
     # Perform column analysis
-    analysis = analyze_column_references(dbt_parser=dbt_parser)
+    analysis = analyze_column_references(
+        dbt_parser=dbt_parser,
+        target_models=list(
+            dbt_parser.parse_selection_query_return_models(selection_query).values()
+        ),
+    )
 
     # Check if there are any issues
     if not analysis.non_existent_columns and not analysis.referenced_non_existent_models:
@@ -246,7 +251,9 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
     # Validate lineage references if smart execution is enabled
     lineage_valid = True
     if not params.disable_smart:
-        lineage_valid = _validate_lineage_references(dbt_parser=dbt_parser)
+        lineage_valid = _validate_lineage_references(
+            dbt_parser=dbt_parser, selection_query=params.model
+        )
 
     # Start building the dbt command
     dbt_command = ["dbt", params.command_name]

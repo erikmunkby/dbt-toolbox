@@ -74,10 +74,10 @@ def analyze_model_statuses(
         A list of AnalysisResult objects representing the analysis of each model's status.
 
     """
-    models_selected = dbt_parser.parse_dbt_selection(selection=dbt_selection)
+    models_selected = dbt_parser.parse_selection_query_return_models(dbt_selection)
     # First do a simple analysis of models, freshness and last execution status
     analysees: dict[str, AnalysisResult] = {
-        name: _analyze_model(dbt_parser.models[name]) for name in models_selected
+        name: _analyze_model(model) for name, model in models_selected.items()
     }
 
     # Then flag all downstream models, if they're not already part of list.

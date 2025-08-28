@@ -218,3 +218,50 @@ class TestBuildCommand:
         assert call_args.command_name == "build"
         assert call_args.target is None
         assert call_args.model == "customers"
+
+    @patch("dbt_toolbox.actions.dbt_executor.analyze_column_references")
+    @patch("dbt_toolbox.actions.dbt_executor.analyze_model_statuses")
+    @patch("dbt_toolbox.dbt_parser.dbtParser")
+    def test_build_with_selection_ignores_validation_errors_outside_selection(
+        self,
+        mock_dbt_parser_class: Mock,
+        mock_analyze_model_statuses: Mock,
+        mock_analyze_column_references: Mock,
+    ) -> None:
+        """Test that validation ignores erroneous models outside the selection."""
+        # Mock dbtParser instance
+        mock_dbt_parser = Mock()
+        mock_dbt_parser_class.return_value = mock_dbt_parser
+
+        # Mock parse_selection_query_return_models to return selected models only
+        mock_selected_model = Mock()
+        mock_selected_model.name = "customers"
+        mock_dbt_parser.parse_selection_query_return_models.return_value = {
+            "customers": mock_selected_model
+        }
+
+        # Mock column analysis to return no issues (validation passes for selected models)
+        mock_column_analysis = Mock()
+        mock_column_analysis.non_existent_columns = {}
+        mock_column_analysis.referenced_non_existent_models = {}
+        mock_analyze_column_references.return_value = mock_column_analysis
+
+        # Mock model status analysis
+        mock_analysis = Mock()
+        mock_analysis.needs_execution = True
+        mock_analysis.model = mock_selected_model
+        mock_analyze_model_statuses.return_value = [mock_analysis]
+
+        cli_runner = CliRunner()
+
+        result = cli_runner.invoke(app, ["build", "--select", "customers"])
+
+        # Should exit successfully (validation passed)
+        assert result.exit_code == 0
+
+        # Verify that column analysis was called with only the selected models
+        mock_analyze_column_references.assert_called_once()
+        call_args = mock_analyze_column_references.call_args[1]
+        target_models = call_args["target_models"]
+        assert len(target_models) == 1
+        assert target_models[0].name == "customers"

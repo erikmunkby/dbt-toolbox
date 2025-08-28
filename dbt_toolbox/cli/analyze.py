@@ -261,7 +261,7 @@ def analyze_command(
 
     # Filter models if selection is provided
     if model:
-        target_models = dbt_parser.parse_dbt_selection(model)
+        target_models = dbt_parser.parse_selection_query(model)
         models = [m for m in dbt_parser.models.values() if m.name in target_models]
     else:
         models = list(dbt_parser.models.values())

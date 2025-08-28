@@ -343,7 +343,7 @@ class dbtParser:  # noqa: N801
             if self.dependency_graph.get_node_type(node_name) == "model"
         ]
 
-    def parse_dbt_selection(self, selection: str | None) -> set[str]:
+    def parse_selection_query(self, selection: str | None, /) -> set[str]:
         """Parse dbt model selection syntax to get target models.
 
         Args:
@@ -394,3 +394,9 @@ class dbtParser:  # noqa: N801
                 target_models.add(sel)
 
         return target_models
+
+    def parse_selection_query_return_models(self, selection_query: str | None) -> dict[str, Model]:
+        """Parse the model selection query, and return models."""
+        if selection_query is None:
+            return self.models
+        return {name: self.models[name] for name in self.parse_selection_query(selection_query)}

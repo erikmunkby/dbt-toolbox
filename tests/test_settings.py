@@ -151,14 +151,14 @@ def test_models_ignore_validation_integration_with_column_analysis() -> None:
             value=[], source="test", location="test"
         )
 
-        analyze_column_references(dbt_parser)
+        analyze_column_references(dbt_parser, target_models=None)
 
         # Now test with ignore list - should skip the model
         settings_module.settings._models_ignore_validation = settings_module.Setting(
             value=[test_model_name], source="test", location="test"
         )
 
-        analysis_with_ignore = analyze_column_references(dbt_parser)
+        analysis_with_ignore = analyze_column_references(dbt_parser, target_models=None)
 
         # The test model should not appear in the analysis results when ignored
         assert test_model_name not in analysis_with_ignore.non_existent_columns

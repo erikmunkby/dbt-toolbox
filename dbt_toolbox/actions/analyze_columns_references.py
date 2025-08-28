@@ -237,7 +237,7 @@ def _check_column_exists(
 
 
 def analyze_column_references(
-    dbt_parser: dbtParser, target_models: list[Model] | None = None
+    dbt_parser: dbtParser, target_models: list[Model] | None
 ) -> ColumnAnalysis:
     """Analyze all models and find columns that don't exist in their referenced objects.
 
