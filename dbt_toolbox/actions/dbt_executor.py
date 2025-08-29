@@ -4,7 +4,10 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from dbt_toolbox.actions.analyze_columns_references import analyze_column_references
+from dbt_toolbox.actions.analyze_columns_references import (
+    analyze_column_references,
+    print_column_analysis_results,
+)
 from dbt_toolbox.actions.analyze_models import AnalysisResult, analyze_model_statuses
 from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, parse_dbt_output
 from dbt_toolbox.data_models import DbtExecutionParams, Model
@@ -90,39 +93,9 @@ def _validate_lineage_references(dbt_parser: dbtParser, selection_query: str | N
     if not analysis.non_existent_columns and not analysis.referenced_non_existent_models:
         return True
 
-    # Print validation errors
-    _printers.cprint("❌ Lineage validation failed!", color="red")
-    print()  # noqa: T201
+    # Print validation failure results using the unified printing function
+    print_column_analysis_results(analysis=analysis, mode="validation")
 
-    # Show non-existent columns
-    if analysis.non_existent_columns:
-        total_missing_cols = sum(len(cols) for cols in analysis.non_existent_columns.values())
-        _printers.cprint(f"Missing columns ({total_missing_cols}):", color="red")
-        for model_name, referenced_models in analysis.non_existent_columns.items():
-            for referenced_model, missing_columns in referenced_models.items():
-                _printers.cprint(
-                    f"  • {model_name} → {referenced_model}: {', '.join(missing_columns)}",
-                    color="yellow",
-                )
-
-    # Show non-existent referenced models/sources
-    if analysis.referenced_non_existent_models:
-        total_missing_models = sum(
-            len(models) for models in analysis.referenced_non_existent_models.values()
-        )
-        _printers.cprint(f"Non-existent references ({total_missing_models}):", color="red")
-        for model_name, non_existent_models in analysis.referenced_non_existent_models.items():
-            _printers.cprint(
-                f"  • {model_name} → {', '.join(set(non_existent_models))}",
-                color="yellow",
-            )
-
-    print()  # noqa: T201
-    _printers.cprint(
-        "💡 Tip: You can disable lineage validation by setting "
-        "'enforce_lineage_validation = false' in your configuration",
-        color="cyan",
-    )
     return False
 
 

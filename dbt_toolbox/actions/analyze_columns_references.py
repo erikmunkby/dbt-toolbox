@@ -3,10 +3,14 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from rich.console import Console
+from rich.table import Table
+
 from dbt_toolbox.data_models import Model, Seed, Source
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.dbt_parser._column_resolver import ColumnReference, TableType
 from dbt_toolbox.settings import settings
+from dbt_toolbox.utils import _printers
 
 
 @dataclass
@@ -272,3 +276,134 @@ def analyze_column_references(
         model_results=model_results,
         overall_status="OK" if len(model_results) == 0 else "ISSUES_FOUND",
     )
+
+
+def print_column_analysis_results(
+    analysis: ColumnAnalysis | None = None,
+    dbt_parser: dbtParser | None = None,
+    target_models: list[Model] | None = None,
+    mode: str = "analysis",
+) -> None:
+    """Print column reference analysis results.
+
+    Args:
+        analysis: Pre-computed column analysis results. If provided, dbt_parser and
+            target_models are ignored.
+        dbt_parser: The dbt parser. Required if analysis is not provided.
+        target_models: A list of targeted models. Required if analysis is not provided.
+        mode: Print mode - "analysis" for analyze command, "validation" for build command
+
+    """
+    console = Console()
+
+    # If analysis is not provided, compute it
+    if analysis is None:
+        if dbt_parser is None or target_models is None:
+            raise ValueError(
+                "Either analysis or both dbt_parser and target_models must be provided"
+            )
+        analysis = analyze_column_references(dbt_parser=dbt_parser, target_models=target_models)
+
+    # Check if there are any issues to report
+    if (
+        not analysis.non_existent_columns
+        and not analysis.referenced_non_existent_models
+        and not analysis.cte_column_issues
+    ):
+        _printers.cprint("✅ All column references are valid!", color="green")
+        return
+
+    # Print header based on mode
+    if mode == "validation":
+        _printers.cprint("❌ Lineage validation failed!", color="red")
+    else:
+        _printers.cprint("📊 Column Reference Analysis", color="cyan")
+    print()  # noqa: T201 blankline
+
+    # Non-existent columns section
+    if analysis.non_existent_columns:
+        total_missing_cols = sum(len(cols) for cols in analysis.non_existent_columns.values())
+        _printers.cprint(
+            f"❌ Non-existent Columns ({total_missing_cols}):",
+            color="red",
+        )
+        table = Table(show_header=True, header_style="bold red")
+        table.add_column("Model", style="red")
+        table.add_column("Referenced Model", style="yellow")
+        table.add_column("Missing Columns", style="white")
+
+        for model_name, referenced_models in analysis.non_existent_columns.items():
+            for referenced_model, missing_columns in referenced_models.items():
+                table.add_row(
+                    model_name,
+                    referenced_model,
+                    ", ".join(missing_columns),
+                )
+
+        console.print(table)
+        print()  # noqa: T201 blankline
+
+    # CTE column issues section
+    if analysis.cte_column_issues:
+        total_cte_issues = sum(
+            len(cols)
+            for cte_dict in analysis.cte_column_issues.values()
+            for cols in cte_dict.values()
+        )
+        _printers.cprint(
+            f"🔶 CTE Column Issues ({total_cte_issues}):",
+            color="yellow",
+        )
+        table = Table(show_header=True, header_style="bold yellow")
+        table.add_column("Model", style="yellow")
+        table.add_column("CTE Name", style="blue")
+        table.add_column("Missing Columns", style="white")
+
+        for model_name, cte_issues in analysis.cte_column_issues.items():
+            for cte_name, missing_columns in cte_issues.items():
+                table.add_row(
+                    model_name,
+                    cte_name,
+                    ", ".join(missing_columns),
+                )
+
+        console.print(table)
+        print()  # noqa: T201 blankline
+
+    # Referenced non-existent models section
+    if analysis.referenced_non_existent_models:
+        total_missing_models = sum(
+            len(models) for models in analysis.referenced_non_existent_models.values()
+        )
+        _printers.cprint(
+            f"❌ Referenced Non-existent Models ({total_missing_models}):",
+            color="red",
+        )
+        table = Table(show_header=True, header_style="bold red")
+        table.add_column("Model", style="red")
+        table.add_column("Non-existent Referenced Models", style="white")
+
+        for model_name, non_existent_models in analysis.referenced_non_existent_models.items():
+            table.add_row(
+                model_name,
+                ", ".join(set(non_existent_models)),
+            )
+
+        console.print(table)
+        print()  # noqa: T201 blankline
+
+    # Print tips based on mode
+    if mode == "validation":
+        print()  # noqa: T201
+        _printers.cprint(
+            "💡 Tips:",
+            color="cyan",
+        )
+        _printers.cprint(
+            "  • Disable validation: Set 'enforce_lineage_validation = false'",
+            color="cyan",
+        )
+        _printers.cprint(
+            "  • Ignore specific models: Add model names to 'models_ignore_validation'",
+            color="cyan",
+        )
