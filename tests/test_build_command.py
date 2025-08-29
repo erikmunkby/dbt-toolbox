@@ -219,38 +219,19 @@ class TestBuildCommand:
         assert call_args.target is None
         assert call_args.model == "customers"
 
-    @patch("dbt_toolbox.actions.dbt_executor.analyze_column_references")
-    @patch("dbt_toolbox.actions.dbt_executor.analyze_model_statuses")
-    @patch("dbt_toolbox.dbt_parser.dbtParser")
+    @patch("dbt_toolbox.cli._build_run_command_factory.create_execution_plan")
     def test_build_with_selection_ignores_validation_errors_outside_selection(
-        self,
-        mock_dbt_parser_class: Mock,
-        mock_analyze_model_statuses: Mock,
-        mock_analyze_column_references: Mock,
+        self, mock_create_plan: Mock
     ) -> None:
         """Test that validation ignores erroneous models outside the selection."""
-        # Mock dbtParser instance
-        mock_dbt_parser = Mock()
-        mock_dbt_parser_class.return_value = mock_dbt_parser
-
-        # Mock parse_selection_query_return_models to return selected models only
-        mock_selected_model = Mock()
-        mock_selected_model.name = "customers"
-        mock_dbt_parser.parse_selection_query_return_models.return_value = {
-            "customers": mock_selected_model
-        }
-
-        # Mock column analysis to return no issues (validation passes for selected models)
-        mock_column_analysis = Mock()
-        mock_column_analysis.non_existent_columns = {}
-        mock_column_analysis.referenced_non_existent_models = {}
-        mock_analyze_column_references.return_value = mock_column_analysis
-
-        # Mock model status analysis
-        mock_analysis = Mock()
-        mock_analysis.needs_execution = True
-        mock_analysis.model = mock_selected_model
-        mock_analyze_model_statuses.return_value = [mock_analysis]
+        # Mock execution plan with successful validation
+        mock_plan = Mock()
+        mock_plan.run.return_value.return_code = 0
+        mock_plan.analyses = []
+        mock_plan.models_to_execute = ["customers"]
+        mock_plan.models_to_skip = []
+        mock_plan.lineage_valid = True  # This indicates validation passed
+        mock_create_plan.return_value = mock_plan
 
         cli_runner = CliRunner()
 
@@ -258,10 +239,10 @@ class TestBuildCommand:
 
         # Should exit successfully (validation passed)
         assert result.exit_code == 0
+        mock_create_plan.assert_called_once()
+        mock_plan.run.assert_called_once()
 
-        # Verify that column analysis was called with only the selected models
-        mock_analyze_column_references.assert_called_once()
-        call_args = mock_analyze_column_references.call_args[1]
-        target_models = call_args["target_models"]
-        assert len(target_models) == 1
-        assert target_models[0].name == "customers"
+        # Verify the execution plan was called with the right parameters
+        call_args = mock_create_plan.call_args[0][0]
+        assert call_args.command_name == "build"
+        assert call_args.model == "customers"

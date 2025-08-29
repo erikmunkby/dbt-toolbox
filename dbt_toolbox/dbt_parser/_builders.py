@@ -228,6 +228,11 @@ def build_model(
             continue
         for node in obj.nodes:
             if isinstance(node, Call):
+                # Skip nested calls like adapter.dispatch where node.node is not a Name
+                if not hasattr(node.node, "name"):
+                    # Now we have a nested call like adapter.dispatch
+                    # we will ignore these since they right now give us no information.
+                    continue
                 node_name: str = node.node.name  # type: ignore
                 # When we find {{ ref() }}
                 if node_name == "config":

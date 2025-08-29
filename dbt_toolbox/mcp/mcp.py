@@ -17,7 +17,7 @@ mcp_server = FastMCP("dbt-toolbox")
 
 
 @mcp_server.tool()
-def analyze_models() -> str:
+def analyze_models(target: str | None = None, model: str | None = None) -> str:
     """Analyze and validate all models in the dbt project.
 
     This will analyze and make sure all model references, column references and CTE references
@@ -28,6 +28,10 @@ def analyze_models() -> str:
 
     [tool.dbt_toolbox]
     models_ignore_validation = ["my_model"]
+
+    Args:
+        target: Specify dbt target environment
+        model: Select models to analyze (same as dbt --select/--model)
 
     Example output with descriptions:
     {
@@ -49,8 +53,18 @@ def analyze_models() -> str:
             }
         ]
     }
+
     """
-    result = analyze_column_references(dbt_parser=dbtParser())
+    dbt_parser = dbtParser(target=target)
+
+    # Filter models if selection is provided
+    if model:
+        target_model_names = dbt_parser.parse_selection_query(model)
+        target_models = [m for m in dbt_parser.models.values() if m.name in target_model_names]
+    else:
+        target_models = None
+
+    result = analyze_column_references(dbt_parser=dbt_parser, target_models=target_models)
     return json.dumps(dict_utils.remove_empty_values(asdict(result)))
 
 
