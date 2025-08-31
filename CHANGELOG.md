@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.6.2...v0.7.0) (2025-08-31)
+
+
+### Features
+
+* two new mcp tools: show_docs and list_objects ([4c06af3](https://github.com/erikmunkby/dbt-toolbox/commit/4c06af3d94bc969941ea84b65a8a45ffe79146f4))
+
+
+### Bug Fixes
+
+* dbt build validation ignores non selected models ([cbfb866](https://github.com/erikmunkby/dbt-toolbox/commit/cbfb866f7412a8911ccb5c208f2444da1a916533))
+* handle undefined jinja ([b5f6a77](https://github.com/erikmunkby/dbt-toolbox/commit/b5f6a77cd2635acde1b14869ae5033d046d26f9e))
+* unknown jinja macros no longer raises error ([33a0741](https://github.com/erikmunkby/dbt-toolbox/commit/33a074106a4cfba61d7025ad38bff7925d8d32e5))
+
 ## [0.6.2](https://github.com/erikmunkby/dbt-toolbox/compare/v0.6.1...v0.6.2) (2025-08-27)
 
 
