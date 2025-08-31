@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import asdict
+from typing import Literal
 
 from fastmcp import FastMCP
 
@@ -69,6 +70,214 @@ def analyze_models(target: str | None = None, model: str | None = None) -> str:
 
 
 @mcp_server.tool()
+def show_docs(  # noqa: PLR0911
+    model_name: str,
+    model_type: Literal["model", "source"] = "model",
+    target: str | None = None,
+) -> str:
+    """Show documentation for a specific model or source.
+
+    Args:
+        model_name: Name of the model or source to show documentation for
+        model_type: Type of object - either "model" or "source" (default: "model")
+        target: Specify dbt target environment
+
+    Returns:
+        JSON string containing model/source documentation including:
+        - Model/source description
+        - Column names and descriptions
+        - YAML file path where documentation is defined
+        - For sources: source name and table name
+
+    Note:
+        You can use the 'dt docs' command to generate documentation for models
+        that don't have existing documentation yet.
+
+    Example usage:
+        show_docs("customers", "model")          # Show model documentation
+        show_docs("raw_orders", "source")        # Show source documentation
+
+    """
+    dbt_parser = dbtParser(target=target)
+
+    if model_type == "model":
+        # Check if model exists in yaml docs
+        if model_name not in dbt_parser.yaml_docs:
+            # Check if model exists at all
+            if model_name not in dbt_parser.models:
+                return json.dumps(
+                    {"status": "error", "message": f"Model '{model_name}' not found in project"}
+                )
+            return json.dumps(
+                {
+                    "status": "no_documentation",
+                    "model_name": model_name,
+                    "model_type": model_type,
+                    "message": f"Model '{model_name}' exists but has no YAML documentation",
+                    "suggestion": "Use 'dt docs --model {model_name}' to generate documentation",
+                }
+            )
+
+        yaml_docs = dbt_parser.yaml_docs[model_name]
+        columns = []
+        if yaml_docs.columns:
+            columns = [
+                {
+                    "name": col.name,
+                    "description": col.description,
+                    "raw_description": col.raw_description,
+                }
+                for col in yaml_docs.columns
+            ]
+
+        return json.dumps(
+            {
+                "status": "success",
+                "model_name": model_name,
+                "model_type": model_type,
+                "description": yaml_docs.model_description,
+                "yaml_file_path": str(yaml_docs.path),
+                "columns": columns,
+                "config": yaml_docs.config,
+            }
+        )
+
+    if model_type == "source":
+        # For sources, we need to find by full name or check all sources
+        matching_sources = []
+        for source_key, source in dbt_parser.sources.items():
+            # Check if model_name matches either the table name or the full name
+            if model_name in (source.name, source.full_name):
+                matching_sources.append((source_key, source))
+
+        if not matching_sources:
+            return json.dumps(
+                {
+                    "status": "error",
+                    "message": f"Source '{model_name}' not found in project. "
+                    "Available sources: {list(dbt_parser.sources.keys())}",
+                }
+            )
+
+        if len(matching_sources) > 1:
+            return json.dumps(
+                {
+                    "status": "multiple_matches",
+                    "message": f"Multiple sources found matching '{model_name}': "
+                    f"{[s[0] for s in matching_sources]}",
+                    "matches": [s[0] for s in matching_sources],
+                }
+            )
+
+        source_key, source = matching_sources[0]
+        columns = [
+            {
+                "name": col.name,
+                "description": col.description,
+                "raw_description": col.raw_description,
+            }
+            for col in source.columns
+        ]
+
+        return json.dumps(
+            {
+                "status": "success",
+                "model_name": model_name,
+                "model_type": model_type,
+                "source_name": source.source_name,
+                "table_name": source.name,
+                "full_name": source.full_name,
+                "description": source.description,
+                "yaml_file_path": str(source.path),
+                "columns": columns,
+            }
+        )
+
+    return json.dumps(
+        {
+            "status": "error",
+            "message": f"Invalid model_type '{model_type}'. Must be either 'model' or 'source'",
+        }
+    )
+
+
+@mcp_server.tool()
+def list_dbt_objects(
+    type: Literal["model", "source"],  # noqa: A002
+    target: str | None = None,
+) -> str:
+    """List all available models or sources in the dbt project.
+
+    Args:
+        type: Type of objects to list - either "model" or "source"
+        target: Specify dbt target environment
+
+    Returns:
+        JSON string containing list of models or sources with their metadata:
+
+        For models:
+        - model_name: Name of the model
+        - sql_path: Path to the SQL file
+        - yaml_path: Path to YAML documentation (if exists)
+
+        For sources:
+        - source_name: Name of the source schema
+        - table_name: Name of the source table
+        - full_name: Full source name (source_name__table_name)
+        - yaml_path: Path to YAML file where source is defined
+
+    Example usage:
+        list("model")    # List all models
+        list("source")   # List all sources
+
+    """
+    dbt_parser = dbtParser(target=target)
+
+    if type == "model":
+        models_list = [
+            {
+                "model_name": name,
+                "sql_path": str(model.path),
+                "yaml_path": model.yaml_docs.path if model.yaml_docs else None,
+            }
+            for name, model in dbt_parser.models.items()
+        ]
+
+        return json.dumps(
+            {
+                "status": "success",
+                "type": "model",
+                "count": len(models_list),
+                "items": sorted(models_list, key=lambda x: x["model_name"]),
+            }
+        )
+    if type == "source":
+        sources_list = [
+            {
+                "source_name": source.source_name,
+                "table_name": source.name,
+                "full_name": source.full_name,
+                "yaml_path": str(source.path),
+            }
+            for source in dbt_parser.sources.values()
+        ]
+        return json.dumps(
+            {
+                "status": "success",
+                "type": "source",
+                "count": len(sources_list),
+                "items": sorted(sources_list, key=lambda x: x["full_name"]),
+            }
+        )
+    return json.dumps(
+        {
+            "status": "error",
+            "message": f"Invalid type '{type}'. Must be either 'model' or 'source'",
+        }
+    )
+
+
+@mcp_server.tool()
 def build_models(  # noqa: PLR0913
     model: str | None = None,
     full_refresh: bool = False,
@@ -131,16 +340,17 @@ def build_models(  # noqa: PLR0913
         # Execute using the existing CLI infrastructure
         plan = create_execution_plan(params)
         result = plan.run()
-        return json.dumps(
-            {
-                "status": "success" if result.return_code == 0 else "error",
-                "models_executed": plan.models_to_execute,
-                "models_skipped": [m.name for m in plan.models_to_skip],
-                "nbr_models_skipped": len(plan.models_to_skip),
-                "seconds_saved_by_skipping_models": plan.compute_time_saved_seconds,
-                **dict_utils.remove_empty_values(asdict(result.logs)),
-            }
-        )
+        output = {
+            "status": "success" if result.return_code == 0 else "error",
+            "models_executed": plan.models_to_execute,
+            "models_skipped": [m.name for m in plan.models_to_skip],
+            "nbr_models_skipped": len(plan.models_to_skip),
+            "seconds_saved_by_skipping_models": plan.compute_time_saved_seconds,
+            **dict_utils.remove_empty_values(asdict(result.parsed_logs)),
+        }
+        if result.return_code != 0:
+            output["dbt_logs"] = result.raw_logs
+        return json.dumps(output)
     except Exception as e:  # noqa: BLE001
         return json.dumps({"status": "error", "message": f"Build failed: {e!s}"})
 
@@ -193,6 +403,9 @@ def generate_docs(
     - Detection of column changes (additions, removals, reordering)
     - Placeholder counting and validation
     - Detailed error reporting
+
+    !IMPORTANT: Use this tool before manually writing documentation.
+    It will save a lot of time and tokens.
 
     Args:
         model: Name of the dbt model to generate documentation for

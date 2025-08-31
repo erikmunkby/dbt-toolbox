@@ -11,6 +11,7 @@ from dbt_toolbox.settings import settings
 
 _DESC = "description"
 _NAME = "name"
+_COLS = "columns"
 
 
 @dataclass
@@ -46,7 +47,7 @@ class YamlBuilder:
             yml: yamlium.Mapping = yamlium.from_dict(
                 {
                     _NAME: model_name,
-                    "columns": [],
+                    _COLS: [],
                 },
             )
 
