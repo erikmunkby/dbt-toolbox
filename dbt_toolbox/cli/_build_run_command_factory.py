@@ -65,7 +65,11 @@ def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
     execution_results = plan.run()
 
     # Print compute time saved if execution was successful
-    if plan.analyses and not params.disable_smart and not execution_results.logs.failed_models:
+    if (
+        plan.analyses
+        and not params.disable_smart
+        and not execution_results.parsed_logs.failed_models
+    ):
         _print_compute_time(skipped_models=plan.models_to_skip)
 
     sys.exit(execution_results.return_code)

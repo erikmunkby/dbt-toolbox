@@ -21,7 +21,8 @@ class DbtExecutionResults:
     """Results from executing dbt commands."""
 
     return_code: int
-    logs: DbtParsedLogs
+    parsed_logs: DbtParsedLogs
+    raw_logs: str
 
 
 @dataclass
@@ -59,10 +60,14 @@ class ExecutionPlan:
 
         """
         if not self.lineage_valid:
-            return DbtExecutionResults(return_code=1, logs=DbtParsedLogs(models={}))
+            return DbtExecutionResults(
+                return_code=1, parsed_logs=DbtParsedLogs(models={}), raw_logs=""
+            )
 
         if not self.models_to_execute:
-            return DbtExecutionResults(return_code=0, logs=DbtParsedLogs(models={}))
+            return DbtExecutionResults(
+                return_code=0, parsed_logs=DbtParsedLogs(models={}), raw_logs=""
+            )
 
         return _execute_dbt_raw(dbt_parser=self._dbt_parser, dbt_command=self.dbt_command)
 
@@ -146,6 +151,7 @@ def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecut
     # Initialize default values
     dbt_return_code = 1
     dbt_logs = DbtParsedLogs(models={})
+    dbt_raw_output = ""
 
     try:
         # Execute the dbt command with real-time output streaming
@@ -163,13 +169,13 @@ def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecut
 
         # Wait for process to complete and get return code
         dbt_return_code = process.wait()
+        dbt_raw_output = "".join(captured_output)
 
         # Parse dbt output to identify model results (only for build/run commands)
         command_name = dbt_command[1] if len(dbt_command) > 1 else ""
         if command_name in ["build", "run"]:
             # Use captured output for parsing
-            combined_output = "".join(captured_output)
-            dbt_logs = parse_dbt_output(combined_output)
+            dbt_logs = parse_dbt_output(dbt_raw_output)
 
             # Mark successful models as built successfully
             for model_name, model in dbt_parser.models.items():
@@ -206,7 +212,9 @@ def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecut
         _printers.cprint("❌ Unexpected error:", str(e), highlight_idx=1, color="red")
         dbt_return_code = 1
 
-    return DbtExecutionResults(return_code=dbt_return_code, logs=dbt_logs)
+    return DbtExecutionResults(
+        return_code=dbt_return_code, parsed_logs=dbt_logs, raw_logs=dbt_raw_output
+    )
 
 
 def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
