@@ -7,7 +7,7 @@ from jinja2 import Environment, FileSystemBytecodeCache, FileSystemLoader, Undef
 from jinja2.nodes import Template
 
 from dbt_toolbox import utils
-from dbt_toolbox.constants import CUSTOM_MACROS, GITHUB_ISSUES_LINK, TABLE_REF_SEP
+from dbt_toolbox.constants import CUSTOM_MACROS, TABLE_REF_SEP
 from dbt_toolbox.data_models import DbtProfile
 from dbt_toolbox.settings import settings
 from dbt_toolbox.warnings_collector import warnings_collector
@@ -71,14 +71,9 @@ class WarnUndefined(Undefined):
         if "unknown_jinja_macro" in settings.warnings_ignored:
             return
 
-        warning_message = (
-            f"Unknown macro '{macro_name}' encountered in template. "
-            f"If this is unexpected, please report it at {GITHUB_ISSUES_LINK}"
-        )
+        warning_message = f"Unknown macro '{macro_name}' encountered in template. "
         # Add to warnings collector for MCP/LLM integration
-        warnings_collector.add_warning(
-            warning_type="unknown_jinja_macro", message=warning_message, source="jinja_handler"
-        )
+        warnings_collector.add_warning(category="unknown_jinja_macro", message=warning_message)
 
     def _replacement_macro(self, is_called: bool = False) -> str:
         if self._undefined_name and not self._undefined_name.startswith("jinja_"):
@@ -223,6 +218,8 @@ class Jinja:
 
     def __init__(self, profile: DbtProfile | None = None) -> None:
         # Clear warnings cache and collector on every command run
+        cache.get_warned_macros_cache().clear()
+        warnings_collector.clear()
 
         self.env = _build_jinja_env(profile=profile if profile else DbtProfile())
 

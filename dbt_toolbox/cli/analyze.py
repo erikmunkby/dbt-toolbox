@@ -14,6 +14,7 @@ from dbt_toolbox.actions.analyze_models import (
     analyze_model_statuses,
 )
 from dbt_toolbox.cli._common_options import OptionModelSelection, OptionTarget
+from dbt_toolbox.cli._exit_handler import exit_run
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
@@ -182,3 +183,4 @@ def analyze_command(
             "models that need updates.",
             color="cyan",
         )
+    exit_run(0)
