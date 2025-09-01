@@ -32,7 +32,7 @@ def _mcp_json_response(data: dict) -> str:
 
     """
     # Collect any warnings that were generated
-    warnings = warnings_collector.get_warnings_list()
+    warnings = warnings_collector.get_warnings()
     if warnings:
         data["warnings"] = warnings
 

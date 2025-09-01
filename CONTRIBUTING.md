@@ -39,66 +39,6 @@ dt --help
 dt clean
 ```
 
-## 🏗️ Architecture Overview
-
-### Core Components
-
-The project is organized into several key modules:
-
-```
-dbt_toolbox/
-├── cli/                  # CLI commands and interface
-│   ├── main.py          # Main CLI app with Typer
-│   ├── build.py         # Enhanced dbt build command
-│   ├── run.py           # Enhanced dbt run command
-│   ├── docs.py          # YAML documentation generation
-│   ├── analyze.py       # Cache state analysis
-│   ├── clean.py         # Cache management
-│   ├── _dbt_executor.py # Shared dbt execution engine
-│   ├── _analyze_models.py # Model execution analysis logic
-│   ├── _analyze_columns.py # Column lineage analysis
-│   ├── _common_options.py # Shared CLI options and types
-│   └── _dbt_output_parser.py # dbt command output parsing
-├── dbt_parser/          # dbt project parsing and caching
-│   ├── dbt_parser.py    # Main parsing interface
-│   ├── _cache.py        # Caching implementation
-│   ├── _file_fetcher.py # File system operations
-│   ├── _jinja_handler.py# Jinja environment management
-│   ├── _builders.py     # Model and macro building logic
-│   └── _column_resolver.py # SQL column resolution and dependency analysis
-├── graph/               # Dependency graph implementation
-│   └── dependency_graph.py # Lightweight DAG
-├── testing/             # Testing utilities for users
-│   └── column_tests.py  # Documentation test helpers
-├── utils/               # Shared utilities
-│   ├── _printers.py     # Enhanced console output with colors
-│   └── _paths.py        # Path utility functions
-├── data_models.py       # Pydantic data models and DbtProfile
-├── settings.py          # Configuration management with source tracking
-├── run_config.py        # Runtime configuration and target management
-└── constants.py         # Project constants
-```
-
-### Key Design Patterns
-
-1. **Intelligent Execution**: Smart cache-based execution that analyzes which models need rebuilding
-2. **Shared Command Infrastructure**: Common dbt execution logic via `_dbt_executor.py` factory pattern
-3. **Instance-based Parser**: dbtParser is instantiated with target parameter instead of singleton pattern
-4. **Caching Strategy**: Uses pickle serialization for caching parsed models, macros, and Jinja environments
-5. **Dependency Tracking**: Lightweight DAG with efficient upstream/downstream traversal
-6. **SQL Processing**: Uses SQLGlot for parsing and optimizing SQL queries with advanced column resolution
-7. **CLI Design**: Typer-based with target support, command shadowing, and enhanced UX
-8. **Configuration Hierarchy**: Multi-source settings with precedence and source tracking
-9. **Lineage Validation**: Optional column and model reference validation before execution
-10. **Target Management**: Runtime configuration with support for dbt target environments
-
-### Development Principles
-
-- **Performance First**: Intelligent caching at every layer
-- **User Experience**: Enhanced output, colors, and clear error messages  
-- **dbt Integration**: Seamless integration with existing dbt workflows
-- **Testability**: Comprehensive test coverage with session-scoped fixtures
-- **Configuration**: Flexible, hierarchical configuration system
 
 ## 🧪 Testing
 
@@ -309,15 +249,9 @@ git push origin feat/amazing-feature
 4. Always provide mock dbt_parser instances to functions that require them
 
 **When working with utilities:**
-- Use `from dbt_toolbox.utils import _printers` (not old `printer` module)
+- Use `from dbt_toolbox.utils import _printers`
 - Use `_printers.cprint()` for colored console output
 - Use `from dbt_toolbox.utils._paths import build_path` for path utilities
-
-**Import patterns:**
-- `from dbt_toolbox.dbt_parser import dbtParser` (class, not singleton)
-- `from dbt_toolbox.cli._analyze_models import AnalysisResult, ExecutionReason`
-- `from dbt_toolbox.run_config import RunConfig`
-- `from dbt_toolbox.cli._common_options import Target`
 
 ### Local Testing Tips
 

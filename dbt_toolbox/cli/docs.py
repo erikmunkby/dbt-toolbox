@@ -7,6 +7,7 @@ import typer
 
 from dbt_toolbox.actions.build_docs import DocsResult, YamlBuilder
 from dbt_toolbox.cli._common_options import OptionModelSelection, OptionTarget
+from dbt_toolbox.cli._exit_handler import exit_run
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.utils import _printers
 
@@ -14,28 +15,25 @@ from dbt_toolbox.utils import _printers
 def _handle_clipboard_mode(result: DocsResult) -> None:
     """Handle clipboard mode output and errors."""
     if not result.success:
-        _printers.cprint(
-            f"❌ Failed to generate YAML for model {result.model_name}",
-            color="red",
-        )
+        error_msg = f"Failed to generate YAML for model {result.model_name}"
         if result.error_message:
-            _printers.cprint(f"   Error: {result.error_message}", color="red")
-        raise typer.Exit(1)
+            error_msg += f": {result.error_message}"
+        exit_run(1, error_msg)
 
     if result.yaml_content:
         process = subprocess.Popen(args="pbcopy", stdin=subprocess.PIPE)
         process.communicate(input=result.yaml_content.encode())
         _printers.cprint(result.yaml_content)
-        _printers.cprint("Also exists in your clipboard (cmd+V)", color="green")
+        exit_run(0, "Documentation copied to clipboard")
 
 
 def _handle_update_mode(result: DocsResult) -> None:
     """Handle file update mode output and errors."""
     if not result.success:
-        _printers.cprint(f"❌ Failed to update model {result.model_name}", color="red")
+        error_msg = f"Failed to update model {result.model_name}"
         if result.error_message:
-            _printers.cprint(f"   Error: {result.error_message}", color="red")
-        raise typer.Exit(1)
+            error_msg += f": {result.error_message}"
+        exit_run(1, error_msg)
 
     has_changes = result.changes.added or result.changes.removed or result.changes.reordered
 
@@ -44,7 +42,7 @@ def _handle_update_mode(result: DocsResult) -> None:
             f"ℹ️  No column changes detected for model {result.model_name}",  # noqa: RUF001
             color="bright_black",
         )
-        return
+        exit_run(0, "Documentation is up to date")
 
     # Print success message with model name - remove highlight to avoid color mixing
     _printers.cprint(f"✅ updated model {result.model_name}", color="green")
@@ -66,6 +64,8 @@ def _handle_update_mode(result: DocsResult) -> None:
         _printers.cprint(f"   Mode: {result.mode}", color="bright_black")
         _printers.cprint(f"   YAML file: {result.yaml_path}", color="bright_black")
 
+    exit_run(0, "Documentation updated successfully")
+
 
 def docs(
     model: OptionModelSelection,
@@ -86,29 +86,29 @@ def docs(
     try:
         dbt_parser = dbtParser(target=target)
     except Exception as e:  # noqa: BLE001
-        _printers.cprint("❌ Failed to initialize dbt parser", color="red")
-        _printers.cprint(f"   Error: {e}", color="red")
-        raise typer.Exit(1) from None
+        exit_run(1, f"Failed to initialize dbt parser: {e}")
 
-    if model not in dbt_parser.models:
-        _printers.cprint(f"❌ Model {model} not found", color="red")
+    selected_model = dbt_parser.parse_selection_query(model)
+    if len(selected_model) != 1:
+        exit_run(1, "Selection for docs can only be singular models")
+    selected_model = next(iter(selected_model))
+
+    if selected_model not in dbt_parser.models:
         max_models_to_show = 5
         available_models = list(dbt_parser.models.keys())[:max_models_to_show]
         if available_models:
-            models_str = f"   Available models include: {', '.join(available_models)}"
+            models_str = f"Available models include: {', '.join(available_models)}"
             _printers.cprint(models_str, color="bright_black")
             if len(dbt_parser.models) > max_models_to_show:
                 remaining = len(dbt_parser.models) - max_models_to_show
-                _printers.cprint(f"   ... and {remaining} more", color="bright_black")
-        raise typer.Exit(1)
+                _printers.cprint(f"... and {remaining} more", color="bright_black")
+        exit_run(1, f"Model {model} not found")
 
     try:
         # Use fix_inplace=False when clipboard is True (to get YAML content)
-        result = YamlBuilder(model, dbt_parser).build(fix_inplace=not clipboard)
+        result = YamlBuilder(selected_model, dbt_parser).build(fix_inplace=not clipboard)
     except Exception as e:  # noqa: BLE001
-        _printers.cprint("❌ Unexpected error while building YAML docs", color="red")
-        _printers.cprint(f"   Error: {e}", color="red")
-        raise typer.Exit(1) from None
+        exit_run(1, f"Unexpected error while building YAML docs: {e}")
 
     if clipboard:
         _handle_clipboard_mode(result)

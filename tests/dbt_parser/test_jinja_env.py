@@ -18,9 +18,13 @@ def test_jinja_unknown_macro_warning() -> None:
     """Test that unknown macros generate warnings instead of errors."""
     # Test rendering with an unknown macro
     result = Jinja().render("SELECT * FROM {{ unknown_macro() }}")
+    warnings = warnings_collector.get_warnings()
+
+    # Check that we have a warning with the expected message and category
     assert any(
-        "Unknown macro 'unknown_macro' encountered in template." in w["message"]
-        for w in warnings_collector.get_warnings_list()
+        "Unknown macro 'unknown_macro' encountered in template." in msg
+        and category == "unknown_jinja_macro"
+        for msg, category in warnings.items()
     )
 
     # Verify the result contains the macro call as-is
@@ -42,6 +46,9 @@ def test_warnings_ignored_functionality() -> None:
         # Clear the warned macros cache for clean test
         warned_cache.write(set())
 
+        # Clear warnings collector for clean test
+        warnings_collector.clear()
+
         # Mock settings to ignore warnings
         with patch("dbt_toolbox.settings.settings.warnings_ignored", ["unknown_jinja_macro"]):
             with patch("dbt_toolbox.utils.log") as mock_log:
@@ -54,6 +61,10 @@ def test_warnings_ignored_functionality() -> None:
                     if len(call.args) > 0 and "Warning: Unknown macro" in call.args[0]
                 ]
                 assert len(warning_calls) == 0
+
+                # Verify no warning was added to warnings collector
+                warnings = warnings_collector.get_warnings()
+                assert len(warnings) == 0, "No warnings should be collected when ignored"
 
                 # Verify the result still contains the macro
                 assert "{{ ignored_test_macro() }}" in result

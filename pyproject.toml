@@ -35,6 +35,7 @@ dev = [
     "fastmcp>=2.11.3",
     "ipykernel>=6.29.5",
     "pytest>=8.4.0",
+    "pytest-cov>=6.2.1",
     "pytest-env>=1.1.5",
     "ruff>=0.11.11",
 ]

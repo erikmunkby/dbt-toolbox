@@ -6,22 +6,21 @@ class WarningsCollector:
 
     def __init__(self) -> None:
         """Initialize empty warnings collection."""
-        self._warnings: dict[str, dict[str, str]] = {}
+        self._warnings: dict[str, str] = {}
 
-    def add_warning(self, warning_type: str, message: str, source: str = "unknown") -> None:
+    def add_warning(self, category: str, message: str) -> None:
         """Add a warning to the collection.
 
         Args:
-            warning_type: Type of warning (e.g., "unknown_jinja_macro", "column_issue")
+            category: Type of warning (e.g., "unknown_jinja_macro", "column_issue")
             message: Warning message
-            source: Source of the warning (e.g., "jinja_handler", "column_resolver")
 
         """
-        self._warnings[message] = {"type": warning_type, "message": message, "source": source}
+        self._warnings[message] = category
 
-    def get_warnings_list(self) -> list[dict[str, str]]:
+    def get_warnings(self) -> dict[str, str]:
         """Get all collected warnings."""
-        return list(self._warnings.copy().values())
+        return self._warnings.copy()
 
     def clear(self) -> None:
         """Clear all warnings."""
