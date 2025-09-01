@@ -37,7 +37,7 @@ class _CacheHolder:
 
     def clear(self) -> None:
         """Delete the cache."""
-        return self.path.unlink()
+        return self.path.unlink(missing_ok=True)
 
 
 class _SetCache(_CacheHolder):

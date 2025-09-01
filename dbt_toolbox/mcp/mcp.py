@@ -13,8 +13,30 @@ from dbt_toolbox.actions.dbt_executor import create_execution_plan
 from dbt_toolbox.data_models import DbtExecutionParams
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.utils import dict_utils
+from dbt_toolbox.warnings_collector import warnings_collector
 
 mcp_server = FastMCP("dbt-toolbox")
+
+
+def _mcp_json_response(data: dict) -> str:
+    """Create a JSON response for MCP tools with warnings included.
+
+    This function automatically collects any warnings that were generated
+    during the operation and includes them in the response.
+
+    Args:
+        data: The main response data to serialize
+
+    Returns:
+        JSON string with warnings included if any exist
+
+    """
+    # Collect any warnings that were generated
+    warnings = warnings_collector.get_warnings_list()
+    if warnings:
+        data["warnings"] = warnings
+
+    return json.dumps(dict_utils.remove_empty_values(data))
 
 
 @mcp_server.tool()
@@ -52,6 +74,13 @@ def analyze_models(target: str | None = None, model: str | None = None) -> str:
                     "missing_columns": ["my_column"] # Any columns not found within CTE
                 }]
             }
+        ],
+        "warnings": [ # Any warnings encountered during analysis
+            {
+                "type": "unknown_jinja_macro", # Type of warning
+                "message": "Unknown macro 'my_macro' encountered...", # Warning message
+                "source": "jinja_handler" # Source of the warning
+            }
         ]
     }
 
@@ -66,7 +95,8 @@ def analyze_models(target: str | None = None, model: str | None = None) -> str:
         target_models = None
 
     result = analyze_column_references(dbt_parser=dbt_parser, target_models=target_models)
-    return json.dumps(dict_utils.remove_empty_values(asdict(result)))
+
+    return _mcp_json_response(asdict(result))
 
 
 @mcp_server.tool()
@@ -105,10 +135,10 @@ def show_docs(  # noqa: PLR0911
         if model_name not in dbt_parser.yaml_docs:
             # Check if model exists at all
             if model_name not in dbt_parser.models:
-                return json.dumps(
+                return _mcp_json_response(
                     {"status": "error", "message": f"Model '{model_name}' not found in project"}
                 )
-            return json.dumps(
+            return _mcp_json_response(
                 {
                     "status": "no_documentation",
                     "model_name": model_name,
@@ -130,7 +160,7 @@ def show_docs(  # noqa: PLR0911
                 for col in yaml_docs.columns
             ]
 
-        return json.dumps(
+        return _mcp_json_response(
             {
                 "status": "success",
                 "model_name": model_name,
@@ -151,7 +181,7 @@ def show_docs(  # noqa: PLR0911
                 matching_sources.append((source_key, source))
 
         if not matching_sources:
-            return json.dumps(
+            return _mcp_json_response(
                 {
                     "status": "error",
                     "message": f"Source '{model_name}' not found in project. "
@@ -160,7 +190,7 @@ def show_docs(  # noqa: PLR0911
             )
 
         if len(matching_sources) > 1:
-            return json.dumps(
+            return _mcp_json_response(
                 {
                     "status": "multiple_matches",
                     "message": f"Multiple sources found matching '{model_name}': "
@@ -179,7 +209,7 @@ def show_docs(  # noqa: PLR0911
             for col in source.columns
         ]
 
-        return json.dumps(
+        return _mcp_json_response(
             {
                 "status": "success",
                 "model_name": model_name,
@@ -193,7 +223,7 @@ def show_docs(  # noqa: PLR0911
             }
         )
 
-    return json.dumps(
+    return _mcp_json_response(
         {
             "status": "error",
             "message": f"Invalid model_type '{model_type}'. Must be either 'model' or 'source'",
@@ -243,7 +273,7 @@ def list_dbt_objects(
             for name, model in dbt_parser.models.items()
         ]
 
-        return json.dumps(
+        return _mcp_json_response(
             {
                 "status": "success",
                 "type": "model",
@@ -261,7 +291,7 @@ def list_dbt_objects(
             }
             for source in dbt_parser.sources.values()
         ]
-        return json.dumps(
+        return _mcp_json_response(
             {
                 "status": "success",
                 "type": "source",
@@ -269,7 +299,7 @@ def list_dbt_objects(
                 "items": sorted(sources_list, key=lambda x: x["full_name"]),
             }
         )
-    return json.dumps(
+    return _mcp_json_response(
         {
             "status": "error",
             "message": f"Invalid type '{type}'. Must be either 'model' or 'source'",
@@ -309,7 +339,7 @@ def build_models(  # noqa: PLR0913
         • Optimized Selection: Automatically filters to models that need execution
 
     Returns:
-        JSON string with execution results and model status information.
+        JSON string with execution results, model status information, and any warnings.
 
     Examples:
         build_models()                               # Smart execution (default)
@@ -346,13 +376,16 @@ def build_models(  # noqa: PLR0913
             "models_skipped": [m.name for m in plan.models_to_skip],
             "nbr_models_skipped": len(plan.models_to_skip),
             "seconds_saved_by_skipping_models": plan.compute_time_saved_seconds,
-            **dict_utils.remove_empty_values(asdict(result.parsed_logs)),
+            **asdict(result.parsed_logs),
         }
         if result.return_code != 0:
             output["dbt_logs"] = result.raw_logs
-        return json.dumps(output)
+
+        return _mcp_json_response(output)
     except Exception as e:  # noqa: BLE001
-        return json.dumps({"status": "error", "message": f"Build failed: {e!s}"})
+        # Include warnings even in error cases
+        error_output = {"status": "error", "message": f"Build failed: {e!s}"}
+        return _mcp_json_response(error_output)
 
 
 @mcp_server.tool()
@@ -385,9 +418,11 @@ def list_settings(target: str | None = None) -> str:
     """
     try:
         all_settings = get_all_settings(target=target)
-        return json.dumps({name: setting._asdict() for name, setting in all_settings.items()})
+        return _mcp_json_response(
+            {name: setting._asdict() for name, setting in all_settings.items()}
+        )
     except Exception as e:  # noqa: BLE001
-        return json.dumps({"status": "error", "message": f"Failed to get settings: {e!s}"})
+        return _mcp_json_response({"status": "error", "message": f"Failed to get settings: {e!s}"})
 
 
 @mcp_server.tool()
@@ -464,7 +499,7 @@ def generate_docs(
     try:
         dbt_parser = dbtParser(target=target)
     except Exception as e:  # noqa: BLE001
-        return json.dumps(
+        return _mcp_json_response(
             {"status": "error", "message": f"Failed to initialize dbt parser: {e!s}"}
         )
 
@@ -475,7 +510,7 @@ def generate_docs(
         if len(dbt_parser.models) > max_models_to_show:
             models_info += f" ... and {len(dbt_parser.models) - max_models_to_show} more"
 
-        return json.dumps(
+        return _mcp_json_response(
             {"status": "error", "message": f"Model '{model}' not found. {models_info}"}
         )
 
@@ -483,8 +518,8 @@ def generate_docs(
         builder = YamlBuilder(model, dbt_parser)
         result = builder.build(fix_inplace=fix_inplace)
 
-        return json.dumps(dict_utils.remove_empty_values(asdict(result)))
+        return _mcp_json_response(asdict(result))
     except Exception as e:  # noqa: BLE001
-        return json.dumps(
+        return _mcp_json_response(
             {"status": "error", "message": f"Unexpected error while generating docs: {e!s}"}
         )
