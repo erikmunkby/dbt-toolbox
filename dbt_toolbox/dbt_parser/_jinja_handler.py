@@ -7,9 +7,10 @@ from jinja2 import Environment, FileSystemBytecodeCache, FileSystemLoader, Undef
 from jinja2.nodes import Template
 
 from dbt_toolbox import utils
-from dbt_toolbox.constants import CUSTOM_MACROS, TABLE_REF_SEP
+from dbt_toolbox.constants import CUSTOM_MACROS, GITHUB_ISSUES_LINK, TABLE_REF_SEP
 from dbt_toolbox.data_models import DbtProfile
 from dbt_toolbox.settings import settings
+from dbt_toolbox.warnings_collector import warnings_collector
 
 from ._cache import cache
 
@@ -70,18 +71,14 @@ class WarnUndefined(Undefined):
         if "unknown_jinja_macro" in settings.warnings_ignored:
             return
 
-        # Get cached set of warned macros
-        warned_macros_cache = cache.get_warned_macros_cache()
-        warned_macros = warned_macros_cache.read()
-
-        # Only warn if we haven't already warned about this macro
-        if macro_name not in warned_macros:
-            utils.log(
-                f"Warning: Unknown macro '{macro_name}' encountered in template", level="WARN"
-            )
-            # Add to cache and save
-            warned_macros.add(macro_name)
-            warned_macros_cache.write(warned_macros)
+        warning_message = (
+            f"Unknown macro '{macro_name}' encountered in template. "
+            f"If this is unexpected, please report it at {GITHUB_ISSUES_LINK}"
+        )
+        # Add to warnings collector for MCP/LLM integration
+        warnings_collector.add_warning(
+            warning_type="unknown_jinja_macro", message=warning_message, source="jinja_handler"
+        )
 
     def _replacement_macro(self, is_called: bool = False) -> str:
         if self._undefined_name and not self._undefined_name.startswith("jinja_"):
@@ -225,6 +222,8 @@ class Jinja:
     """Jinja class holder."""
 
     def __init__(self, profile: DbtProfile | None = None) -> None:
+        # Clear warnings cache and collector on every command run
+
         self.env = _build_jinja_env(profile=profile if profile else DbtProfile())
 
     def render(self, sql: str) -> str:
