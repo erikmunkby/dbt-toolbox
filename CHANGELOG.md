@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.7.0...v0.7.1) (2025-09-02)
+
+
+### Bug Fixes
+
+* allow regex for listing available objects ([ba1a5d4](https://github.com/erikmunkby/dbt-toolbox/commit/ba1a5d475fe5335f425eb438ec14c1a13d3f0d1d))
+* new warnings collector class ([1dca8db](https://github.com/erikmunkby/dbt-toolbox/commit/1dca8db9c82a3195f98bb9fd07c547ce601a7d1d))
+* streamline warnings handling ([33f9065](https://github.com/erikmunkby/dbt-toolbox/commit/33f9065ce3097714f34dd38f0791d2d3dcf6fc76))
+
 ## [0.7.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.6.2...v0.7.0) (2025-08-31)
 
 
