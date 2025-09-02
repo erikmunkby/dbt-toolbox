@@ -6,7 +6,7 @@ from unittest.mock import patch
 from dbt_toolbox.actions.build_docs import DocsResult, YamlBuilder
 from dbt_toolbox.data_models import ColumnChanges
 from dbt_toolbox.dbt_parser import dbtParser
-from dbt_toolbox.mcp.mcp import generate_docs
+from dbt_toolbox.mcp.tool_generate_docs import generate_docs
 
 
 class TestMCPGenerateDocs:
@@ -14,7 +14,7 @@ class TestMCPGenerateDocs:
 
     def test_generate_docs_preview_mode_success(self, dbt_parser: dbtParser) -> None:
         """Test generate_docs in preview mode (fix_inplace=False)."""
-        with patch("dbt_toolbox.mcp.mcp.dbtParser") as mock_parser_class:
+        with patch("dbt_toolbox.mcp.tool_generate_docs.dbtParser") as mock_parser_class:
             mock_parser_class.return_value = dbt_parser
 
             with patch.object(YamlBuilder, "build") as mock_build:
@@ -28,7 +28,7 @@ class TestMCPGenerateDocs:
                     error_message=None,
                 )
 
-                result_json = generate_docs.fn("customers", fix_inplace=False)
+                result_json = generate_docs("customers", fix_inplace=False)
                 result = json.loads(result_json)
 
                 assert result["success"] is True
@@ -41,7 +41,7 @@ class TestMCPGenerateDocs:
 
     def test_generate_docs_update_mode_success(self, dbt_parser: dbtParser) -> None:
         """Test generate_docs in update mode (fix_inplace=True)."""
-        with patch("dbt_toolbox.mcp.mcp.dbtParser") as mock_parser_class:
+        with patch("dbt_toolbox.mcp.tool_generate_docs.dbtParser") as mock_parser_class:
             mock_parser_class.return_value = dbt_parser
 
             with patch.object(YamlBuilder, "build") as mock_build:
@@ -55,7 +55,7 @@ class TestMCPGenerateDocs:
                     error_message=None,
                 )
 
-                result_json = generate_docs.fn("customers", fix_inplace=True)
+                result_json = generate_docs("customers", fix_inplace=True)
                 result = json.loads(result_json)
 
                 assert result["success"] is True
@@ -68,10 +68,10 @@ class TestMCPGenerateDocs:
 
     def test_generate_docs_model_not_found(self, dbt_parser: dbtParser) -> None:
         """Test generate_docs with non-existent model."""
-        with patch("dbt_toolbox.mcp.mcp.dbtParser") as mock_parser_class:
+        with patch("dbt_toolbox.mcp.tool_generate_docs.dbtParser") as mock_parser_class:
             mock_parser_class.return_value = dbt_parser
 
-            result_json = generate_docs.fn("nonexistent_model")
+            result_json = generate_docs("nonexistent_model")
             result = json.loads(result_json)
 
             assert result["status"] == "error"
@@ -80,8 +80,10 @@ class TestMCPGenerateDocs:
 
     def test_generate_docs_parser_initialization_error(self) -> None:
         """Test generate_docs when dbt parser initialization fails."""
-        with patch("dbt_toolbox.mcp.mcp.dbtParser", side_effect=Exception("Parser failed")):
-            result_json = generate_docs.fn("customers")
+        with patch(
+            "dbt_toolbox.mcp.tool_generate_docs.dbtParser", side_effect=Exception("Parser failed")
+        ):
+            result_json = generate_docs("customers")
             result = json.loads(result_json)
 
             assert result["status"] == "error"
@@ -90,7 +92,7 @@ class TestMCPGenerateDocs:
 
     def test_generate_docs_build_error(self, dbt_parser: dbtParser) -> None:
         """Test generate_docs when build operation fails."""
-        with patch("dbt_toolbox.mcp.mcp.dbtParser") as mock_parser_class:
+        with patch("dbt_toolbox.mcp.tool_generate_docs.dbtParser") as mock_parser_class:
             mock_parser_class.return_value = dbt_parser
 
             with patch.object(YamlBuilder, "build") as mock_build:
@@ -104,7 +106,7 @@ class TestMCPGenerateDocs:
                     error_message="Permission denied when writing to schema file",
                 )
 
-                result_json = generate_docs.fn("customers")
+                result_json = generate_docs("customers")
                 result = json.loads(result_json)
 
                 assert result["success"] is False
@@ -113,11 +115,11 @@ class TestMCPGenerateDocs:
 
     def test_generate_docs_unexpected_error(self, dbt_parser: dbtParser) -> None:
         """Test generate_docs when unexpected error occurs."""
-        with patch("dbt_toolbox.mcp.mcp.dbtParser") as mock_parser_class:
+        with patch("dbt_toolbox.mcp.tool_generate_docs.dbtParser") as mock_parser_class:
             mock_parser_class.return_value = dbt_parser
 
             with patch.object(YamlBuilder, "build", side_effect=Exception("Unexpected error")):
-                result_json = generate_docs.fn("customers")
+                result_json = generate_docs("customers")
                 result = json.loads(result_json)
 
                 assert result["status"] == "error"
@@ -126,7 +128,7 @@ class TestMCPGenerateDocs:
 
     def test_generate_docs_with_target_parameter(self, dbt_parser: dbtParser) -> None:
         """Test generate_docs with target parameter."""
-        with patch("dbt_toolbox.mcp.mcp.dbtParser") as mock_parser_class:
+        with patch("dbt_toolbox.mcp.tool_generate_docs.dbtParser") as mock_parser_class:
             mock_parser_class.return_value = dbt_parser
 
             with patch.object(YamlBuilder, "build") as mock_build:
@@ -140,7 +142,7 @@ class TestMCPGenerateDocs:
                     error_message=None,
                 )
 
-                result_json = generate_docs.fn("customers", target="prod", fix_inplace=False)
+                result_json = generate_docs("customers", target="prod", fix_inplace=False)
                 result = json.loads(result_json)
 
                 # Verify dbt parser was called with target
