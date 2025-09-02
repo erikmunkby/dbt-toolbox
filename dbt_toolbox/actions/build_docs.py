@@ -101,8 +101,8 @@ class YamlBuilder:
             ColumnChanges dataclass with added, removed, and reordered information.
 
         """
-        existing_columns = [c[_NAME] for c in self.yml.get("columns", [])]
-        new_column_names = [c[_NAME] for c in new_columns]
+        existing_columns = [str(c[_NAME]) for c in self.yml.get("columns", [])]
+        new_column_names = [str(c[_NAME]) for c in new_columns]
 
         added = [col for col in new_column_names if col not in existing_columns]
         removed = [col for col in existing_columns if col not in new_column_names]
