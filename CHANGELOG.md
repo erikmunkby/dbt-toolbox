@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/erikmunkby/dbt-toolbox/compare/v0.7.1...v0.7.2) (2025-09-02)
+
+
+### Bug Fixes
+
+* improve analysis results ([1edc385](https://github.com/erikmunkby/dbt-toolbox/commit/1edc3859708695464afcb4b72246d66d2ab78a56))
+
 ## [0.7.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.7.0...v0.7.1) (2025-09-02)
 
 
