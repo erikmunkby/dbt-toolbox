@@ -11,7 +11,10 @@ from dbt_toolbox.cli.run import run
 from dbt_toolbox.cli.settings import settings_cmd
 from dbt_toolbox.utils._printers import cprint
 
-app = typer.Typer(help="dbt-toolbox CLI - Tools for working with dbt projects")
+app = typer.Typer(
+    help="dbt-toolbox CLI - Tools for working with dbt projects",
+    pretty_exceptions_show_locals=False,
+)
 
 
 app.command()(docs)
