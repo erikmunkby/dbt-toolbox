@@ -72,7 +72,7 @@ def list_dbt_objects(
                 "object_type": "model",
                 "model_name": name,
                 "sql_path": str(model.path),
-                "yaml_path": model.yaml_docs.path if model.yaml_docs else None,
+                "yaml_path": str(model.yaml_docs.path) if model.yaml_docs else None,
             }
             for name, model in dbt_parser.models.items()
             if regex_pattern.search(name)
@@ -106,7 +106,7 @@ def list_dbt_objects(
                     "object_type": "model",
                     "model_name": name,
                     "sql_path": str(model.path),
-                    "yaml_path": model.yaml_docs.path if model.yaml_docs else None,
+                    "yaml_path": str(model.yaml_docs.path) if model.yaml_docs else None,
                 }
                 for name, model in dbt_parser.models.items()
             ]
@@ -131,7 +131,7 @@ def list_dbt_objects(
                 "object_type": "model",
                 "model_name": name,
                 "sql_path": str(model.path),
-                "yaml_path": model.yaml_docs.path if model.yaml_docs else None,
+                "yaml_path": str(model.yaml_docs.path) if model.yaml_docs else None,
             }
             for name, model in dbt_parser.models.items()
         ]
