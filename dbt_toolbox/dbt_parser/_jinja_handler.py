@@ -139,7 +139,7 @@ def _load_sorted_macro_dict() -> dict[str, str]:
 
     """
     if cache.cache_jinja_env.exists() and cache.validate_jinja_environment():
-        utils.log("Found valid macro cache!")
+        utils.log.debug("Found valid macro cache!")
         return pickle.loads(cache.cache_jinja_env.read())  # noqa: S301
     weights = {"dbt_utils": -1, CUSTOM_MACROS: 1}
     macro_dict = dict(sorted(cache.macros_dict.items(), key=lambda x: weights.get(x[0], 0)))

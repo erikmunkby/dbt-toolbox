@@ -13,7 +13,7 @@ class TestDbtExecutor:
     """Test the shared dbt execution engine."""
 
     @patch("dbt_toolbox.actions.dbt_executor._stream_process_output")
-    @patch("dbt_toolbox.actions.dbt_executor._printers")
+    @patch("dbt_toolbox.utils._printers")
     @patch("dbt_toolbox.actions.dbt_executor.settings")
     @patch("dbt_toolbox.actions.dbt_executor.parse_dbt_output")
     @patch("subprocess.Popen")
@@ -60,7 +60,7 @@ class TestDbtExecutor:
         assert "--profiles-dir" in called_args
         assert "/test/profiles" in called_args
 
-    @patch("dbt_toolbox.actions.dbt_executor._printers")
+    @patch("dbt_toolbox.utils._printers")
     @patch("dbt_toolbox.actions.dbt_executor.settings")
     @patch("dbt_toolbox.actions.dbt_executor.parse_dbt_output")
     @patch("subprocess.Popen")

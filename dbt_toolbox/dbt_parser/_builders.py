@@ -61,7 +61,7 @@ def fetch_macros_from_source(folder: Path, source: str) -> list[MacroBase]:
         List of MacroBase objects representing all individual macros found in .sql files.
 
     """
-    log(f"Loading macros from folder: {folder}")
+    log.debug(f"Loading macros from folder: {folder}")
     macros = []
 
     for path in list_files(folder, ".sql"):
