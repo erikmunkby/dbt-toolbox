@@ -60,18 +60,21 @@ def cprint(
     typer.echo(" ".join(colored_texts), color=True)
 
 
-def log(msg: str, level: Literal["INFO", "DEBUG", "WARN"] = "DEBUG") -> None:
-    """Log a message at the specified level.
+class Logger:
+    """Logger with method-based interface for consistent logging."""
 
-    Args:
-        msg: Message to log.
-        level:  Log level (INFO, DEBUG, WARN). DEBUG messages only show
-                when debug mode is enabled in settings.
+    def debug(self, msg: str, *args: object) -> None:
+        """Log a debug message. Only shows when debug mode is enabled."""
+        if settings.debug:
+            logger.debug(msg, *args)
 
-    """
-    if settings.debug and level == "DEBUG":
-        logger.debug(msg)
-    elif level == "INFO":
-        logger.info(msg)
-    elif level == "WARN":
-        logger.warning(msg)
+    def info(self, msg: str, *args: object) -> None:
+        """Log an info message."""
+        logger.info(msg, *args)
+
+    def warn(self, msg: str, *args: object) -> None:
+        """Log a warning message."""
+        logger.warning(msg, *args)
+
+
+log = Logger()

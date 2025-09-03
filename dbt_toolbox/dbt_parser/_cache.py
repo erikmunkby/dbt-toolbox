@@ -247,8 +247,8 @@ class Cache:
         """Check if any macro has changed since last execution."""
         cached_macros = self._cache_macro.read()
         current_macros = {macro.code_hash for macro in self.macros_list}
-        utils.log(
-            f"Found {len(cached_macros)} CACHED macros and {len(current_macros)} CURRENT macros.",
+        utils.log.debug(
+            f"Found {len(cached_macros)} CACHED macros and {len(current_macros)} CURRENT macros."
         )
         self._cache_macro.write(current_macros)
         return cached_macros == current_macros
@@ -302,7 +302,7 @@ class Cache:
                 self._validate_macro_cache(),
             ],
         )
-        utils.log(f"Jinja environment cache_valid={cache_validity}")
+        utils.log.debug(f"Jinja environment cache_valid={cache_validity}")
         return cache_validity
 
 

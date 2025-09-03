@@ -13,7 +13,7 @@ from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, parse_dbt_output
 from dbt_toolbox.data_models import DbtExecutionParams, Model
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
-from dbt_toolbox.utils import _printers
+from dbt_toolbox.utils import cprint, log
 
 
 @dataclass
@@ -146,7 +146,7 @@ def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecut
     command.extend(["--project-dir", str(settings.dbt_project_dir)])
     command.extend(["--profiles-dir", str(settings.dbt_profiles_dir)])
 
-    _printers.cprint("🚀 Executing:", " ".join(command), highlight_idx=1, color="green")
+    log.debug("Executing: %s", " ".join(command))
 
     # Initialize default values
     dbt_return_code = 1
@@ -192,16 +192,16 @@ def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecut
 
             # Handle failed models - mark as failed and clear from cache
             if dbt_logs.failed_models and dbt_return_code != 0:
-                _printers.cprint(
+                cprint(
                     f"🧹 Marking {len(dbt_logs.failed_models)} models as failed...",
                     color="yellow",
                 )
 
     except KeyboardInterrupt:
-        _printers.cprint("❌ Command interrupted by user", color="red")
+        cprint("❌ Command interrupted by user", color="red")
         dbt_return_code = 130  # Standard exit code for Ctrl+C
     except FileNotFoundError:
-        _printers.cprint(
+        cprint(
             "❌ Error: 'dbt' command not found.",
             "Please ensure dbt is installed and available in your PATH.",
             highlight_idx=1,
@@ -209,7 +209,7 @@ def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecut
         )
         dbt_return_code = 1
     except Exception as e:  # noqa: BLE001
-        _printers.cprint("❌ Unexpected error:", str(e), highlight_idx=1, color="red")
+        cprint("❌ Unexpected error:", str(e), highlight_idx=1, color="red")
         dbt_return_code = 1
 
     return DbtExecutionResults(
