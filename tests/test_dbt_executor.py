@@ -139,7 +139,7 @@ class TestDbtExecutor:
 
         params = DbtExecutionParams(
             command_name="build",
-            model="customers+",
+            model_selection="customers+",
             disable_smart=False,
         )
 
@@ -167,7 +167,7 @@ class TestDbtExecutor:
 
         params = DbtExecutionParams(
             command_name="run",
-            model="customers+",
+            model_selection="customers+",
             disable_smart=False,
         )
 
@@ -194,7 +194,7 @@ class TestDbtExecutor:
 
         params = DbtExecutionParams(
             command_name="build",
-            model="customers+",
+            model_selection="customers+",
             disable_smart=False,
         )
 
@@ -222,7 +222,7 @@ class TestDbtExecutor:
 
         params = DbtExecutionParams(
             command_name="build",
-            model="customers+",
+            model_selection="customers+",
             disable_smart=True,
         )
 
@@ -250,7 +250,7 @@ class TestDbtExecutor:
 
         params = DbtExecutionParams(
             command_name="build",
-            model="customers",
+            model_selection="customers",
             analyze_only=True,
             disable_smart=False,
         )
@@ -276,7 +276,7 @@ class TestDbtExecutor:
 
         params = DbtExecutionParams(
             command_name="run",
-            model="customers",
+            model_selection="customers",
             full_refresh=True,
             threads=4,
             vars='{"key": "value"}',
@@ -295,7 +295,7 @@ class TestDbtExecutor:
         # Check that parameters are passed to create_execution_plan
         call_args = mock_create_plan.call_args[0][0]
         assert call_args.command_name == "run"
-        assert call_args.model == "customers"
+        assert call_args.model_selection == "customers"
         assert call_args.full_refresh is True
         assert call_args.threads == 4
         assert call_args.vars == '{"key": "value"}'

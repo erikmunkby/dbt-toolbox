@@ -9,7 +9,7 @@ from dbt_toolbox.actions.analyze_columns_references import (
     print_column_analysis_results,
 )
 from dbt_toolbox.actions.analyze_models import AnalysisResult, analyze_model_statuses
-from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, parse_dbt_output
+from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, _extract_model_info, parse_dbt_output
 from dbt_toolbox.data_models import DbtExecutionParams, Model
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
@@ -104,11 +104,14 @@ def _validate_lineage_references(dbt_parser: dbtParser, selection_query: str | N
     return False
 
 
-def _stream_process_output(process: subprocess.Popen) -> list[str]:
+def _stream_process_output(process: subprocess.Popen, dbt_parser: dbtParser) -> list[str]:
     """Stream process output in real-time and capture for parsing.
+
+    Optionally cache models as they complete if dbt_parser is provided.
 
     Args:
         process: The subprocess.Popen object
+        dbt_parser: Optional dbt parser to cache models as they complete
 
     Returns:
         List of captured output lines
@@ -126,6 +129,22 @@ def _stream_process_output(process: subprocess.Popen) -> list[str]:
                 sys.stdout.flush()
                 # Capture for later parsing
                 captured_output.append(output)
+
+                # If dbt_parser provided, try to parse and cache completed models
+                model_info = _extract_model_info(output.strip())
+                if model_info and model_info.status in ["OK", "ERROR"]:
+                    # Find the model in dbt_parser and update its status
+                    model = dbt_parser.models.get(model_info.name)
+                    if model:
+                        if model_info.status == "OK":
+                            model.set_build_successful(
+                                compute_time_seconds=model_info.execution_time_seconds or 0
+                            )
+                        elif model_info.status == "ERROR":
+                            model.set_build_failed()
+
+                        # Cache the model immediately
+                        dbt_parser.cache.cache_model(model=model)
     return captured_output
 
 
@@ -164,31 +183,21 @@ def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecut
             universal_newlines=True,
         )
 
+        # Determine if we should enable streaming cache for build/run commands
+        command_name = dbt_command[1] if len(dbt_command) > 1 else ""
+
         # Stream output in real-time and capture for parsing
-        captured_output = _stream_process_output(process)
+        # Pass dbt_parser only for build/run commands to enable streaming cache
+        captured_output = _stream_process_output(process, dbt_parser)
 
         # Wait for process to complete and get return code
         dbt_return_code = process.wait()
         dbt_raw_output = "".join(captured_output)
 
         # Parse dbt output to identify model results (only for build/run commands)
-        command_name = dbt_command[1] if len(dbt_command) > 1 else ""
         if command_name in ["build", "run"]:
             # Use captured output for parsing
             dbt_logs = parse_dbt_output(dbt_raw_output)
-
-            # Mark successful models as built successfully
-            for model_name, model in dbt_parser.models.items():
-                model_results = dbt_logs.get_model(model_name)
-                if not model_results:
-                    continue
-                if model_results.status == "OK":
-                    exec_time = model_results.execution_time_seconds
-                    model.set_build_successful(compute_time_seconds=exec_time if exec_time else 0)
-                elif model_results.status == "ERROR":
-                    model.set_build_failed()
-                # Finally, cache the model with its results.
-                dbt_parser.cache.cache_model(model=model)
 
             # Handle failed models - mark as failed and clear from cache
             if dbt_logs.failed_models and dbt_return_code != 0:
@@ -233,15 +242,15 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
     lineage_valid = True
     if not params.disable_smart:
         lineage_valid = _validate_lineage_references(
-            dbt_parser=dbt_parser, selection_query=params.model
+            dbt_parser=dbt_parser, selection_query=params.model_selection
         )
 
     # Start building the dbt command
     dbt_command = ["dbt", params.command_name]
 
     # Add model selection if provided
-    if params.model:
-        dbt_command.extend(["--select", params.model])
+    if params.model_selection:
+        dbt_command.extend(["--select", params.model_selection])
 
     # Add other common options
     if params.full_refresh:
@@ -270,7 +279,7 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
         )
 
     # Perform intelligent execution analysis (enabled by default)
-    analyses = analyze_model_statuses(dbt_parser=dbt_parser, dbt_selection=params.model)
+    analyses = analyze_model_statuses(dbt_parser=dbt_parser, dbt_selection=params.model_selection)
 
     # Filter models to only those that need execution (smart execution)
     models_to_execute: list[str] = []
