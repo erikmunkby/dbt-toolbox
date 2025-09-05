@@ -138,7 +138,7 @@ class TestRunCommand:
         call_args = mock_create_plan.call_args[0][0]
         assert call_args.command_name == "run"
         assert call_args.target == "prod"
-        assert call_args.model == "customers"
+        assert call_args.model_selection == "customers"
 
     @patch("dbt_toolbox.cli._build_run_command_factory.create_execution_plan")
     def test_run_without_target_option(self, mock_create_plan: Mock) -> None:
@@ -163,7 +163,7 @@ class TestRunCommand:
         call_args = mock_create_plan.call_args[0][0]
         assert call_args.command_name == "run"
         assert call_args.target is None
-        assert call_args.model == "customers"
+        assert call_args.model_selection == "customers"
 
     @patch("dbt_toolbox.cli._build_run_command_factory.create_execution_plan")
     def test_run_dbt_not_found(self, mock_create_plan: Mock) -> None:

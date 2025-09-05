@@ -177,7 +177,7 @@ class DbtExecutionParams:
     """Parameters for dbt execution commands (build, run, etc.)."""
 
     command_name: str
-    model: str | None = None
+    model_selection: str | None = None
     full_refresh: bool = False
     threads: int | None = None
     vars: str | None = None
@@ -189,7 +189,7 @@ class DbtExecutionParams:
         """Convert to kwargs for execute_dbt_with_smart_selection."""
         return {
             "command_name": command_name or self.command_name,
-            "model": self.model,
+            "model": self.model_selection,
             "full_refresh": self.full_refresh,
             "threads": self.threads,
             "vars": self.vars,

@@ -56,7 +56,7 @@ def build_models(  # noqa: PLR0913
     # Create parameters object
     params = DbtExecutionParams(
         command_name="build",
-        model=model,
+        model_selection=model,
         full_refresh=full_refresh,
         threads=threads,
         vars=vars,

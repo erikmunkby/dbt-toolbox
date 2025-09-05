@@ -192,7 +192,7 @@ class TestBuildCommand:
         call_args = mock_create_plan.call_args[0][0]
         assert call_args.command_name == "build"
         assert call_args.target == "prod"
-        assert call_args.model == "customers"
+        assert call_args.model_selection == "customers"
 
     @patch("dbt_toolbox.cli._build_run_command_factory.create_execution_plan")
     def test_build_without_target_option(self, mock_create_plan: Mock) -> None:
@@ -217,7 +217,7 @@ class TestBuildCommand:
         call_args = mock_create_plan.call_args[0][0]
         assert call_args.command_name == "build"
         assert call_args.target is None
-        assert call_args.model == "customers"
+        assert call_args.model_selection == "customers"
 
     @patch("dbt_toolbox.cli._build_run_command_factory.create_execution_plan")
     def test_build_with_selection_ignores_validation_errors_outside_selection(
@@ -245,4 +245,4 @@ class TestBuildCommand:
         # Verify the execution plan was called with the right parameters
         call_args = mock_create_plan.call_args[0][0]
         assert call_args.command_name == "build"
-        assert call_args.model == "customers"
+        assert call_args.model_selection == "customers"

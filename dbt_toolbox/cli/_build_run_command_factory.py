@@ -22,10 +22,10 @@ def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
     """
     # Handle printing based on what happened
     action = "Building" if params.command_name == "build" else "Running"
-    if params.model:
+    if params.model_selection:
         _printers.cprint(
             f"🔨 {action} models:",
-            params.model,
+            params.model_selection,
             highlight_idx=1,
             color="cyan",
         )
@@ -166,7 +166,7 @@ def create_dbt_command_function(command_name: str, help_text: str) -> Callable:
         """Dynamically created dbt command with intelligent execution."""
         params = DbtExecutionParams(
             command_name=command_name,
-            model=model,
+            model_selection=model,
             full_refresh=full_refresh,
             threads=threads,
             vars=vars,
