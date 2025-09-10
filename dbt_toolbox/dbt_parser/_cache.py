@@ -91,10 +91,15 @@ class _ByteCache(_CacheHolder):
 class Cache:
     """Caching help tool."""
 
+    def __init__(self, dbt_target: str) -> None:
+        self.cache_path = settings.dbt_project_dir / f".dbt_toolbox/{dbt_target}"
+        if not self.cache_path.exists():
+            self.cache_path.mkdir(parents=True)
+
     def clear(self) -> None:
         """Clear the cache."""
         shutil.rmtree(self.cache_path)
-        self.cache_path.mkdir()
+        self.cache_path.mkdir(parents=True)
         # Ensure models subdirectory is created
         self.cache_models_path.mkdir(exist_ok=True)
         if settings.debug:
@@ -129,14 +134,6 @@ class Cache:
 
         """
         return [model_name for model_name in model_names if self.clear_model_cache(model_name)]
-
-    @cached_property
-    def cache_path(self) -> Path:
-        """Instantiate the cacher, build folder if not exists."""
-        p = settings.dbt_project_dir / ".dbt_toolbox"
-        if not p.exists():
-            p.mkdir()
-        return p
 
     # ------------ Private internal properties ------------
     @cached_property
@@ -304,6 +301,3 @@ class Cache:
         )
         utils.log.debug(f"Jinja environment cache_valid={cache_validity}")
         return cache_validity
-
-
-cache = Cache()

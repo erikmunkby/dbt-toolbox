@@ -19,7 +19,7 @@ from dbt_toolbox.data_models import (
     YamlDocs,
 )
 from dbt_toolbox.dbt_parser._builders import build_macro, build_model
-from dbt_toolbox.dbt_parser._cache import Cache, cache
+from dbt_toolbox.dbt_parser._cache import Cache
 from dbt_toolbox.dbt_parser._file_fetcher import read_macros, read_models
 from dbt_toolbox.dbt_parser._jinja_handler import Jinja
 from dbt_toolbox.dbt_parser._selection_parser import SelectionParser
@@ -46,7 +46,8 @@ class dbtParser:  # noqa: N801
     def __init__(self, target: str | None = None) -> None:
         """Instantiate the dbt parser using the dbt profile."""
         self.run_config = RunConfig(target=target)
-        self.jinja = Jinja(profile=self.run_config.dbt_profile)
+        self.cache = Cache(dbt_target=self.run_config.dbt_profile.target)
+        self.jinja = Jinja(profile=self.run_config.dbt_profile, cache=self.cache)
         self.dbt_project_dict: dict = settings.dbt_project.rendered_parse(self.jinja.env).to_dict()  # type: ignore
         # Cache for selection query results to avoid re-parsing (and re-prompting)
         self._selection_query_cache: dict[str | None, SelectionResult] = {}
@@ -59,6 +60,10 @@ class dbtParser:  # noqa: N801
             for docs_path in settings.dbt_project.docs_paths
             for path in list_files(docs_path, file_suffix=".md")
         ]
+
+    @cached_property
+    def target(self) -> str:
+        return self.run_config.dbt_profile.target
 
     @cached_property
     def column_macro_docs(self) -> dict[str, str]:
@@ -113,11 +118,6 @@ class dbtParser:  # noqa: N801
             for model_path in settings.dbt_project.model_paths
             for path in list_files(model_path, [".yml", ".yaml"])
         ]
-
-    @property
-    def cache(self) -> Cache:
-        """Reference to the cache."""
-        return cache
 
     @cached_property
     def yaml_docs(self) -> dict[str, YamlDocs]:
@@ -179,7 +179,7 @@ class dbtParser:  # noqa: N801
     @cached_property
     def cached_models(self) -> dict[str, Model]:
         """Get all cached models."""
-        return cache.get_all_cached_models()
+        return self.cache.get_all_cached_models()
 
     def _build_model(self, raw_model: ModelBase, /) -> Model:
         return build_model(
@@ -235,7 +235,7 @@ class dbtParser:  # noqa: N801
                 model.upstream_macros_changed = True
                 break
 
-        cache.cache_model(model=model)
+        self.cache.cache_model(model=model)
         return model
 
     @cached_property
@@ -266,7 +266,7 @@ class dbtParser:  # noqa: N801
     @cached_property
     def macros(self) -> dict[str, Macro]:
         """Fetch all available macros, prioritizing cache if valid."""
-        macro_cache = cache.cache_macros.read()
+        macro_cache = self.cache.cache_macros.read()
         cached_macros: dict[str, Macro] = macro_cache if macro_cache else {}
         final_macros: dict[str, Macro] = {}
 
@@ -279,13 +279,13 @@ class dbtParser:  # noqa: N801
                     else:
                         final_macros[m.name] = cm
 
-        cache.cache_macros.write(final_macros)
+        self.cache.cache_macros.write(final_macros)
         return final_macros
 
     @cached_property
     def changed_macros(self) -> dict[str, bool]:
         """Get a comprehensive dict of all macros, and whether they've changed."""
-        macro_cache = cache.cache_macros.read()
+        macro_cache = self.cache.cache_macros.read()
         cached_macros: dict[str, Macro] = macro_cache if macro_cache else {}
         results = {}
         for macro_list in self.list_raw_macros.values():

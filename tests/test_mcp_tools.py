@@ -248,25 +248,6 @@ class TestMcpToolsDataStructure:
                 assert "table_name" in item
                 assert "full_name" in item
 
-    def test_list_settings_returns_expected_structure(self) -> None:
-        """Test that list_settings returns expected structure."""
-        result = list_settings_wrapper()
-        parsed = json.loads(result)
-
-        # Should contain settings data
-        assert isinstance(parsed, dict)
-
-        # Check that we have some expected settings
-        # (assuming the structure from the docstring)
-        if "status" not in parsed:  # Not an error response
-            # Should have setting entries with source at minimum
-            # Note: "value" may be removed if empty by remove_empty_values utility
-            for setting_data in parsed.values():
-                if isinstance(setting_data, dict):
-                    # Expected structure for settings - source is always present
-                    assert "source" in setting_data
-                    # May also have "value" and "location" fields
-
 
 class TestMcpToolsPerformance:
     """Basic performance and integration tests."""

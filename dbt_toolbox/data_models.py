@@ -57,6 +57,7 @@ class DbtProfile:
         for key, value in values.to_dict().items():  # type: ignore
             setattr(self, key, value)
         self.name = target  # Set the target as the name
+        self.target = target  # Also set the target as target
 
 
 @dataclass
