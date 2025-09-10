@@ -12,3 +12,7 @@ dbt_ci_testing:
     pull-request-ci:
       <<: *config
       schema: "pr_{{ env_var('PULL_REQUEST_NBR')}}"
+
+    test_target:
+      <<: *config
+      schema: test_schema

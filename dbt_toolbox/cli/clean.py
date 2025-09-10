@@ -47,7 +47,10 @@ def clean(
         dbt_parser.cache.clear()
 
         # Display metadata about what was cleaned
-        typer.secho("🧹 Cache cleaned successfully!", fg=typer.colors.GREEN)
+        typer.secho(
+            f"🧹 Cache cleaned successfully for target `{dbt_parser.target}`!",
+            fg=typer.colors.GREEN,
+        )
 
         if cache_files or model_cache_files:
             total_files = len(cache_files) + len(model_cache_files)

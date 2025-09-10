@@ -39,7 +39,7 @@ def dbt_project() -> Generator[Path, None, None]:
     os.environ["DBT_PROJECT_DIR"] = str(PROJECT_COPY_PATH)
     os.environ["DBT_TOOLBOX_DEBUG"] = "true"
     # Clear the cache
-    Cache().clear()
+    Cache(dbt_target="dev").clear()
     assert settings.dbt_project_dir == Path().cwd() / PROJECT_COPY_PATH
 
     yield PROJECT_COPY_PATH

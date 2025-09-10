@@ -12,7 +12,7 @@ from dbt_toolbox.data_models import DbtProfile
 from dbt_toolbox.settings import settings
 from dbt_toolbox.warnings_collector import warnings_collector
 
-from ._cache import cache
+from ._cache import Cache
 
 
 class DummyAdapter:
@@ -128,7 +128,7 @@ def _is_incremental(*args, **kwargs) -> bool:  # noqa: ANN002, ANN003, ARG001
     return True
 
 
-def _load_sorted_macro_dict() -> dict[str, str]:
+def _load_sorted_macro_dict(cache: Cache) -> dict[str, str]:
     """Load and cache sorted macro dictionary.
 
     Loads macros from cache if valid, otherwise fetches and sorts them
@@ -193,7 +193,7 @@ def _get_base_env(profile: DbtProfile) -> Environment:
     return env
 
 
-def _build_jinja_env(profile: DbtProfile) -> Environment:
+def _build_jinja_env(profile: DbtProfile, cache: Cache) -> Environment:
     """Build complete Jinja environment with macros.
 
     Creates the full environment by loading the base setup and then
@@ -204,7 +204,7 @@ def _build_jinja_env(profile: DbtProfile) -> Environment:
 
     """
     env = _get_base_env(profile=profile)
-    for source, macro_string in _load_sorted_macro_dict().items():
+    for source, macro_string in _load_sorted_macro_dict(cache=cache).items():
         modules = env.from_string(macro_string).module.__dict__
         if source == CUSTOM_MACROS:  # If they are custom macros, add them to global
             env.globals.update(modules)
@@ -216,12 +216,8 @@ def _build_jinja_env(profile: DbtProfile) -> Environment:
 class Jinja:
     """Jinja class holder."""
 
-    def __init__(self, profile: DbtProfile | None = None) -> None:
-        # Clear warnings cache and collector on every command run
-        cache.get_warned_macros_cache().clear()
-        warnings_collector.clear()
-
-        self.env = _build_jinja_env(profile=profile if profile else DbtProfile())
+    def __init__(self, cache: Cache, profile: DbtProfile | None = None) -> None:
+        self.env = _build_jinja_env(profile=profile if profile else DbtProfile(), cache=cache)
 
     def render(self, sql: str) -> str:
         """Render a model using macros."""
