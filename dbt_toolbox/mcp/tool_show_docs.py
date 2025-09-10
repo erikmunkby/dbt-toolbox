@@ -91,7 +91,7 @@ def show_docs(  # noqa: PLR0911
                 {
                     "status": "error",
                     "message": f"Source '{model_name}' not found in project. "
-                    "Available sources: {list(dbt_parser.sources.keys())}",
+                    f"Available sources: {list(dbt_parser.sources.keys())}",
                 }
             )
 
