@@ -66,13 +66,18 @@ class dbtParser:  # noqa: N801
         return self.run_config.dbt_profile.target
 
     @cached_property
+    def column_macro_docs_list(self) -> list[tuple[str, str]]:
+        """Get all available docs macros as a list, keeping duplicates."""
+        return [
+            (match[0], match[1])
+            for p in self.docs_macros_paths
+            for match in _re_find_docs_macro_definitions.findall(p.read_text())
+        ]
+
+    @cached_property
     def column_macro_docs(self) -> dict[str, str]:
-        """Get all docs macros."""
-        result = {}
-        for p in self.docs_macros_paths:
-            for match in _re_find_docs_macro_definitions.findall(p.read_text()):
-                result[match[0]] = match[1].strip()
-        return result
+        """Get all docs macros as a dictionary, removing duplicates."""
+        return dict(self.column_macro_docs_list)
 
     def _create_column_docs(self, col_data: dict) -> ColDocs:
         """Create ColDocs with macro references replaced by their text.
