@@ -298,6 +298,7 @@ fuzzy_model_matching = "prompt"  # Options: "automatic", "prompt", "off"
 4. For analysis tests: Use `AnalysisResult` with proper `ExecutionReason` enum values
 5. Always provide mock dbt_parser instances to functions that require them
 6. Use `ColumnAnalysis` and related classes for column validation tests
+7. As much as reasonably possible, build tests integration style utilizing the existing `dbt_sample_project`
 
 **When working with utilities:**
 - Use `from dbt_toolbox.utils import _printers` for colored console output

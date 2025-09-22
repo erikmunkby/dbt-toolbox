@@ -4,11 +4,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from dbt_toolbox.actions.analyze_columns_references import (
-    analyze_column_references,
-    print_column_analysis_results,
-)
-from dbt_toolbox.actions.analyze_models import AnalysisResult, analyze_model_statuses
+from dbt_toolbox.analysees import AnalysisResult, analyze
+from dbt_toolbox.analysees.print_analysis import print_column_analysis_results
 from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, _extract_model_info, parse_dbt_output
 from dbt_toolbox.data_models import DbtExecutionParams, Model
 from dbt_toolbox.dbt_parser import dbtParser
@@ -72,11 +69,11 @@ class ExecutionPlan:
         return _execute_dbt_raw(dbt_parser=self._dbt_parser, dbt_command=self.dbt_command)
 
 
-def _validate_lineage_references(dbt_parser: dbtParser, selection_query: str | None) -> bool:
+def _validate_lineage_references(target: str | None, selection_query: str | None) -> bool:
     """Validate lineage references for models before execution.
 
     Args:
-        dbt_parser: The dbt parser object.
+        target: dbt target environment
         selection_query: A dbt selection query e.g. customers+
 
     Returns:
@@ -86,11 +83,9 @@ def _validate_lineage_references(dbt_parser: dbtParser, selection_query: str | N
     if not settings.enforce_lineage_validation:
         return True
 
-    # Perform column analysis
-    analysis = analyze_column_references(
-        dbt_parser=dbt_parser,
-        target_models=list(dbt_parser.parse_selection_query(selection_query).models_dict.values()),
-    )
+    # Perform analysis using the unified analyze function
+    results = analyze(target=target, model=selection_query)
+    analysis = results.column_analysis
 
     # Check if there are any issues
     if not analysis.non_existent_columns and not analysis.referenced_non_existent_models:
@@ -240,7 +235,7 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
     lineage_valid = True
     if not params.disable_smart:
         lineage_valid = _validate_lineage_references(
-            dbt_parser=dbt_parser, selection_query=params.model_selection
+            target=params.target, selection_query=params.model_selection
         )
 
     # Start building the dbt command
@@ -277,7 +272,8 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
         )
 
     # Perform intelligent execution analysis (enabled by default)
-    analyses = analyze_model_statuses(dbt_parser=dbt_parser, dbt_selection=params.model_selection)
+    results = analyze(target=params.target, model=params.model_selection)
+    analyses = results.model_analysis
 
     # Filter models to only those that need execution (smart execution)
     models_to_execute: list[str] = []

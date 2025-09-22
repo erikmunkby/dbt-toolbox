@@ -5,8 +5,8 @@ from typing import Annotated
 
 import typer
 
-from dbt_toolbox.actions.analyze_models import print_execution_analysis
 from dbt_toolbox.actions.dbt_executor import create_execution_plan
+from dbt_toolbox.analysees.print_analysis import print_execution_analysis
 from dbt_toolbox.cli._common_options import OptionModelSelection, OptionTarget
 from dbt_toolbox.cli._exit_handler import exit_run
 from dbt_toolbox.data_models import DbtExecutionParams, Model
@@ -37,7 +37,7 @@ def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
 
     # Handle analyze-only mode printing
     if params.analyze_only and plan.analyses:
-        print_execution_analysis(plan.analyses, verbose=True)
+        print_execution_analysis(plan.analyses)
         exit_run(0, "Analysis completed")
 
     if params.disable_smart:

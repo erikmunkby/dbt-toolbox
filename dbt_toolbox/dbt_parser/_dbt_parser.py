@@ -3,6 +3,7 @@
 import re
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 import yamlium
 from sqlglot import ParseError
@@ -66,10 +67,10 @@ class dbtParser:  # noqa: N801
         return self.run_config.dbt_profile.target
 
     @cached_property
-    def column_macro_docs_list(self) -> list[tuple[str, str]]:
+    def column_macro_docs_list(self) -> list[dict[str, str | Any]]:
         """Get all available docs macros as a list, keeping duplicates."""
         return [
-            (match[0], match[1])
+            {"name": match[0], "text": match[1], "file_path": p}
             for p in self.docs_macros_paths
             for match in _re_find_docs_macro_definitions.findall(p.read_text())
         ]
@@ -77,7 +78,7 @@ class dbtParser:  # noqa: N801
     @cached_property
     def column_macro_docs(self) -> dict[str, str]:
         """Get all docs macros as a dictionary, removing duplicates."""
-        return dict(self.column_macro_docs_list)
+        return {x["name"]: x["text"] for x in self.column_macro_docs_list}
 
     def _create_column_docs(self, col_data: dict) -> ColDocs:
         """Create ColDocs with macro references replaced by their text.
