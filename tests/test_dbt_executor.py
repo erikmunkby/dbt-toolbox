@@ -241,7 +241,12 @@ class TestDbtExecutor:
     ) -> None:
         """Test analyze-only mode."""
         # Mock execution plan for analyze-only mode with analyses to trigger early exit
+        mock_model = Mock()
+        mock_model.name = "customers"
         mock_analysis_result = Mock()
+        mock_analysis_result.needs_execution = True
+        mock_analysis_result.reason_description = "Model code changed"
+        mock_analysis_result.model = mock_model
         mock_plan = Mock()
         mock_plan.analyses = [mock_analysis_result]  # Need some analyses for early exit
         mock_plan.models_to_execute = ["customers"]

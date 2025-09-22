@@ -2,10 +2,7 @@
 
 from dataclasses import asdict
 
-from dbt_toolbox.actions.analyze_columns_references import (
-    ColumnAnalysis,
-    analyze_column_references,
-)
+from dbt_toolbox.analysees import ColumnAnalysis, analyze
 from dbt_toolbox.dbt_parser._dbt_parser import dbtParser
 from dbt_toolbox.mcp._utils import mcp_json_response
 
@@ -34,23 +31,22 @@ def analyze_models(target: str | None = None, model: str | None = None) -> str:
         - Consistent field naming
 
     """
+    # Use the unified analyze function
+    results = analyze(target=target, model=model)
+    result = results.column_analysis
+
+    # Determine analyzed models from the result
     dbt_parser = dbtParser(target=target)
-
-    # Filter models if selection is provided
     if model:
+        # For targeted analysis, get the specific models
         selection_result = dbt_parser.parse_selection_query(model)
-        target_models = [
-            m for m in dbt_parser.models.values() if m.name in selection_result.model_names
-        ]
+        analyzed_models = [m for m in dbt_parser.models.values() if m.name in selection_result.model_names]
     else:
-        target_models = None
-
-    result = analyze_column_references(dbt_parser=dbt_parser, target_models=target_models)
+        # For full analysis, get all models
+        analyzed_models = list(dbt_parser.models.values())
 
     # Transform the raw result into a more AI-friendly format
-    transformed_result = _transform_analysis_result_for_ai(
-        result, target_models or list(dbt_parser.models.values())
-    )
+    transformed_result = _transform_analysis_result_for_ai(result, analyzed_models)
 
     return mcp_json_response(transformed_result)
 

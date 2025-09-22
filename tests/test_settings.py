@@ -128,7 +128,7 @@ def test_setting_precedence_env_over_default() -> None:
 def test_models_ignore_validation_integration_with_column_analysis() -> None:
     """Test that models_ignore_validation works with column analysis."""
     from dbt_toolbox import settings as settings_module
-    from dbt_toolbox.actions.analyze_columns_references import analyze_column_references
+    from dbt_toolbox.analysees.columns import analyze_column_references
 
     # Use the actual dbt parser to get real models from the test project
     from dbt_toolbox.dbt_parser import dbtParser
