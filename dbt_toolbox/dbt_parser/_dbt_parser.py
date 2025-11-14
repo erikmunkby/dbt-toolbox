@@ -21,6 +21,7 @@ from dbt_toolbox.dbt_parser._builders import build_macro, build_model
 from dbt_toolbox.dbt_parser._cache import Cache, cache
 from dbt_toolbox.dbt_parser._file_fetcher import read_macros, read_models
 from dbt_toolbox.dbt_parser._jinja_handler import Jinja
+from dbt_toolbox.dbt_parser._selection_parser import SelectionParser
 from dbt_toolbox.graph.dependency_graph import DependencyGraph
 from dbt_toolbox.run_config import RunConfig
 from dbt_toolbox.settings import settings
@@ -309,41 +310,26 @@ class dbtParser:  # noqa: N801
             DependencyGraph instance containing all models and macros with their dependencies.
 
         """
-        graph = DependencyGraph()
+        return DependencyGraph(models=self.models, macros=self.macros)
 
-        # Add all models as nodes
-        for model_name, model in self.models.items():
-            graph.add_node(model_name, "model", model)
+    @cached_property
+    def selection_parser(self) -> SelectionParser:
+        """Get selection parser instance for parsing dbt selection syntax.
 
-        # Add all macros as nodes
-        for macro_name, macro in self.macros.items():
-            graph.add_node(macro_name, "macro", macro)
+        Returns:
+            SelectionParser instance configured with current models and dependency graph.
 
-        # Add model dependencies
-        for model_name, model in self.models.items():
-            # Add model-to-model dependencies
-            for upstream_model in model.upstream.models:
-                if upstream_model in self.models:
-                    graph.add_dependency(model_name, upstream_model)
-
-            # Add model-to-macro dependencies
-            for upstream_macro in model.upstream.macros:
-                if upstream_macro in self.macros:
-                    graph.add_dependency(model_name, upstream_macro)
-
-        return graph
+        """
+        return SelectionParser(
+            models=self.models,
+            dependency_graph=self.dependency_graph,
+        )
 
     def get_downstream_models(self, name: str) -> list[Model]:
         """Get all downstream models that depend on the given model or macro.
 
         Args:
             name: Name of the model or macro to find downstream dependencies for.
-
-        Returns:
-            List of Model objects that depend on the given model or macro.
-
-        Raises:
-            NodeNotFoundError: If the model or macro is not found.
 
         """
         # Filter to only return models (not macros) and convert to Model objects
@@ -354,66 +340,19 @@ class dbtParser:  # noqa: N801
         ]
 
     def parse_selection_query(self, selection: str | None, /) -> set[str]:
-        """Parse dbt model selection syntax to get target models.
+        """Parse dbt model selection syntax to get target model names.
 
         Args:
             selection: dbt selection string (e.g., "my_model+", "+my_model", "my_model")
 
-        Returns:
-            Set of model names that would be executed by dbt.
-
         """
-        if not selection:
-            # No selection means all models
-            return set(self.models.keys())
-
-        target_models = set()
-
-        # Handle multiple selections separated by comma or space
-        selections = re.split(r"[,\s]+", selection.strip())
-
-        for sel in selections:
-            if not sel:
-                continue
-
-            # Parse selection patterns
-            if sel.endswith("+"):
-                # downstream selection: "model+"
-                model_name = sel[:-1].removeprefix("+")
-                if model_name in self.models:
-                    target_models.add(model_name)
-                    # Add all downstream models
-                    downstream_models = self.get_downstream_models(model_name)
-                    target_models.update(m.name for m in downstream_models)
-            if sel.startswith("+"):
-                # upstream selection: "+model"
-                model_name = sel[1:].removesuffix("+")
-                if model_name in self.models:
-                    target_models.add(model_name)
-                    # Add upstream models from both dependency graph and model's upstream list
-                    # to ensure we include models that failed to parse
-                    model = self.models[model_name]
-
-                    # First, add from dependency graph (successfully parsed models)
-                    upstream_nodes = self.dependency_graph.get_upstream_nodes(model_name)
-                    upstream_models_from_graph = [
-                        node
-                        for node in upstream_nodes
-                        if self.dependency_graph.get_node_type(node) == "model"
-                    ]
-                    target_models.update(upstream_models_from_graph)
-
-                    # Then, add from model's upstream.models list (includes unparseable models)
-                    # This ensures we don't silently ignore models that failed to parse
-                    target_models.update(model.upstream.models)
-            # direct model selection
-            if sel in self.models:
-                target_models.add(sel)
-
-        return target_models
+        return self.selection_parser.parse(selection)
 
     def parse_selection_query_return_models(self, selection_query: str | None) -> dict[str, Model]:
-        """Parse the model selection query, and return models."""
-        if selection_query is None:
-            return self.models
-        return {name: self.models[name] for name in self.parse_selection_query(selection_query)}
+        """Parse the model selection query and return models.
+
+        Args:
+            selection_query: dbt selection string (e.g., "my_model+", "+my_model", "my_model")
+
+        """
+        return self.selection_parser.parse_return_models(selection_query)

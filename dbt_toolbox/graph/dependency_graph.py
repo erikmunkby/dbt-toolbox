@@ -23,13 +23,57 @@ class DependencyGraph:
     efficient traversal of upstream and downstream relationships.
     """
 
-    def __init__(self) -> None:
-        """Initialize an empty dependency graph."""
+    def __init__(
+        self,
+        models: dict[str, "Model"] | None = None,
+        macros: dict[str, "Macro"] | None = None,
+    ) -> None:
+        """Initialize a dependency graph, optionally building it from models and macros.
+
+        Args:
+            models: Optional dictionary of models to add to the graph
+            macros: Optional dictionary of macros to add to the graph
+
+        """
         # Adjacency lists for efficient traversal
         self._upstream: dict[str, set[str]] = {}  # node -> set of upstream dependencies
         self._downstream: dict[str, set[str]] = {}  # node -> set of downstream dependents
         self._node_types: dict[str, str] = {}  # node -> type ("model" or "macro")
         self._node_objects: dict[str, NodeObject] = {}  # node -> actual object (Model or Macro)
+
+        # Build graph if models/macros provided
+        if models is not None or macros is not None:
+            self._build_graph(models or {}, macros or {})
+
+    def _build_graph(self, models: dict[str, "Model"], macros: dict[str, "Macro"]) -> None:
+        """Build the dependency graph from models and macros.
+
+        Args:
+            models: Dictionary of models to add to the graph
+            macros: Dictionary of macros to add to the graph
+
+        """
+        # Add all models as nodes
+        for model_name, model in models.items():
+            self.add_node(model_name, "model", model)
+
+        # Add all macros as nodes
+        for macro_name, macro in macros.items():
+            self.add_node(macro_name, "macro", macro)
+
+        # Add model dependencies
+        for model_name, model in models.items():
+            # Add model-to-model dependencies
+            for upstream_model in model.upstream.models:
+                if upstream_model in models:
+                    self.add_dependency(model_name, upstream_model)
+
+            # Add model-to-macro dependencies
+            for upstream_macro in model.upstream.macros:
+                if upstream_macro in macros:
+                    self.add_dependency(
+                        model_name, upstream_macro
+                    )  # node -> actual object (Model or Macro)
 
     def add_node(self, name: str, node_type: str, node_object: NodeObject) -> None:
         """Add a node to the graph.
