@@ -23,7 +23,8 @@ class TestYamlBuilder:
     """Test YamlBuilder class functionality."""
 
     def test_yaml_builder_init_existing_model(
-        self, dbt_project_setup: None, dbt_parser: dbtParser
+        self, dbt_project,
+        dbt_parser: dbtParser
     ) -> None:
         """Test YamlBuilder initialization with existing model."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -34,14 +35,16 @@ class TestYamlBuilder:
         assert isinstance(builder.yaml_docs, dict)
 
     def test_yaml_builder_init_nonexistent_model(
-        self, dbt_project_setup: None, dbt_parser: dbtParser
+        self, dbt_project,
+        dbt_parser: dbtParser
     ) -> None:
         """Test YamlBuilder initialization with nonexistent model raises error."""
         with pytest.raises(KeyError):
             YamlBuilder("nonexistent_model", dbt_parser)
 
     def test_get_column_description_existing_docs(
-        self, dbt_project_setup: None, dbt_parser: dbtParser
+        self, dbt_project,
+        dbt_parser: dbtParser
     ) -> None:
         """Test getting column description from existing YAML docs."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -54,7 +57,8 @@ class TestYamlBuilder:
         assert "description" in desc
 
     def test_get_column_description_placeholder(
-        self, dbt_project_setup: None, dbt_parser: dbtParser
+        self, dbt_project,
+        dbt_parser: dbtParser
     ) -> None:
         """Test getting placeholder description for undocumented column."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -67,7 +71,8 @@ class TestYamlBuilder:
         assert "description" in desc
 
     def test_detect_column_changes_no_changes(
-        self, dbt_project_setup: None, dbt_parser: dbtParser
+        self, dbt_project,
+        dbt_parser: dbtParser
     ) -> None:
         """Test column change detection when no changes exist."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -82,7 +87,8 @@ class TestYamlBuilder:
         assert changes.reordered is False
 
     def test_detect_column_changes_with_additions(
-        self, dbt_project_setup: None, dbt_parser: dbtParser
+        self, dbt_project,
+        dbt_parser: dbtParser
     ) -> None:
         """Test column change detection with new columns."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -97,7 +103,8 @@ class TestYamlBuilder:
         assert changes.removed == []
 
     def test_detect_column_changes_with_removals(
-        self, dbt_project_setup: None, dbt_parser: dbtParser
+        self, dbt_project,
+        dbt_parser: dbtParser
     ) -> None:
         """Test column change detection with removed columns."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -114,7 +121,8 @@ class TestYamlBuilder:
             assert changes.added == []
 
     def test_detect_column_changes_reordered(
-        self, dbt_project_setup: None, dbt_parser: dbtParser
+        self, dbt_project,
+        dbt_parser: dbtParser
     ) -> None:
         """Test column change detection with reordered columns."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -137,7 +145,7 @@ class TestDocsCommand:
     def test_docs_command_missing_model(
         self,
         cli_runner: typer.testing.CliRunner,
-        dbt_project_setup: None,
+        dbt_project,
     ) -> None:
         """Test docs command fails when model parameter is missing."""
         result = cli_runner.invoke(app, ["docs"])
@@ -154,7 +162,7 @@ class TestDocsCommand:
     def test_docs_command_nonexistent_model(
         self,
         cli_runner: typer.testing.CliRunner,
-        dbt_project_setup: None,
+        dbt_project,
     ) -> None:
         """Test docs command fails with nonexistent model."""
         result = cli_runner.invoke(app, ["docs", "--model", "nonexistent_model"])
@@ -164,7 +172,7 @@ class TestDocsCommand:
     def test_docs_command_valid_model_no_clipboard(
         self,
         cli_runner: typer.testing.CliRunner,
-        dbt_project_setup: None,
+        dbt_project,
     ) -> None:
         """Test docs command with valid model without clipboard option."""
         with patch.object(YamlBuilder, "build") as mock_build:
@@ -189,7 +197,7 @@ class TestDocsCommand:
     def test_docs_command_valid_model_with_clipboard(
         self,
         cli_runner: typer.testing.CliRunner,
-        dbt_project_setup: None,
+        dbt_project,
     ) -> None:
         """Test docs command with valid model and clipboard option."""
         with (
@@ -222,7 +230,7 @@ class TestDocsCommand:
     def test_docs_command_short_options(
         self,
         cli_runner: typer.testing.CliRunner,
-        dbt_project_setup: None,
+        dbt_project,
     ) -> None:
         """Test docs command with short option flags."""
         with (
@@ -254,7 +262,7 @@ class TestDocsCommand:
 
     def test_build_clipboard_mode_returns_yaml_content(
         self,
-        dbt_project_setup: None,
+        dbt_project,
         dbt_parser: dbtParser,
     ) -> None:
         """Test YamlBuilder.build in clipboard mode (fix_inplace=False)."""
@@ -268,7 +276,7 @@ class TestDocsCommand:
 
     def test_build_update_mode_no_changes(
         self,
-        dbt_project_setup: None,
+        dbt_project,
         dbt_parser: dbtParser,
     ) -> None:
         """Test YamlBuilder.build in update mode with no changes."""
@@ -293,7 +301,7 @@ class TestDocsCommand:
 
     def test_build_update_mode_with_changes(
         self,
-        dbt_project_setup: None,
+        dbt_project,
         dbt_parser: dbtParser,
     ) -> None:
         """Test YamlBuilder.build in update mode with changes."""
@@ -322,7 +330,7 @@ class TestDocsCommand:
     def test_error_handling_with_detailed_message(
         self,
         cli_runner: typer.testing.CliRunner,
-        dbt_project_setup: None,
+        dbt_project,
     ) -> None:
         """Test that detailed error messages are displayed when build fails."""
         with patch.object(YamlBuilder, "build") as mock_build:
@@ -351,7 +359,7 @@ class TestDocsCommand:
     def test_error_handling_clipboard_mode_with_detailed_message(
         self,
         cli_runner: typer.testing.CliRunner,
-        dbt_project_setup: None,
+        dbt_project,
     ) -> None:
         """Test that detailed error messages are displayed when clipboard mode fails."""
         with patch.object(YamlBuilder, "build") as mock_build:
@@ -397,7 +405,7 @@ class TestCLIIntegration:
     def test_full_cli_workflow_clipboard(
         self,
         cli_runner: typer.testing.CliRunner,
-        dbt_project_setup: None,
+        dbt_project,
     ) -> None:
         """Test complete CLI workflow with clipboard output."""
         with (
@@ -416,7 +424,7 @@ class TestCLIIntegration:
     def test_error_handling_invalid_model(
         self,
         cli_runner: typer.testing.CliRunner,
-        dbt_project_setup: None,
+        dbt_project,
     ) -> None:
         """Test error handling for invalid model names."""
         result = cli_runner.invoke(app, ["docs", "--model", "invalid_model_name"])
