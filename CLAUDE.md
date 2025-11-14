@@ -285,11 +285,15 @@ models_ignore_validation = ["legacy_model", "staging_temp"]
 5. Use `from dbt_toolbox.cli._common_options import Target` for target type
 
 **When writing tests:**
-1. Mock `dbtParser` constructor calls: `@patch("module.dbtParser")`
-2. For dbt execution tests: Use `DbtExecutionParams` and mock `create_execution_plan`
-3. For analysis tests: Use `AnalysisResult` with proper `ExecutionReason` enum values
-4. Always provide mock dbt_parser instances to functions that require them
-5. Use `ColumnAnalysis` and related classes for column validation tests
+1. **Use appropriate fixtures for performance:**
+   - `parser` - Session-scoped shared parser for read-only tests (fastest)
+   - `fresh_parser` - Function-scoped isolated parser for tests that mutate state
+   - `dbt_project` - Session-scoped project setup (use when you only need project path)
+2. Mock `dbtParser` constructor calls: `@patch("module.dbtParser")`
+3. For dbt execution tests: Use `DbtExecutionParams` and mock `create_execution_plan`
+4. For analysis tests: Use `AnalysisResult` with proper `ExecutionReason` enum values
+5. Always provide mock dbt_parser instances to functions that require them
+6. Use `ColumnAnalysis` and related classes for column validation tests
 
 **When working with utilities:**
 - Use `from dbt_toolbox.utils import _printers` for colored console output
@@ -309,3 +313,4 @@ models_ignore_validation = ["legacy_model", "staging_temp"]
 ## Documentation Guidelines
 
 Documentation should always reflect the current state of the codebase. Never use terms like "post-refactoring", "new:", "old:", or references to past states. Always describe things as they currently are.
+- When writing python doc-strings, keep them brief. Prioritize summary & `Args:`. Only write examples/returns/raises when absolutely necessary.
