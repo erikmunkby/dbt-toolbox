@@ -205,10 +205,20 @@ class dbtParser:  # noqa: N801
         if cached_model.code_hash == raw_model.code_hash:
             return cached_model
 
-        built_model = self._build_model(raw_model)
-        built_model = built_model.copy_attributes(other_model=cached_model)
-        built_model.code_changed = True
-        return built_model
+        try:
+            built_model = self._build_model(raw_model)
+        except ParseError:
+            cprint(
+                "Failed to parse model",
+                model_name,
+                highlight_idx=1,
+                color="yellow",
+            )
+            return None
+        else:
+            built_model = built_model.copy_attributes(other_model=cached_model)
+            built_model.code_changed = True
+            return built_model
 
     def get_model(self, model_name: str) -> Model | None:
         """Get a model by name."""
@@ -380,15 +390,22 @@ class dbtParser:  # noqa: N801
                 model_name = sel[1:].removesuffix("+")
                 if model_name in self.models:
                     target_models.add(model_name)
-                    # Add all upstream models
+                    # Add upstream models from both dependency graph and model's upstream list
+                    # to ensure we include models that failed to parse
+                    model = self.models[model_name]
+
+                    # First, add from dependency graph (successfully parsed models)
                     upstream_nodes = self.dependency_graph.get_upstream_nodes(model_name)
-                    # Filter to only models (not macros)
-                    upstream_models = [
+                    upstream_models_from_graph = [
                         node
                         for node in upstream_nodes
                         if self.dependency_graph.get_node_type(node) == "model"
                     ]
-                    target_models.update(upstream_models)
+                    target_models.update(upstream_models_from_graph)
+
+                    # Then, add from model's upstream.models list (includes unparseable models)
+                    # This ensures we don't silently ignore models that failed to parse
+                    target_models.update(model.upstream.models)
             # direct model selection
             if sel in self.models:
                 target_models.add(sel)
