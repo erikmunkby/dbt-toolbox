@@ -74,7 +74,7 @@ ignore = [
 ]
 
 [tool.dbt_toolbox]
-debug = false
+debug = true
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore the folllowing rules in test fodler
@@ -85,8 +85,10 @@ debug = false
     "SLF",  # Accessing private functions
     "DTZ",  # Timezone
     "PLR",  # Hardcoded values
+    "ARG001", # Unused function argument (fixtures)
     "ARG002", # Unused input parameter (fixtures)
     "SIM117", # Nested with statements
     "PLC0415", # Not top level import
     "PTH123", # No with open():
+    "ANN001", # Missing type annotation for function argument
 ]

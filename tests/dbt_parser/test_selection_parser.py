@@ -14,6 +14,7 @@ from dbt_toolbox.dbt_parser._selection_parser import SelectionParser
 # Note: Using session-scoped 'parser' fixture from conftest.py for performance
 # All tests in this file are read-only, so they can share the parser instance
 
+
 @pytest.fixture(scope="session")
 def selection_parser(parser: dbtParser) -> SelectionParser:
     """Get a session-scoped SelectionParser instance for read-only tests."""
@@ -23,93 +24,114 @@ def selection_parser(parser: dbtParser) -> SelectionParser:
 def test_direct_selection(selection_parser: SelectionParser) -> None:
     """Test direct model selection with various separators."""
     # Single model
-    assert selection_parser.parse("customers") == {"customers"}
+    result = selection_parser.parse("customers")
+    assert set(result.model_names) == {"customers"}
+    assert result.had_path_selection is False
 
     # Multiple models (comma and space separated)
-    assert selection_parser.parse("customers,orders") == {"customers", "orders"}
-    assert selection_parser.parse("customers orders") == {"customers", "orders"}
+    result = selection_parser.parse("customers,orders")
+    assert set(result.model_names) == {"customers", "orders"}
+    assert result.had_path_selection is False
+
+    result = selection_parser.parse("customers orders")
+    assert set(result.model_names) == {"customers", "orders"}
+    assert result.had_path_selection is False
 
     # None/empty returns all models
-    assert len(selection_parser.parse(None)) == 7
-    assert len(selection_parser.parse("")) == 7
+    result = selection_parser.parse(None)
+    assert len(result.model_names) == 7
+    assert result.had_path_selection is False
+
+    result = selection_parser.parse("")
+    assert len(result.model_names) == 7
+    assert result.had_path_selection is False
 
 
 def test_upstream_selection(selection_parser: SelectionParser) -> None:
     """Test upstream selection (+model) includes dependencies."""
     # Model with upstream models
-    assert selection_parser.parse("+customer_orders") == {
-        "customer_orders",
-        "customers",
-        "orders",
-    }
+    result = selection_parser.parse("+customer_orders")
+    assert set(result.model_names) == {"customer_orders", "customers", "orders"}
+    assert result.had_path_selection is False
 
-    # Model with source dependencies (sources are included in upstream)
-    assert selection_parser.parse("+customers") == {"customers", "raw_customers"}
+    # Model with source dependencies (sources are NOT included, only models)
+    result = selection_parser.parse("+customers")
+    assert set(result.model_names) == {"customers"}  # raw_customers is a source, not a model
+    assert result.had_path_selection is False
 
     # Isolated model
-    assert selection_parser.parse("+some_other_model") == {"some_other_model"}
+    result = selection_parser.parse("+some_other_model")
+    assert set(result.model_names) == {"some_other_model"}
+    assert result.had_path_selection is False
 
 
 def test_downstream_selection(selection_parser: SelectionParser) -> None:
     """Test downstream selection (model+) includes dependents."""
     # Model with downstream
-    assert selection_parser.parse("customers+") == {"customers", "customer_orders"}
+    result = selection_parser.parse("customers+")
+    assert set(result.model_names) == {"customers", "customer_orders"}
+    assert result.had_path_selection is False
 
     # Leaf model (no downstream)
-    assert selection_parser.parse("customer_orders+") == {"customer_orders"}
+    result = selection_parser.parse("customer_orders+")
+    assert set(result.model_names) == {"customer_orders"}
+    assert result.had_path_selection is False
 
     # Multiple selections deduplicate shared downstream
-    assert selection_parser.parse("customers+ orders+") == {
-        "customers",
-        "orders",
-        "customer_orders",
-    }
+    result = selection_parser.parse("customers+ orders+")
+    assert set(result.model_names) == {"customers", "orders", "customer_orders"}
+    assert result.had_path_selection is False
 
 
 def test_combined_selection(selection_parser: SelectionParser) -> None:
     """Test combined selection (+model+) includes both directions."""
     # Model with both upstream and downstream
-    assert selection_parser.parse("+customers+") == {
-        "customers",
-        "customer_orders",
-        "raw_customers",
-    }
+    result = selection_parser.parse("+customers+")
+    assert set(result.model_names) == {"customers", "customer_orders"}  # raw_customers is a source
+    assert result.had_path_selection is False
 
     # Leaf model with upstream
-    assert selection_parser.parse("+customer_orders+") == {
-        "customer_orders",
-        "customers",
-        "orders",
-    }
+    result = selection_parser.parse("+customer_orders+")
+    assert set(result.model_names) == {"customer_orders", "customers", "orders"}
+    assert result.had_path_selection is False
 
 
 def test_edge_cases(selection_parser: SelectionParser) -> None:
     """Test whitespace, duplicates, and overlapping selections."""
     # Whitespace handling
-    assert selection_parser.parse("  customers  ,  orders  ") == {"customers", "orders"}
+    result = selection_parser.parse("  customers  ,  orders  ")
+    assert set(result.model_names) == {"customers", "orders"}
+    assert result.had_path_selection is False
 
     # Duplicates are deduplicated
-    assert selection_parser.parse("customers,customers") == {"customers"}
+    result = selection_parser.parse("customers,customers")
+    assert set(result.model_names) == {"customers"}
+    assert result.had_path_selection is False
 
     # Overlapping selections merge correctly
-    assert selection_parser.parse("customers,customers+") == {
-        "customers",
-        "customer_orders",
-    }
+    result = selection_parser.parse("customers,customers+")
+    assert set(result.model_names) == {"customers", "customer_orders"}
+    assert result.had_path_selection is False
 
 
-def test_parse_return_models(selection_parser: SelectionParser) -> None:
-    """Test parse_return_models returns Model objects."""
-    # Returns Model objects
-    result = selection_parser.parse_return_models("customers")
-    assert len(result) == 1
-    assert result["customers"].name == "customers"
-    assert hasattr(result["customers"], "raw_code")
+def test_selection_result_properties(selection_parser: SelectionParser) -> None:
+    """Test SelectionResult properties (models, models_dict)."""
+    # Returns SelectionResult with proper properties
+    result = selection_parser.parse("customers")
+    assert len(result.model_names) == 1
+    assert len(result.models) == 1
+    assert result.models[0].name == "customers"
+    assert hasattr(result.models[0], "raw_code")
+
+    # models_dict property works
+    assert "customers" in result.models_dict
+    assert result.models_dict["customers"].name == "customers"
 
     # None returns all models
-    all_models = selection_parser.parse_return_models(None)
-    assert len(all_models) == 7
-    assert all(hasattr(m, "raw_code") for m in all_models.values())
+    result = selection_parser.parse(None)
+    assert len(result.models) == 7
+    assert all(hasattr(m, "raw_code") for m in result.models)
+    assert len(result.models_dict) == 7
 
 
 def test_backward_compatibility(parser: dbtParser) -> None:
@@ -117,10 +139,74 @@ def test_backward_compatibility(parser: dbtParser) -> None:
     test_cases = ["customers", "+customer_orders", "customers+", None]
 
     for selection in test_cases:
-        # parse() matches parse_selection_query()
-        assert parser.parse_selection_query(selection) == parser.selection_parser.parse(selection)
+        # parse_selection_query() should return set of model names
+        old_result = parser.parse_selection_query(selection)
+        new_result = parser.selection_parser.parse(selection)
+        assert old_result == set(new_result.model_names)
 
-        # parse_return_models() matches parse_selection_query_return_models()
-        old_result = parser.parse_selection_query_return_models(selection)
-        new_result = parser.selection_parser.parse_return_models(selection)
-        assert set(old_result.keys()) == set(new_result.keys())
+        # parse_selection_query_return_models() should return dict
+        old_models = parser.parse_selection_query_return_models(selection)
+        assert set(old_models.keys()) == set(new_result.model_names)
+
+
+def test_path_based_selection(selection_parser: SelectionParser) -> None:
+    """Test path-based selection with various formats and operators."""
+    # Basic path selection - different formats (prefix, implicit, partial)
+    assert set(selection_parser.parse("path:models/subfolder").model_names) == {"subfolder_model"}
+    assert set(selection_parser.parse("models/subfolder").model_names) == {"subfolder_model"}
+    assert set(selection_parser.parse("path:subfolder").model_names) == {"subfolder_model"}
+    assert set(selection_parser.parse("subfolder/").model_names) == {"subfolder_model"}
+
+    # File selection
+    assert set(selection_parser.parse("path:models/customers.sql").model_names) == {"customers"}
+    assert set(selection_parser.parse("models/customers.sql").model_names) == {"customers"}
+
+    # All should set the path selection flag
+    assert selection_parser.parse("path:subfolder").had_path_selection is True
+    assert selection_parser.parse("models/subfolder").had_path_selection is True
+
+
+def test_path_based_selection_with_operators(selection_parser: SelectionParser) -> None:
+    """Test path-based selection with upstream/downstream operators."""
+    # Upstream: no upstream for subfolder_model
+    result = selection_parser.parse("+models/subfolder/subfolder_model.sql")
+    assert set(result.model_names) == {"subfolder_model"}
+    assert result.had_path_selection is True
+
+    # Upstream: customer_orders has upstream models
+    result = selection_parser.parse("+models/customer_orders.sql")
+    assert set(result.model_names) == {"customer_orders", "customers", "orders"}
+    assert result.had_path_selection is True
+
+    # Downstream: customers has downstream
+    result = selection_parser.parse("models/customers.sql+")
+    assert set(result.model_names) == {"customers", "customer_orders"}
+    assert result.had_path_selection is True
+
+    # Combined upstream/downstream
+    result = selection_parser.parse("+models/customers.sql+")
+    assert set(result.model_names) == {"customers", "customer_orders"}  # raw_customers is a source
+    assert result.had_path_selection is True
+
+
+def test_path_based_selection_multiple_and_mixed(selection_parser: SelectionParser) -> None:
+    """Test multiple path selections and mixing path with name selections."""
+    # Multiple path selections
+    result = selection_parser.parse("models/customers.sql,models/orders.sql")
+    assert set(result.model_names) == {"customers", "orders"}
+    assert result.had_path_selection is True
+
+    # Mix of path and name selections
+    result = selection_parser.parse("models/customers.sql,some_other_model")
+    assert set(result.model_names) == {"customers", "some_other_model"}
+    assert result.had_path_selection is True
+
+    # Whitespace handling
+    result = selection_parser.parse("  models/customers.sql  ")
+    assert set(result.model_names) == {"customers"}
+    assert result.had_path_selection is True
+
+    # Non-existent path returns empty
+    result = selection_parser.parse("models/nonexistent/path")
+    assert set(result.model_names) == set()
+    assert result.had_path_selection is True

@@ -13,8 +13,7 @@ class TestYamlBuilderIntegration:
     """Integration tests for YamlBuilder using real dbt models and YAML files."""
 
     def test_build_with_fix_inplace_false_returns_yaml_content(
-        self, dbt_project,
-        dbt_parser: dbtParser
+        self, dbt_project, dbt_parser: dbtParser
     ) -> None:
         """Test that fix_inplace=False returns YAML content without modifying files."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -39,8 +38,7 @@ class TestYamlBuilderIntegration:
         assert "columns" in yaml_data["models"][0]
 
     def test_build_with_fix_inplace_true_updates_file(
-        self, dbt_project,
-        dbt_parser: dbtParser
+        self, dbt_project, dbt_parser: dbtParser
     ) -> None:
         """Test that fix_inplace=True updates the actual schema file."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -72,8 +70,7 @@ class TestYamlBuilderIntegration:
         mock_update.assert_called_once()
 
     def test_build_with_fix_inplace_true_no_changes(
-        self, dbt_project,
-        dbt_parser: dbtParser
+        self, dbt_project, dbt_parser: dbtParser
     ) -> None:
         """Test fix_inplace=True when no changes are needed."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -95,10 +92,7 @@ class TestYamlBuilderIntegration:
         # Verify update_model_yaml was NOT called since no changes
         mock_update.assert_not_called()
 
-    def test_placeholder_counting_accuracy(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_placeholder_counting_accuracy(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test that placeholder counting is accurate."""
         builder = YamlBuilder("customers", dbt_parser)
 
@@ -117,17 +111,14 @@ class TestYamlBuilderIntegration:
         # Should count 2 placeholders
         assert result.nbr_columns_with_placeholders == 2
 
-    def test_yaml_content_structure_and_format(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_yaml_content_structure_and_format(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test that generated YAML content has correct structure and format."""
         builder = YamlBuilder("customers", dbt_parser)
 
         result = builder.build(fix_inplace=False)
 
         # Parse the YAML content
-        yaml_data = yamlium.parse(result.yaml_content)
+        yaml_data = yamlium.parse(result.yaml_content)  # type: ignore
 
         # Verify structure
         assert "models" in yaml_data
@@ -146,8 +137,7 @@ class TestYamlBuilderIntegration:
             assert str(column["description"])
 
     def test_different_models_produce_different_results(
-        self, dbt_project,
-        dbt_parser: dbtParser
+        self, dbt_project, dbt_parser: dbtParser
     ) -> None:
         """Test that different models produce appropriately different results."""
         # Test with customers model
@@ -164,16 +154,13 @@ class TestYamlBuilderIntegration:
         assert customers_result.yaml_content != orders_result.yaml_content
 
         # Parse both YAML contents to verify they're different
-        customers_yaml = yamlium.parse(customers_result.yaml_content)
-        orders_yaml = yamlium.parse(orders_result.yaml_content)
+        customers_yaml = yamlium.parse(customers_result.yaml_content)  # type: ignore
+        orders_yaml = yamlium.parse(orders_result.yaml_content)  # type: ignore
 
         assert customers_yaml["models"][0]["name"] == "customers"
         assert orders_yaml["models"][0]["name"] == "orders"
 
-    def test_error_handling_during_file_update(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_error_handling_during_file_update(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test error handling when file update fails."""
         builder = YamlBuilder("customers", dbt_parser)
 
@@ -196,8 +183,7 @@ class TestYamlBuilderIntegration:
         assert "new_col" in result.changes.added
 
     def test_column_changes_detection_integration(
-        self, dbt_project,
-        dbt_parser: dbtParser
+        self, dbt_project, dbt_parser: dbtParser
     ) -> None:
         """Test that column changes are properly detected in integration scenario."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -223,10 +209,7 @@ class TestYamlBuilderIntegration:
         assert "new_integration_col" in changed_result.changes.added
         assert len(changed_result.changes.removed) > 0
 
-    def test_model_with_existing_documentation(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_model_with_existing_documentation(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test builder with a model that already has documentation."""
         # Use 'orders' model which has extensive documentation in schema.yml
         builder = YamlBuilder("orders", dbt_parser)
@@ -234,7 +217,7 @@ class TestYamlBuilderIntegration:
         result = builder.build(fix_inplace=False)
 
         # Parse the result to verify existing docs are preserved
-        yaml_data = yamlium.parse(result.yaml_content)
+        yaml_data = yamlium.parse(result.yaml_content)  # type: ignore
         model_data = yaml_data["models"][0]
 
         # Should have preserved existing description
@@ -251,10 +234,7 @@ class TestYamlBuilderIntegration:
             assert "description" in order_id_col
             assert len(order_id_col["description"]) > 0
 
-    def test_model_without_existing_yaml(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_model_without_existing_yaml(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test builder with a model that doesn't have existing YAML documentation."""
         # Use 'some_other_model' which should have minimal/no docs
         builder = YamlBuilder("some_other_model", dbt_parser)
@@ -272,10 +252,7 @@ class TestYamlBuilderIntegration:
         assert model_data["name"] == "some_other_model"
         assert "columns" in model_data
 
-    def test_comprehensive_workflow_simulation(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_comprehensive_workflow_simulation(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test a comprehensive workflow that simulates real usage."""
         builder = YamlBuilder("customers", dbt_parser)
 
@@ -303,8 +280,7 @@ class TestYamlBuilderIntegration:
         mock_update.assert_called_once()
 
     def test_detailed_error_messages_for_different_failure_types(
-        self, dbt_project,
-        dbt_parser: dbtParser
+        self, dbt_project, dbt_parser: dbtParser
     ) -> None:
         """Test that specific error types produce helpful error messages."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -320,8 +296,8 @@ class TestYamlBuilderIntegration:
                 result = builder.build(fix_inplace=True)
 
         assert result.success is False
-        assert "Schema file not found" in result.error_message
-        assert "schema.yml" in result.error_message
+        assert "Schema file not found" in result.error_message  # type: ignore
+        assert "schema.yml" in result.error_message  # type: ignore
 
         # Test PermissionError
         perm_error = PermissionError("Permission denied")
@@ -334,7 +310,7 @@ class TestYamlBuilderIntegration:
                 result = builder.build(fix_inplace=True)
 
         assert result.success is False
-        assert "Permission denied when writing to schema file" in result.error_message
+        assert "Permission denied when writing to schema file" in result.error_message  # type: ignore
 
         # Test generic Exception
         generic_error = Exception("Generic error")
@@ -347,12 +323,11 @@ class TestYamlBuilderIntegration:
                 result = builder.build(fix_inplace=True)
 
         assert result.success is False
-        assert "Failed to update schema file" in result.error_message
-        assert "Generic error" in result.error_message
+        assert "Failed to update schema file" in result.error_message  # type: ignore
+        assert "Generic error" in result.error_message  # type: ignore
 
     def test_error_handling_in_column_loading_phase(
-        self, dbt_project,
-        dbt_parser: dbtParser
+        self, dbt_project, dbt_parser: dbtParser
     ) -> None:
         """Test error handling when column loading fails."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -369,8 +344,7 @@ class TestYamlBuilderIntegration:
         assert result.yaml_content is None
 
     def test_error_handling_in_yaml_generation_phase(
-        self, dbt_project,
-        dbt_parser: dbtParser
+        self, dbt_project, dbt_parser: dbtParser
     ) -> None:
         """Test error handling when YAML generation fails."""
         builder = YamlBuilder("customers", dbt_parser)

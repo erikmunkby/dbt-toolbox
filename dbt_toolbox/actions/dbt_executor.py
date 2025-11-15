@@ -290,8 +290,19 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
         else:
             models_to_skip.append(analysis.model)
 
-    # Update dbt command with filtered model selection
-    if models_to_execute and len(models_to_execute) < len(analyses):
+    # Check if the original selection was path-based
+    selection_result = dbt_parser.selection_parser.parse(params.model_selection)
+    had_path_selection = selection_result.had_path_selection
+
+    # Update dbt command with filtered model selection when needed
+    # We replace the selection with explicit model names when:
+    # 1. Path-based selection was used (dbt may not handle the path selector correctly)
+    # 2. We're filtering to a subset of models (optimized selection)
+    should_replace_selection = had_path_selection or (
+        models_to_execute and len(models_to_execute) < len(analyses)
+    )
+
+    if should_replace_selection and models_to_execute:
         # Create new selection with only models that need execution
         new_selection = " ".join(models_to_execute)
 
