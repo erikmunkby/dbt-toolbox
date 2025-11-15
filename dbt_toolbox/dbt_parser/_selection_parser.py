@@ -3,8 +3,13 @@
 import re
 from pathlib import Path
 
+import typer
+from rapidfuzz import fuzz, process
+
 from dbt_toolbox.data_models import Model, SelectionResult
 from dbt_toolbox.graph.dependency_graph import DependencyGraph
+from dbt_toolbox.settings import Settings
+from dbt_toolbox.utils import cprint
 
 
 class SelectionParser:
@@ -15,7 +20,8 @@ class SelectionParser:
         models: dict[str, Model],
         dependency_graph: DependencyGraph,
         model_root_paths: list[Path],
-        source_names: set[str] | None = None,
+        source_names: set[str],
+        settings: Settings,
     ) -> None:
         """Initialize the SelectionParser.
 
@@ -24,12 +30,14 @@ class SelectionParser:
             dependency_graph: DependencyGraph for traversing model dependencies
             model_root_paths: List of root paths for models (e.g., [Path('models')])
             source_names: Set of source names to exclude from selection results
+            settings: Settings instance for configuration
 
         """
         self._models = models
         self._graph = dependency_graph
         self._model_root_paths = model_root_paths
-        self._source_names = source_names or set()
+        self._source_names = source_names
+        self._settings = settings
 
     def parse(self, selection: str | None, /) -> SelectionResult:
         """Parse dbt model selection syntax and return SelectionResult.
@@ -103,8 +111,38 @@ class SelectionParser:
 
         # Name-based selection
         result = set()
+
         if base_selector in self._models:
+            # Model found directly
             result.add(base_selector)
+        elif self._settings.fuzzy_model_matching != "off":
+            # Try fuzzy matching
+            fuzzy_match = self._fuzzy_match_model(base_selector)
+            if fuzzy_match:
+                if self._settings.fuzzy_model_matching == "automatic":
+                    # Use fuzzy match automatically and inform user
+                    cprint(
+                        f"Replaced '{base_selector}' with '{fuzzy_match}' "
+                        "(fuzzy_model_matching=automatic)",
+                        color="yellow",
+                    )
+                    result.add(fuzzy_match)
+                elif self._settings.fuzzy_model_matching == "prompt":
+                    # Prompt user for confirmation
+                    try:
+                        prompt_msg = (
+                            f"Model '{base_selector}' not found. "
+                            f"Did you mean '{fuzzy_match}'?"
+                        )
+                        if typer.confirm(prompt_msg, default=False):
+                            result.add(fuzzy_match)
+                    except (OSError, EOFError):
+                        # Non-interactive environment (e.g., tests, CI/CD)
+                        # Skip prompting and treat as declined
+                        pass
+
+        # Apply graph operators if we have a model
+        if result:
             result = self._apply_graph_operators(result, has_upstream, has_downstream)
 
         return result, False
@@ -298,3 +336,37 @@ class SelectionParser:
 
         # Fallback: check absolute path for substring match
         return selector_str in str(model_abs_path)
+
+    def _fuzzy_match_model(self, query: str) -> str | None:
+        """Find the best fuzzy match for a model name.
+
+        Args:
+            query: The model name query to match
+
+        Returns:
+            Best matching model name if found with score >= 60%, None otherwise
+
+        """
+        fuzzy_threshold = 60  # Minimum similarity score for fuzzy matching
+
+        if not self._models:
+            return None
+
+        # Normalize query
+        q = query.replace("_", "").lower()
+
+        # Create normalized model mapping
+        normalized_models = {m: m.replace("_", "").lower() for m in self._models}
+
+        # Use rapidfuzz to find best match
+        results = process.extract(
+            q,
+            normalized_models,
+            scorer=fuzz.WRatio,
+            limit=1,
+        )
+
+        if results and results[0][1] >= fuzzy_threshold:
+            return results[0][0]  # Return the original model name
+
+        return None

@@ -88,10 +88,10 @@ def docs(
     except Exception as e:  # noqa: BLE001
         exit_run(1, f"Failed to initialize dbt parser: {e}")
 
-    selected_model = dbt_parser.parse_selection_query(model)
-    if len(selected_model) != 1:
+    selection_result = dbt_parser.parse_selection_query(model)
+    if len(selection_result.model_names) != 1:
         exit_run(1, "Selection for docs can only be singular models")
-    selected_model = next(iter(selected_model))
+    selected_model = selection_result.model_names[0]
 
     if selected_model not in dbt_parser.models:
         max_models_to_show = 5

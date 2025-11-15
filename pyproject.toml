@@ -5,6 +5,7 @@ requires-python = ">=3.10"
 dependencies = [
     "jinja2>=3.1.6",
     "loguru>=0.7.3",
+    "rapidfuzz>=3.14.3",
     "sqlglot[rs]>=26.25.3",
     "tomli>=2.2.1",
     "typer>=0.16.0",
@@ -74,7 +75,8 @@ ignore = [
 ]
 
 [tool.dbt_toolbox]
-debug = true
+debug = false
+fuzzy_model_matching = "automatic"
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore the folllowing rules in test fodler

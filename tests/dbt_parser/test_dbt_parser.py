@@ -49,10 +49,10 @@ def test_parse_selection_query_upstream() -> None:
 
     # Test +customer_orders should include customers and orders (upstream models)
     result = parser.parse_selection_query("+customer_orders")
-    assert "customer_orders" in result
-    assert "customers" in result
-    assert "orders" in result
-    assert len(result) == 3
+    assert "customer_orders" in result.model_names
+    assert "customers" in result.model_names
+    assert "orders" in result.model_names
+    assert len(result.model_names) == 3
 
 
 def test_parse_selection_query_downstream() -> None:
@@ -61,8 +61,8 @@ def test_parse_selection_query_downstream() -> None:
 
     # Test customers+ should include customer_orders (downstream model)
     result = parser.parse_selection_query("customers+")
-    assert "customers" in result
-    assert "customer_orders" in result
+    assert "customers" in result.model_names
+    assert "customer_orders" in result.model_names
 
 
 def test_parse_selection_query_both() -> None:
@@ -71,8 +71,8 @@ def test_parse_selection_query_both() -> None:
 
     # Test +orders+ should include orders, customer_orders (downstream), but not customers
     result = parser.parse_selection_query("+orders+")
-    assert "orders" in result
-    assert "customer_orders" in result
+    assert "orders" in result.model_names
+    assert "customer_orders" in result.model_names
 
 
 def test_parse_selection_query_with_unparseable_upstream(
@@ -116,12 +116,12 @@ def test_parse_selection_query_with_unparseable_upstream(
         # After the fix, this should either:
         # 1. Include broken_name in the result (preferred), OR
         # 2. Raise a warning/error about the missing upstream dependency
-        assert broken_name in result, (
+        assert broken_name in result.model_names, (
             f"Expected {broken_name} to be included in +temp_depends_on_broken selection, "
-            f"but got: {result}. Upstream models that fail to parse should not be silently "
-            "ignored."
+            f"but got: {result.model_names}. Upstream models that fail to parse should not be "
+            "silently ignored."
         )
-        assert "temp_depends_on_broken" in result
+        assert "temp_depends_on_broken" in result.model_names
 
     finally:
         # Clean up

@@ -135,18 +135,17 @@ def test_selection_result_properties(selection_parser: SelectionParser) -> None:
 
 
 def test_backward_compatibility(parser: dbtParser) -> None:
-    """Test SelectionParser matches old dbtParser behavior."""
+    """Test SelectionParser matches dbtParser behavior."""
     test_cases = ["customers", "+customer_orders", "customers+", None]
 
     for selection in test_cases:
-        # parse_selection_query() should return set of model names
-        old_result = parser.parse_selection_query(selection)
-        new_result = parser.selection_parser.parse(selection)
-        assert old_result == set(new_result.model_names)
+        # parse_selection_query() should return SelectionResult
+        result = parser.parse_selection_query(selection)
+        direct_result = parser.selection_parser.parse(selection)
 
-        # parse_selection_query_return_models() should return dict
-        old_models = parser.parse_selection_query_return_models(selection)
-        assert set(old_models.keys()) == set(new_result.model_names)
+        # Both should return the same model names and models
+        assert set(result.model_names) == set(direct_result.model_names)
+        assert set(result.models_dict.keys()) == set(direct_result.models_dict.keys())
 
 
 def test_path_based_selection(selection_parser: SelectionParser) -> None:
@@ -210,3 +209,140 @@ def test_path_based_selection_multiple_and_mixed(selection_parser: SelectionPars
     result = selection_parser.parse("models/nonexistent/path")
     assert set(result.model_names) == set()
     assert result.had_path_selection is True
+
+
+def test_fuzzy_matching_off(parser: dbtParser) -> None:
+    """Test fuzzy matching when mode is 'off'."""
+    from unittest.mock import patch
+
+    from dbt_toolbox.settings import Settings
+
+    # Create a settings instance with fuzzy_model_matching = "off"
+    with patch.object(Settings, "fuzzy_model_matching", "off"):
+        # Get a fresh selection parser with the patched settings
+        selection_parser = parser.selection_parser
+
+        # Non-existent model returns empty (no fuzzy matching)
+        result = selection_parser.parse("custmers")  # Typo in "customers"
+        assert set(result.model_names) == set()
+        assert result.had_path_selection is False
+
+
+def test_fuzzy_matching_automatic(parser: dbtParser) -> None:
+    """Test fuzzy matching in automatic mode."""
+    from unittest.mock import patch
+
+    from dbt_toolbox.settings import Settings
+
+    # Create a settings instance with fuzzy_model_matching = "automatic"
+    with patch.object(Settings, "fuzzy_model_matching", "automatic"):
+        # Get a fresh selection parser with the patched settings
+        selection_parser = parser.selection_parser
+
+        # Typo should automatically resolve to correct model
+        result = selection_parser.parse("custmers")  # Typo in "customers"
+        assert set(result.model_names) == {"customers"}
+        assert result.had_path_selection is False
+
+        # Another typo
+        result = selection_parser.parse("ordes")  # Typo in "orders"
+        assert set(result.model_names) == {"orders"}
+        assert result.had_path_selection is False
+
+
+def test_fuzzy_matching_with_operators(parser: dbtParser) -> None:
+    """Test fuzzy matching works with + operators."""
+    from unittest.mock import patch
+
+    from dbt_toolbox.settings import Settings
+
+    # Create a settings instance with fuzzy_model_matching = "automatic"
+    with patch.object(Settings, "fuzzy_model_matching", "automatic"):
+        # Get a fresh selection parser with the patched settings
+        selection_parser = parser.selection_parser
+
+        # Upstream selection with typo
+        result = selection_parser.parse("+custmers")  # Typo in "customers"
+        assert "customers" in result.model_names
+        assert result.had_path_selection is False
+
+        # Downstream selection with typo
+        result = selection_parser.parse("custmers+")  # Typo in "customers"
+        assert set(result.model_names) == {"customers", "customer_orders"}
+        assert result.had_path_selection is False
+
+        # Both directions with typo
+        result = selection_parser.parse("+custmers+")  # Typo in "customers"
+        assert "customers" in result.model_names
+        assert "customer_orders" in result.model_names
+        assert result.had_path_selection is False
+
+
+def test_fuzzy_matching_prompt_declined(parser: dbtParser) -> None:
+    """Test fuzzy matching in prompt mode when user declines."""
+    from unittest.mock import patch
+
+    from dbt_toolbox.settings import Settings
+
+    # Create a settings instance with fuzzy_model_matching = "prompt"
+    with patch.object(Settings, "fuzzy_model_matching", "prompt"):
+        # Get a fresh selection parser with the patched settings
+        selection_parser = parser.selection_parser
+
+        # Mock typer.confirm to return False (user declines)
+        with patch("dbt_toolbox.dbt_parser._selection_parser.typer.confirm", return_value=False):
+            result = selection_parser.parse("custmers")  # Typo in "customers"
+            assert set(result.model_names) == set()  # Should be empty when declined
+            assert result.had_path_selection is False
+
+
+def test_fuzzy_matching_prompt_accepted(parser: dbtParser) -> None:
+    """Test fuzzy matching in prompt mode when user accepts."""
+    from unittest.mock import patch
+
+    from dbt_toolbox.settings import Settings
+
+    # Create a settings instance with fuzzy_model_matching = "prompt"
+    with patch.object(Settings, "fuzzy_model_matching", "prompt"):
+        # Get a fresh selection parser with the patched settings
+        selection_parser = parser.selection_parser
+
+        # Mock typer.confirm to return True (user accepts)
+        with patch("dbt_toolbox.dbt_parser._selection_parser.typer.confirm", return_value=True):
+            result = selection_parser.parse("custmers")  # Typo in "customers"
+            assert set(result.model_names) == {"customers"}  # Should use fuzzy match
+            assert result.had_path_selection is False
+
+
+def test_fuzzy_matching_threshold(parser: dbtParser) -> None:
+    """Test that fuzzy matching respects the 60% threshold."""
+    from unittest.mock import patch
+
+    from dbt_toolbox.settings import Settings
+
+    # Create a settings instance with fuzzy_model_matching = "automatic"
+    with patch.object(Settings, "fuzzy_model_matching", "automatic"):
+        # Get a fresh selection parser with the patched settings
+        selection_parser = parser.selection_parser
+
+        # Very different string should not match (below 60% threshold)
+        result = selection_parser.parse("xyz")
+        assert set(result.model_names) == set()
+        assert result.had_path_selection is False
+
+
+def test_fuzzy_matching_path_selection_unaffected(parser: dbtParser) -> None:
+    """Test that fuzzy matching does not affect path-based selection."""
+    from unittest.mock import patch
+
+    from dbt_toolbox.settings import Settings
+
+    # Create a settings instance with fuzzy_model_matching = "automatic"
+    with patch.object(Settings, "fuzzy_model_matching", "automatic"):
+        # Get a fresh selection parser with the patched settings
+        selection_parser = parser.selection_parser
+
+        # Path-based selection should not trigger fuzzy matching
+        result = selection_parser.parse("models/custmers.sql")  # Typo in path
+        assert set(result.model_names) == set()  # No fuzzy matching for paths
+        assert result.had_path_selection is True

@@ -362,6 +362,18 @@ class Settings:
         """List of warning types to ignore."""
         return self._warnings_ignored.value
 
+    @cached_property
+    def _fuzzy_model_matching(self) -> Setting:
+        return _get_setting("fuzzy_model_matching", "prompt")
+
+    @cached_property
+    def fuzzy_model_matching(self) -> str:
+        """Fuzzy model matching mode: automatic, prompt, or off."""
+        value = self._fuzzy_model_matching.value
+        if value not in ("automatic", "prompt", "off"):
+            return "prompt"
+        return value
+
     def get_all_settings_with_sources(self) -> dict[str, Setting]:
         """Get all settings with their source information.
 
@@ -382,6 +394,7 @@ class Settings:
                 "enforce_lineage_validation",
                 "models_ignore_validation",
                 "warnings_ignored",
+                "fuzzy_model_matching",
             ]
         }
 

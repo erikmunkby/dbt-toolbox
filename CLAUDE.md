@@ -51,6 +51,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `_jinja_handler.py` - Handles Jinja environment and template rendering
 - `_builders.py` - Model and macro building logic with SQLGlot parsing
 - `_column_resolver.py` - SQL column resolution and dependency analysis
+- `_selection_parser.py` - Model selection parser with fuzzy matching support
 
 **Dependency Graph (`dbt_toolbox/graph/`)**
 - `dependency_graph.py` - Lightweight DAG implementation for tracking model and macro dependencies
@@ -103,6 +104,7 @@ This module is NOT tests for the project itself, but helper functions for users 
 10. **Target Management**: Runtime configuration with support for dbt target environments
 11. **MCP Integration**: FastMCP server for external tool integration with analyze and build capabilities
 12. **Modular Analysis**: Separated analysis logic into dedicated modules for maintainability
+13. **Fuzzy Model Matching**: Intelligent typo correction for model selection with configurable modes (automatic/prompt/off)
 
 ### CLI Commands
 
@@ -237,6 +239,7 @@ This fixture is automatically applied to all tests and do not need to be include
 - `DBT_TOOLBOX_CACHE_VALIDITY_MINUTES` - Cache validity in minutes (default: 1440)
 - `DBT_TOOLBOX_ENFORCE_LINEAGE_VALIDATION` - Enable/disable lineage validation (default: true)
 - `DBT_TOOLBOX_MODELS_IGNORE_VALIDATION` - Comma-separated list of models to ignore during validation
+- `DBT_TOOLBOX_FUZZY_MODEL_MATCHING` - Fuzzy model matching mode: "automatic", "prompt", or "off" (default: "prompt")
 
 ### TOML Configuration (`pyproject.toml`)
 ```toml
@@ -250,6 +253,7 @@ placeholder_description = "TODO: PLACEHOLDER"
 cache_validity_minutes = 1440
 enforce_lineage_validation = true
 models_ignore_validation = ["legacy_model", "staging_temp"]
+fuzzy_model_matching = "prompt"  # Options: "automatic", "prompt", "off"
 ```
 
 ### Settings Precedence
