@@ -141,6 +141,25 @@ class DependsOn:
 
 
 @dataclass
+class SelectionResult:
+    """Result of parsing a dbt selection query.
+
+    Note: model_names may include unparseable models or sources that don't have
+    corresponding entries in models_dict. This is intentional to preserve
+    information about failed parses.
+    """
+
+    model_names: list[str]
+    models_dict: dict[str, Model]
+    had_path_selection: bool
+
+    @property
+    def models(self) -> list[Model]:
+        """Return list of Model objects (only parseable models)."""
+        return list(self.models_dict.values())
+
+
+@dataclass
 class ModelBase:
     """The baseline model with id."""
 

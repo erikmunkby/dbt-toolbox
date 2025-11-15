@@ -6,7 +6,7 @@ from enum import Enum
 
 from dbt_toolbox.data_models import Model
 from dbt_toolbox.dbt_parser import dbtParser
-from dbt_toolbox.utils import _printers
+from dbt_toolbox.utils import _printers, log
 
 
 class ExecutionReason(Enum):
@@ -112,6 +112,7 @@ def print_execution_analysis(
     _printers.cprint(f"   📊 Total models in selection: {total_models}")
     _printers.cprint(f"   ✅ Models to execute: {models_to_execute}")
     _printers.cprint(f"   ⏭️  Models to skip: {models_to_skip}")
+    log.debug(f"Models to execute: {[a.model.name for a in analyses if a.needs_execution]}")
 
     if verbose and models_to_execute > 0:
         _printers.cprint("\n📋 Models requiring execution:", color="yellow")

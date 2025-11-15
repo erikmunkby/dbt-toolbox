@@ -1,8 +1,9 @@
 """Module for parsing dbt model selection syntax."""
 
 import re
+from pathlib import Path
 
-from dbt_toolbox.data_models import Model
+from dbt_toolbox.data_models import Model, SelectionResult
 from dbt_toolbox.graph.dependency_graph import DependencyGraph
 
 
@@ -13,30 +14,44 @@ class SelectionParser:
         self,
         models: dict[str, Model],
         dependency_graph: DependencyGraph,
+        model_root_paths: list[Path],
+        source_names: set[str] | None = None,
     ) -> None:
         """Initialize the SelectionParser.
 
         Args:
             models: Dictionary mapping model names to Model objects
             dependency_graph: DependencyGraph for traversing model dependencies
+            model_root_paths: List of root paths for models (e.g., [Path('models')])
+            source_names: Set of source names to exclude from selection results
 
         """
         self._models = models
         self._graph = dependency_graph
+        self._model_root_paths = model_root_paths
+        self._source_names = source_names or set()
 
-    def parse(self, selection: str | None, /) -> set[str]:
-        """Parse dbt model selection syntax to get target model names.
+    def parse(self, selection: str | None, /) -> SelectionResult:
+        """Parse dbt model selection syntax and return SelectionResult.
 
         Args:
             selection:  dbt selection string (e.g., "my_model+", "+my_model", "my_model")
                         If None, returns all models.
 
+        Returns:
+            SelectionResult with model names, models, and path selection flag.
+
         """
         if not selection:
             # No selection means all models
-            return set(self._models.keys())
+            return SelectionResult(
+                model_names=sorted(self._models.keys()),
+                models_dict=self._models.copy(),
+                had_path_selection=False,
+            )
 
-        target_models = set()
+        target_model_names = set()
+        had_path_selection = False
 
         # Handle multiple selections separated by comma or space
         selections = re.split(r"[,\s]+", selection.strip())
@@ -45,59 +60,127 @@ class SelectionParser:
             if not sel:
                 continue
 
-            # Parse selection patterns
-            if sel.endswith("+"):
-                # downstream selection: "model+"
-                model_name = sel[:-1].removeprefix("+")
-                if model_name in self._models:
-                    target_models.add(model_name)
-                    # Add all downstream models
-                    downstream_models = self._get_downstream_models(model_name)
-                    target_models.update(m.name for m in downstream_models)
-            if sel.startswith("+"):
-                # upstream selection: "+model"
-                model_name = sel[1:].removesuffix("+")
-                if model_name in self._models:
-                    target_models.add(model_name)
-                    # Add upstream models from both dependency graph and model's upstream list
-                    # to ensure we include models that failed to parse
-                    model = self._models[model_name]
+            # Parse this single selection
+            selected_names, is_path = self._parse_single_selection(sel)
+            target_model_names.update(selected_names)
+            if is_path:
+                had_path_selection = True
 
-                    # First, add from dependency graph (successfully parsed models)
-                    upstream_nodes = self._graph.get_upstream_nodes(model_name)
-                    upstream_models_from_graph = [
-                        node
-                        for node in upstream_nodes
-                        if self._graph.get_node_type(node) == "model"
-                    ]
-                    target_models.update(upstream_models_from_graph)
+        # Build models_dict with only models that exist in self._models
+        # Note: target_model_names may include unparseable models or sources
+        models_dict = {
+            name: self._models[name] for name in target_model_names if name in self._models
+        }
 
-                    # Then, add from model's upstream.models list (includes unparseable models)
-                    # This ensures we don't silently ignore models that failed to parse
-                    target_models.update(model.upstream.models)
-            # direct model selection
-            if sel in self._models:
-                target_models.add(sel)
+        return SelectionResult(
+            model_names=sorted(target_model_names),
+            models_dict=models_dict,
+            had_path_selection=had_path_selection,
+        )
 
-        return target_models
-
-    def parse_return_models(self, selection_query: str | None) -> dict[str, Model]:
-        """Parse the model selection query and return Model objects.
+    def _parse_single_selection(self, selector: str) -> tuple[set[str], bool]:
+        """Parse a single selection string and return matching models.
 
         Args:
-            selection_query:    dbt selection string (e.g., "my_model+", "+my_model", "my_model")
-                                If None, returns all models.
+            selector: Single selection string (may include +/+ operators)
+
+        Returns:
+            Tuple of (set of model names, whether this was a path selection)
 
         """
-        if selection_query is None:
-            return self._models
-        return {name: self._models[name] for name in self.parse(selection_query)}
+        # Extract operators and base selector
+        base_selector, has_upstream, has_downstream = self._extract_operators(selector)
+
+        # Determine if this is a path-based selection
+        is_path_selection = self._is_path_selection(base_selector)
+
+        if is_path_selection:
+            # Path-based selection
+            matched_models = self._match_models_by_path(base_selector)
+            # Apply operators to all matched models
+            result = self._apply_graph_operators(matched_models, has_upstream, has_downstream)
+            return result, True
+
+        # Name-based selection
+        result = set()
+        if base_selector in self._models:
+            result.add(base_selector)
+            result = self._apply_graph_operators(result, has_upstream, has_downstream)
+
+        return result, False
+
+    def _extract_operators(self, selector: str) -> tuple[str, bool, bool]:
+        """Extract operators and base selector from a selection string.
+
+        Args:
+            selector: Selection string that may have + operators
+
+        Returns:
+            Tuple of (base_selector, has_upstream, has_downstream)
+
+        """
+        has_downstream = selector.endswith("+")
+        has_upstream = selector.startswith("+")
+
+        # Remove operators to get the base selector
+        base_selector = selector.removeprefix("+").removesuffix("+")
+
+        return base_selector, has_upstream, has_downstream
+
+    def _apply_graph_operators(
+        self, model_names: set[str], has_upstream: bool, has_downstream: bool
+    ) -> set[str]:
+        """Apply upstream/downstream operators to a set of model names.
+
+        Args:
+            model_names: Set of base model names
+            has_upstream: Whether to include upstream models
+            has_downstream: Whether to include downstream models
+
+        Returns:
+            Expanded set of model names including upstream/downstream
+
+        """
+        result = set(model_names)
+
+        for model_name in model_names:
+            if has_upstream:
+                # Add upstream models from both dependency graph and model's upstream list
+                # to ensure we include models that failed to parse
+                model = self._models[model_name]
+
+                # First, add from dependency graph (successfully parsed models)
+                upstream_nodes = self._graph.get_upstream_nodes(model_name)
+                upstream_models_from_graph = [
+                    node for node in upstream_nodes if self._graph.get_node_type(node) == "model"
+                ]
+                result.update(upstream_models_from_graph)
+
+                # Then, add from model's upstream.models list (includes unparseable models)
+                # This ensures we don't silently ignore models that failed to parse
+                # Filter out known sources to avoid including them in model selection
+                upstream_models_only = [
+                    upstream_model
+                    for upstream_model in model.upstream.models
+                    if upstream_model not in self._source_names
+                ]
+                result.update(upstream_models_only)
+
+            if has_downstream:
+                # Add downstream models
+                downstream_models = self._get_downstream_models(model_name)
+                result.update(m.name for m in downstream_models)
+
+        return result
 
     def _get_downstream_models(self, name: str) -> list[Model]:
         """Get all downstream models that depend on the given model or macro.
 
         Args:
             name: Name of the model or macro to find downstream dependencies for.
+
+        Returns:
+            List of downstream Model objects
 
         """
         # Filter to only return models (not macros) and convert to Model objects
@@ -106,3 +189,112 @@ class SelectionParser:
             for node_name in self._graph.get_downstream_nodes(name)
             if self._graph.get_node_type(node_name) == "model"
         ]
+
+    def _is_path_selection(self, selector: str) -> bool:
+        """Check if a selector is a path-based selection.
+
+        Args:
+            selector: The selection string to check (without operators like +)
+
+        Returns:
+            True if path-based selection, False otherwise
+
+        """
+        # Check for path: prefix
+        if selector.startswith("path:"):
+            return True
+        # Check if it contains path separators (both / and \)
+        return "/" in selector or "\\" in selector
+
+    def _match_models_by_path(self, path_selector: str) -> set[str]:
+        """Match models by path selection.
+
+        Supports multiple path formats:
+        - path:folder, path:some/folder
+        - models/some/folder, some/folder, some/
+        - Any partial path relative to model root directories
+
+        Args:
+            path_selector: The path selection string (with or without "path:" prefix)
+
+        Returns:
+            Set of matching model names
+
+        """
+        # Remove "path:" prefix if present
+        path_selector = path_selector.removeprefix("path:")
+
+        # Normalize path separators and convert to Path
+        normalized_selector = Path(path_selector)
+
+        matched_models = set()
+        for model_name, model in self._models.items():
+            # Get relative path from model root if possible
+            model_rel_path = self._get_relative_path_from_roots(Path(model.path))
+
+            # Check if the selector matches the model path
+            if self._path_matches(model_rel_path, Path(model.path), normalized_selector):
+                matched_models.add(model_name)
+
+        return matched_models
+
+    def _get_relative_path_from_roots(self, model_path: Path) -> Path | None:
+        """Get model path relative to one of the model root paths.
+
+        Args:
+            model_path: Absolute path to the model file
+
+        Returns:
+            Relative path from model root, or None if not under any root
+
+        """
+        for root in self._model_root_paths:
+            if model_path.is_relative_to(root):
+                return model_path.relative_to(root)
+        return None
+
+    def _path_matches(
+        self, model_rel_path: Path | None, model_abs_path: Path, selector_path: Path
+    ) -> bool:
+        """Check if a model path matches a selector path.
+
+        Supports flexible matching:
+        - Exact file match: path:customers.sql
+        - Directory match: path:subfolder
+        - Partial directory match: some/folder (matches models/some/folder/...)
+        - With or without models/ prefix
+
+        Args:
+            model_rel_path: Relative path from model root (or None)
+            model_abs_path: Absolute path to the model
+            selector_path: The selector path to match against
+
+        Returns:
+            True if the model matches the selector
+
+        """
+        selector_str = str(selector_path)
+
+        # Try matching against relative path if available
+        if model_rel_path:
+            rel_path_str = str(model_rel_path)
+
+            # Exact match (file or directory)
+            if model_rel_path == selector_path or rel_path_str == selector_str:
+                return True
+
+            # Suffix match (handles models/subfolder matching subfolder/model.sql)
+            if rel_path_str.endswith(selector_str):
+                return True
+
+            # Check if selector is a parent directory of the model
+            if model_rel_path.is_relative_to(selector_path):
+                return True
+
+            # Substring match within path hierarchy
+            # (handles "some/" matching "models/some/folder/model.sql")
+            if selector_str in rel_path_str:
+                return True
+
+        # Fallback: check absolute path for substring match
+        return selector_str in str(model_abs_path)

@@ -22,10 +22,7 @@ def cli_runner() -> typer.testing.CliRunner:
 class TestYamlBuilder:
     """Test YamlBuilder class functionality."""
 
-    def test_yaml_builder_init_existing_model(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_yaml_builder_init_existing_model(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test YamlBuilder initialization with existing model."""
         builder = YamlBuilder("customers", dbt_parser)
 
@@ -34,17 +31,13 @@ class TestYamlBuilder:
         assert "columns" in builder.yml
         assert isinstance(builder.yaml_docs, dict)
 
-    def test_yaml_builder_init_nonexistent_model(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_yaml_builder_init_nonexistent_model(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test YamlBuilder initialization with nonexistent model raises error."""
         with pytest.raises(KeyError):
             YamlBuilder("nonexistent_model", dbt_parser)
 
     def test_get_column_description_existing_docs(
-        self, dbt_project,
-        dbt_parser: dbtParser
+        self, dbt_project, dbt_parser: dbtParser
     ) -> None:
         """Test getting column description from existing YAML docs."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -56,10 +49,7 @@ class TestYamlBuilder:
         assert desc["name"] == "customer_id"
         assert "description" in desc
 
-    def test_get_column_description_placeholder(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_get_column_description_placeholder(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test getting placeholder description for undocumented column."""
         builder = YamlBuilder("customers", dbt_parser)
 
@@ -70,10 +60,7 @@ class TestYamlBuilder:
         assert desc["name"] == "nonexistent_column"
         assert "description" in desc
 
-    def test_detect_column_changes_no_changes(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_detect_column_changes_no_changes(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test column change detection when no changes exist."""
         builder = YamlBuilder("customers", dbt_parser)
 
@@ -87,8 +74,7 @@ class TestYamlBuilder:
         assert changes.reordered is False
 
     def test_detect_column_changes_with_additions(
-        self, dbt_project,
-        dbt_parser: dbtParser
+        self, dbt_project, dbt_parser: dbtParser
     ) -> None:
         """Test column change detection with new columns."""
         builder = YamlBuilder("customers", dbt_parser)
@@ -102,10 +88,7 @@ class TestYamlBuilder:
         assert "new_column" in changes.added
         assert changes.removed == []
 
-    def test_detect_column_changes_with_removals(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_detect_column_changes_with_removals(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test column change detection with removed columns."""
         builder = YamlBuilder("customers", dbt_parser)
 
@@ -120,10 +103,7 @@ class TestYamlBuilder:
             assert removed_column in changes.removed
             assert changes.added == []
 
-    def test_detect_column_changes_reordered(
-        self, dbt_project,
-        dbt_parser: dbtParser
-    ) -> None:
+    def test_detect_column_changes_reordered(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test column change detection with reordered columns."""
         builder = YamlBuilder("customers", dbt_parser)
 

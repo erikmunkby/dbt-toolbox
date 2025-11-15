@@ -320,9 +320,14 @@ class dbtParser:  # noqa: N801
             SelectionParser instance configured with current models and dependency graph.
 
         """
+        # Get source names to exclude from model selections
+        source_names = {source.name for source in self.sources.values()}
+
         return SelectionParser(
             models=self.models,
             dependency_graph=self.dependency_graph,
+            model_root_paths=self.model_paths,
+            source_names=source_names,
         )
 
     def get_downstream_models(self, name: str) -> list[Model]:
@@ -345,8 +350,12 @@ class dbtParser:  # noqa: N801
         Args:
             selection: dbt selection string (e.g., "my_model+", "+my_model", "my_model")
 
+        Returns:
+            Set of model names matching the selection
+
         """
-        return self.selection_parser.parse(selection)
+        result = self.selection_parser.parse(selection)
+        return set(result.model_names)
 
     def parse_selection_query_return_models(self, selection_query: str | None) -> dict[str, Model]:
         """Parse the model selection query and return models.
@@ -354,5 +363,9 @@ class dbtParser:  # noqa: N801
         Args:
             selection_query: dbt selection string (e.g., "my_model+", "+my_model", "my_model")
 
+        Returns:
+            Dictionary mapping model names to Model objects
+
         """
-        return self.selection_parser.parse_return_models(selection_query)
+        result = self.selection_parser.parse(selection_query)
+        return result.models_dict

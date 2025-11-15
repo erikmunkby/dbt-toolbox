@@ -10,7 +10,7 @@ from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import build_path
 
 
-def test_dbt_project_validation(dbt_project: Path) -> None:  # noqa: ARG001
+def test_dbt_project_validation(dbt_project: Path) -> None:
     """Test dbt project cache validation.
 
     Note: Requires dbt_project fixture to ensure project is set up,
@@ -37,7 +37,7 @@ def test_dbt_project_validation(dbt_project: Path) -> None:  # noqa: ARG001
     assert cache._validate_dbt_project_cache()
 
 
-def test_macro_cache_validation(dbt_project: Path) -> None:  # noqa: ARG001
+def test_macro_cache_validation(dbt_project: Path) -> None:
     """Test validation of macro cache.
 
     Note: Requires dbt_project fixture to ensure project is set up,

@@ -25,6 +25,7 @@ def dbt_project() -> Generator[Path, None, None]:
         Path to the temporary project directory
 
     Use this when you need the project path but not a parser instance.
+
     """
     # Copy over the sample project
     if PROJECT_COPY_PATH.exists():
@@ -70,6 +71,7 @@ def parser(dbt_project: Path) -> dbtParser:
 
     Returns:
         Shared dbtParser instance
+
     """
     return dbtParser()
 
@@ -88,6 +90,7 @@ def fresh_parser(dbt_project: Path) -> dbtParser:
 
     Returns:
         New dbtParser instance
+
     """
     return dbtParser()
 
@@ -111,6 +114,7 @@ def temp_model_path(dbt_project: Path) -> Generator[tuple[str, Path], None, None
 
     Yields:
         Tuple of (model_name, model_path)
+
     """
     name = "pytest__temp_model"
     p = PROJECT_COPY_PATH / f"models/{name}.sql"
