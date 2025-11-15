@@ -131,8 +131,7 @@ class SelectionParser:
                     # Prompt user for confirmation
                     try:
                         prompt_msg = (
-                            f"Model '{base_selector}' not found. "
-                            f"Did you mean '{fuzzy_match}'?"
+                            f"Model '{base_selector}' not found. Did you mean '{fuzzy_match}'?"
                         )
                         if typer.confirm(prompt_msg, default=False):
                             result.add(fuzzy_match)
@@ -344,10 +343,10 @@ class SelectionParser:
             query: The model name query to match
 
         Returns:
-            Best matching model name if found with score >= 60%, None otherwise
+            Best matching model name if found with score >= 50%, None otherwise
 
         """
-        fuzzy_threshold = 60  # Minimum similarity score for fuzzy matching
+        fuzzy_threshold = 50  # Minimum similarity score for fuzzy matching
 
         if not self._models:
             return None

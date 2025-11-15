@@ -20,24 +20,12 @@ def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
         params: DbtExecutionParams object containing all execution parameters
 
     """
-    # Handle printing based on what happened
-    action = "Building" if params.command_name == "build" else "Running"
-    if params.model_selection:
-        _printers.cprint(
-            f"🔨 {action} models:",
-            params.model_selection,
-            highlight_idx=1,
-            color="cyan",
-        )
-    else:
-        _printers.cprint(f"🔨 {action} all models", color="cyan")
-
     # Create execution plan
     plan = create_execution_plan(params)
 
     # Handle analyze-only mode printing
     if params.analyze_only and plan.analyses:
-        print_execution_analysis(plan.analyses)
+        print_execution_analysis(plan.analyses, analysis_only=True)
         exit_run(0, "Analysis completed")
 
     if params.disable_smart:
@@ -58,9 +46,7 @@ def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
         exit_run(0)
 
     # Print execution status
-    if len(plan.models_to_execute) == len(plan.analyses):
-        _printers.cprint("🔥 All selected models need execution", color="yellow")
-    else:
+    if len(plan.models_to_execute) != len(plan.analyses):
         new_selection = " ".join(plan.models_to_execute)
         _printers.cprint(f"🎯 Optimized selection: {new_selection}", color="cyan")
 

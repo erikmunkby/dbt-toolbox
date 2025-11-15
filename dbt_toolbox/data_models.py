@@ -60,13 +60,6 @@ class DbtProfile:
         self.target = target  # Also set the target as target
 
 
-@dataclass
-class CLIOptions:
-    """Common options for all commands."""
-
-    target: str | None = None
-
-
 class TableType(Enum):
     """Different types of tables."""
 

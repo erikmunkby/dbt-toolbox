@@ -60,7 +60,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Analysis System (`dbt_toolbox/analysees/`)**
 - `analyze_models.py` - Model execution analysis logic with ExecutionReason and AnalysisResult classes
 - `analyze_columns_references.py` - Column lineage analysis and validation logic with ColumnIssue, CTEIssue, ModelAnalysisResult
-- `dbt_executor.py` - Core dbt execution engine with ExecutionPlan, DbtCommandResult, and DbtExecutionResults
+- `dbt_executor.py` - Core dbt execution engine with ExecutionPlan and DbtExecutionResults
 
 **MCP Server (`dbt_toolbox/mcp/`)**
 - `mcp.py` - FastMCP server implementation with analyze_models and build_models tools for external integration
@@ -186,11 +186,11 @@ This module is NOT tests for the project itself, but helper functions for users 
 - All CLI commands accept `target: str | None = Target` parameter
 
 **Key Classes and Enums:**
-- `ExecutionReason` enum: `UPSTREAM_MODEL_CHANGED`, `UPSTREAM_MACRO_CHANGED`, `OUTDATED_MODEL`, `LAST_EXECUTION_FAILED`, `CODE_CHANGED`
+- `ExecutionReason` enum: `NEVER_BUILT`, `UPSTREAM_MODEL_CHANGED`, `UPSTREAM_MACRO_CHANGED`, `OUTDATED_MODEL`, `LAST_EXECUTION_FAILED`, `CODE_CHANGED`
 - `AnalysisResult` dataclass: Contains model analysis results with `needs_execution` property
 - `DbtExecutionParams` dataclass: Parameters for dbt execution commands with `to_execute_kwargs()` method
 - `ExecutionPlan` class: Manages dbt execution with smart selection and execution tracking
-- `DbtCommandResult` and `DbtExecutionResults` classes: Handle execution results and logging
+- `DbtExecutionResults` class: Handles execution results and logging
 - `ColumnAnalysis`, `ModelAnalysisResult`, `ColumnIssue`, `CTEIssue`: Column validation data structures
 - `RunConfig` class: Manages runtime configuration and dbt profile handling
 - `Target` type: Common CLI option type for dbt target specification

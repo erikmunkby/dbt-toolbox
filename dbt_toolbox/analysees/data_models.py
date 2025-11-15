@@ -13,6 +13,7 @@ from dbt_toolbox.data_models import Model
 class ExecutionReason(Enum):
     """Enum defining reasons why a model needs execution."""
 
+    NEVER_BUILT = "never_built"
     UPSTREAM_MODEL_CHANGED = "upstream_model_changed"
     UPSTREAM_MACRO_CHANGED = "upstream_macro_changed"
     OUTDATED_MODEL = "outdated_model"
@@ -32,6 +33,7 @@ class AnalysisResult:
     def reason_description(self) -> str:
         """Return a human-readable description of the execution reason."""
         return {
+            ExecutionReason.NEVER_BUILT: "Model has never been built.",
             ExecutionReason.CODE_CHANGED: "Model code changed.",
             ExecutionReason.UPSTREAM_MACRO_CHANGED: "Upstream macro changed.",
             ExecutionReason.UPSTREAM_MODEL_CHANGED: "Upstream model changed.",

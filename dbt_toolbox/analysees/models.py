@@ -13,13 +13,16 @@ def _analyze_model(model: Model) -> AnalysisResult:
 
     Prio order:
     1. Last build failed
-    2. Code changed
-    3. Upstream macros changed
-    4. Cache outdated
+    2. Never built
+    3. Code changed
+    4. Upstream macros changed
+    5. Cache outdated
     """
     # Check if the model needs execution
     if model.last_build_failed:
         return AnalysisResult(model=model, reason=ExecutionReason.LAST_EXECUTION_FAILED)
+    if model.last_built is None:
+        return AnalysisResult(model=model, reason=ExecutionReason.NEVER_BUILT)
     if model.code_changed:
         return AnalysisResult(model=model, reason=ExecutionReason.CODE_CHANGED)
     if model.upstream_macros_changed:
