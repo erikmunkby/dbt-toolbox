@@ -26,18 +26,23 @@ from .models import analyze_model_statuses
 from .print_analysis import print_analysis_results
 
 
-def analyze(target: str | None = None, model: str | None = None) -> AnalysisResults:
+def analyze(
+    target: str | None = None, model: str | None = None, dbt_parser: dbtParser | None = None
+) -> AnalysisResults:
     """Unified analysis function that performs all analysis types.
 
     Args:
         target: dbt target environment (e.g., 'dev', 'prod')
         model: dbt model selection (--select/--model syntax)
+        dbt_parser: Optional dbtParser instance to reuse (avoids re-parsing)
 
     Returns:
         AnalysisResults containing all analysis results
 
     """
-    dbt_parser = dbtParser(target=target)
+    # Reuse dbt_parser if provided, otherwise create new one
+    if dbt_parser is None:
+        dbt_parser = dbtParser(target=target)
 
     # Parse model selection once at the top level
     if model:

@@ -40,7 +40,9 @@ def analyze_models(target: str | None = None, model: str | None = None) -> str:
     if model:
         # For targeted analysis, get the specific models
         selection_result = dbt_parser.parse_selection_query(model)
-        analyzed_models = [m for m in dbt_parser.models.values() if m.name in selection_result.model_names]
+        analyzed_models = [
+            m for m in dbt_parser.models.values() if m.name in selection_result.model_names
+        ]
     else:
         # For full analysis, get all models
         analyzed_models = list(dbt_parser.models.values())

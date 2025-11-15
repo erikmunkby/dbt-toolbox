@@ -178,9 +178,3 @@ class TestCacheAnalyzer:
         assert result.exit_code == 0
         # Verify print_analysis_results was called with the mocked results
         mock_print_analysis.assert_called_once()
-
-    def test_format_time_delta(self) -> None:
-        """Test time delta formatting - function removed, test disabled."""
-        # This function was removed during refactoring
-        # TODO: Re-implement if time formatting is needed
-        pass

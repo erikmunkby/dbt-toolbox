@@ -23,14 +23,6 @@ class DbtExecutionResults:
 
 
 @dataclass
-class DbtCommandResult:
-    """Combined result of dbt command execution with analysis."""
-
-    analyses: list[AnalysisResult] | None
-    execution: DbtExecutionResults
-
-
-@dataclass
 class ExecutionPlan:
     """Execution plan containing analysis and execution strategy."""
 
@@ -69,12 +61,15 @@ class ExecutionPlan:
         return _execute_dbt_raw(dbt_parser=self._dbt_parser, dbt_command=self.dbt_command)
 
 
-def _validate_lineage_references(target: str | None, selection_query: str | None) -> bool:
+def _validate_lineage_references(
+    target: str | None, selection_query: str | None, dbt_parser: dbtParser
+) -> bool:
     """Validate lineage references for models before execution.
 
     Args:
         target: dbt target environment
         selection_query: A dbt selection query e.g. customers+
+        dbt_parser: dbtParser instance to reuse
 
     Returns:
         True if all lineage references are valid, False otherwise.
@@ -84,7 +79,8 @@ def _validate_lineage_references(target: str | None, selection_query: str | None
         return True
 
     # Perform analysis using the unified analyze function
-    results = analyze(target=target, model=selection_query)
+    # Pass dbt_parser to avoid creating a new instance and re-parsing selection
+    results = analyze(target=target, model=selection_query, dbt_parser=dbt_parser)
     analysis = results.column_analysis
 
     # Check if there are any issues
@@ -235,7 +231,7 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
     lineage_valid = True
     if not params.disable_smart:
         lineage_valid = _validate_lineage_references(
-            target=params.target, selection_query=params.model_selection
+            target=params.target, selection_query=params.model_selection, dbt_parser=dbt_parser
         )
 
     # Start building the dbt command
@@ -272,7 +268,8 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
         )
 
     # Perform intelligent execution analysis (enabled by default)
-    results = analyze(target=params.target, model=params.model_selection)
+    # Pass dbt_parser to avoid creating a new instance and re-parsing selection
+    results = analyze(target=params.target, model=params.model_selection, dbt_parser=dbt_parser)
     analyses = results.model_analysis
 
     # Filter models to only those that need execution (smart execution)
