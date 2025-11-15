@@ -95,8 +95,10 @@ def analyze_models(target: str | None = None, model: str | None = None) -> str:
 
     # Filter models if selection is provided
     if model:
-        target_model_names = dbt_parser.parse_selection_query(model)
-        target_models = [m for m in dbt_parser.models.values() if m.name in target_model_names]
+        selection_result = dbt_parser.parse_selection_query(model)
+        target_models = [
+            m for m in dbt_parser.models.values() if m.name in selection_result.model_names
+        ]
     else:
         target_models = None
 

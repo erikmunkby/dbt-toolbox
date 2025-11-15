@@ -29,6 +29,51 @@ dt build --target prod
 dt docs --model customers --target staging
 ```
 
+## Fuzzy Model Matching
+
+dbt-toolbox includes intelligent fuzzy matching to help catch typos in model names. When you specify a model that doesn't exist, dbt-toolbox can automatically suggest the closest match.
+
+### Modes
+
+- **`prompt`** (default): Asks for confirmation before using the suggested model
+  ```bash
+  $ dt build --model custmers
+  Model 'custmers' not found. Did you mean 'customers'? [y/N]: y
+  🔨 Building models: customers
+  ```
+
+- **`automatic`**: Automatically uses the best match without prompting (useful for scripts/CI)
+  ```bash
+  $ dt build --model custmers
+  🔨 Building models: customers  # Automatically corrected
+  ```
+
+- **`off`**: Disables fuzzy matching completely
+  ```bash
+  $ dt build --model custmers
+  # No models selected (silent failure)
+  ```
+
+### Configuration
+
+Set via environment variable:
+```bash
+export DBT_TOOLBOX_FUZZY_MODEL_MATCHING=automatic
+```
+
+Or in `pyproject.toml`:
+```toml
+[tool.dbt_toolbox]
+fuzzy_model_matching = "prompt"  # Options: "automatic", "prompt", "off"
+```
+
+### Features
+
+- Works with selection operators: `+custmers+` → `+customers+`
+- 60% similarity threshold to avoid false matches
+- Only applies to single model names (not path-based selections)
+- Gracefully handles non-interactive environments (tests, CI/CD)
+
 ## Commands Overview
 
 | Command | Purpose | Key Features |
@@ -277,6 +322,7 @@ cache_path:
 | `DBT_TOOLBOX_CACHE_VALIDITY_MINUTES` | Cache validity in minutes | `720` |
 | `DBT_TOOLBOX_ENFORCE_LINEAGE_VALIDATION` | Enable/disable lineage validation | `true` |
 | `DBT_TOOLBOX_MODELS_IGNORE_VALIDATION` | Models to ignore during validation | `"legacy_model,temp"` |
+| `DBT_TOOLBOX_FUZZY_MODEL_MATCHING` | Fuzzy matching mode | `"prompt"`, `"automatic"`, or `"off"` |
 
 ### TOML Configuration
 
@@ -287,12 +333,13 @@ Add to `pyproject.toml`:
 dbt_project_dir = "path/to/dbt/project"
 dbt_profiles_dir = "path/to/profiles"
 debug = false
-cache_path = ".dbt_toolbox"  
+cache_path = ".dbt_toolbox"
 skip_placeholder = false
 placeholder_description = "TODO: PLACEHOLDER"
 cache_validity_minutes = 1440
 enforce_lineage_validation = true
 models_ignore_validation = ["legacy_model", "staging_temp"]
+fuzzy_model_matching = "prompt"  # Options: "automatic", "prompt", "off"
 ```
 
 ### dbt Profile Integration

@@ -14,6 +14,7 @@ from dbt_toolbox.data_models import (
     Model,
     ModelBase,
     Seed,
+    SelectionResult,
     Source,
     YamlDocs,
 )
@@ -47,6 +48,8 @@ class dbtParser:  # noqa: N801
         self.run_config = RunConfig(target=target)
         self.jinja = Jinja(profile=self.run_config.dbt_profile)
         self.dbt_project_dict: dict = settings.dbt_project.rendered_parse(self.jinja.env).to_dict()  # type: ignore
+        # Cache for selection query results to avoid re-parsing (and re-prompting)
+        self._selection_query_cache: dict[str | None, SelectionResult] = {}
 
     @cached_property
     def docs_macros_paths(self) -> list[Path]:
@@ -328,6 +331,7 @@ class dbtParser:  # noqa: N801
             dependency_graph=self.dependency_graph,
             model_root_paths=self.model_paths,
             source_names=source_names,
+            settings=settings,
         )
 
     def get_downstream_models(self, name: str) -> list[Model]:
@@ -344,28 +348,23 @@ class dbtParser:  # noqa: N801
             if self.dependency_graph.get_node_type(node_name) == "model"
         ]
 
-    def parse_selection_query(self, selection: str | None, /) -> set[str]:
-        """Parse dbt model selection syntax to get target model names.
+    def parse_selection_query(self, selection: str | None, /) -> SelectionResult:
+        """Parse dbt model selection syntax and return SelectionResult.
+
+        Cached to avoid re-parsing (and re-prompting for fuzzy matches) within same session.
 
         Args:
             selection: dbt selection string (e.g., "my_model+", "+my_model", "my_model")
 
         Returns:
-            Set of model names matching the selection
+            SelectionResult with model names, models dict, and path selection flag
 
         """
+        # Check cache first
+        if selection in self._selection_query_cache:
+            return self._selection_query_cache[selection]
+
+        # Parse and cache the result
         result = self.selection_parser.parse(selection)
-        return set(result.model_names)
-
-    def parse_selection_query_return_models(self, selection_query: str | None) -> dict[str, Model]:
-        """Parse the model selection query and return models.
-
-        Args:
-            selection_query: dbt selection string (e.g., "my_model+", "+my_model", "my_model")
-
-        Returns:
-            Dictionary mapping model names to Model objects
-
-        """
-        result = self.selection_parser.parse(selection_query)
-        return result.models_dict
+        self._selection_query_cache[selection] = result
+        return result

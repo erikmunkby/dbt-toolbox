@@ -40,6 +40,7 @@ A powerful CLI toolkit that supercharges your dbt development workflow with inte
 - Lightning-fast model parsing with intelligent cache invalidation
 - Persistent Jinja environment caching for instant macro resolution
 - Dependency graph caching for rapid upstream/downstream analysis
+- Fuzzy model name matching to catch typos automatically
 
 **Enhanced dbt Commands**
 - `dt build` - Drop-in replacement for `dbt build` with enhanced output and performance
