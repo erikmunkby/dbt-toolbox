@@ -3,8 +3,6 @@
 This module contains all functions for displaying analysis results in a formatted way.
 """
 
-from collections import defaultdict
-
 from rich.console import Console
 from rich.table import Table
 
@@ -15,7 +13,6 @@ from .data_models import (
     AnalysisResults,
     ColumnAnalysis,
     DocsAnalysis,
-    ExecutionReason,
 )
 
 
@@ -68,75 +65,11 @@ def _print_table_section(title: str, table: Table, console: Console) -> None:
     console.print(table)
 
 
-def _print_execution_details(analyses: list[AnalysisResult], console: Console) -> None:
-    """Print detailed execution reasons for models that need execution.
-
-    Groups NEVER_BUILT and OUTDATED_MODEL reasons when there are more than 3 models
-    with the same reason.
-
-    Args:
-        analyses: List of model execution analyses
-        console: Rich console instance
-
-    """
-    # Group models with same reason if more than this threshold
-    group_threshold = 3
-
-    # Filter to models that need execution
-    models_to_execute = [a for a in analyses if a.needs_execution]
-
-    if not models_to_execute:
-        return
-
-    # Group models by execution reason (skip models without a reason)
-    grouped_by_reason: dict[ExecutionReason, list[AnalysisResult]] = defaultdict(list)
-    for analysis in models_to_execute:
-        if analysis.reason is None:
-            continue
-        grouped_by_reason[analysis.reason].append(analysis)
-
-    # Determine which reasons to group (more than group_threshold models)
-    reasons_to_group = {ExecutionReason.NEVER_BUILT, ExecutionReason.OUTDATED_MODEL}
-    grouped_reasons = {
-        reason: models
-        for reason, models in grouped_by_reason.items()
-        if reason in reasons_to_group and len(models) > group_threshold
-    }
-
-    # Build table with individual models (not grouped)
-    table = Table(show_header=True, header_style="bold yellow")
-    table.add_column("Model", style="yellow")
-    table.add_column("Execution Reason", style="white")
-
-    # Add individual models (excluding those that will be grouped)
-    for reason, models in grouped_by_reason.items():
-        if reason in grouped_reasons:
-            # Skip - will be shown as grouped summary
-            continue
-        for analysis in models:
-            table.add_row(analysis.model.name, analysis.reason_description)
-
-    # Add grouped summaries at the end
-    for reason in [ExecutionReason.NEVER_BUILT, ExecutionReason.OUTDATED_MODEL]:
-        if reason in grouped_reasons:
-            models = grouped_reasons[reason]
-            # Use the first model's reason_description for consistency
-            reason_desc = models[0].reason_description
-            table.add_row(
-                f"[dim]({len(models)} models)[/dim]",
-                f"[dim]{reason_desc}[/dim]",
-            )
-
-    if table.row_count > 0:
-        _print_table_section("Models Requiring Execution:", table, console)
-
-
-def print_execution_analysis(analyses: list[AnalysisResult], analysis_only: bool = False) -> None:
+def print_execution_analysis(analyses: list[AnalysisResult]) -> None:
     """Print model execution analysis in standardized format.
 
     Args:
         analyses: List of model execution analyses
-        analysis_only: Whether to show detailed execution reasons
 
     """
     console = Console()
@@ -154,10 +87,6 @@ def print_execution_analysis(analyses: list[AnalysisResult], analysis_only: bool
     console.print(f"   ✅ Models to execute: {models_to_execute} (of {total_models} total)")
     if models_to_skip > 0:
         console.print(f"   ⏭️  Models to skip: {models_to_skip}")
-
-    if analysis_only:
-        # Show detailed execution reasons using the new function
-        _print_execution_details(analyses, console)
 
 
 def print_column_analysis_results(
@@ -317,7 +246,7 @@ def print_analysis_results(
 
     """
     # Print each analysis section
-    print_execution_analysis(results.model_analysis, analysis_only=True)
+    print_execution_analysis(results.model_analysis)
     print()  # noqa: T201
     print_column_analysis_results(results.column_analysis, mode=mode)
     print()  # noqa: T201

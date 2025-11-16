@@ -14,29 +14,31 @@ from dbt_toolbox.utils import _printers
 
 
 def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
-    """Execute a dbt command with intelligent model selection using plan->run->status flow.
+    """Execute a dbt command with validation and intelligent model selection.
 
     Args:
         params: DbtExecutionParams object containing all execution parameters
 
     """
-    # Create execution plan
+    # Create execution plan (always validates unless force=True)
     plan = create_execution_plan(params)
 
-    # Handle analyze-only mode printing
-    if params.analyze_only and plan.analyses:
-        print_execution_analysis(plan.analyses, analysis_only=True)
-        exit_run(0, "Analysis completed")
-
-    if params.disable_smart:
+    # If force mode, run all models without analysis
+    if params.force:
         execution_results = plan.run()
         if execution_results.return_code == 0:
             exit_run(0, f"{params.command_name.title()} completed successfully")
         else:
             exit_run(1, f"{params.command_name.title()} failed")
 
-    # Handle regular execution with analysis
+    # Check if validation failed
+    if not plan.lineage_valid:
+        exit_run(1, "Validation failed - use --force to skip validation")
+
+    # Print analysis results
     print_execution_analysis(plan.analyses)
+
+    # Check if all models are cached
     if not plan.models_to_execute:
         _printers.cprint(
             "✅ All models have valid cache - nothing to execute!",
@@ -45,7 +47,7 @@ def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
         _print_compute_time(skipped_models=plan.models_to_skip)
         exit_run(0)
 
-    # Print execution status
+    # Print optimized selection if different from original
     if len(plan.models_to_execute) != len(plan.analyses):
         new_selection = " ".join(plan.models_to_execute)
         _printers.cprint(f"🎯 Optimized selection: {new_selection}", color="cyan")
@@ -54,11 +56,7 @@ def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
     execution_results = plan.run()
 
     # Print compute time saved if execution was successful
-    if (
-        plan.analyses
-        and not params.disable_smart
-        and not execution_results.parsed_logs.failed_models
-    ):
+    if plan.analyses and not execution_results.parsed_logs.failed_models:
         _print_compute_time(skipped_models=plan.models_to_skip)
 
     # Exit with appropriate message based on results
@@ -134,18 +132,11 @@ def create_dbt_command_function(command_name: str, help_text: str) -> Callable:
             str | None,
             typer.Option("--vars", help="Supply variables to the project (YAML string)"),
         ] = None,
-        analyze_only: Annotated[
+        force: Annotated[
             bool,
             typer.Option(
-                "--analyze",
-                help="Only analyze which models need execution, don't run dbt",
-            ),
-        ] = False,
-        disable_smart: Annotated[
-            bool,
-            typer.Option(
-                "--disable-smart",
-                help="Disable intelligent execution and run all selected models",
+                "--force",
+                help="Skip validation and cache analysis, run all selected models",
             ),
         ] = False,
     ) -> None:
@@ -157,8 +148,7 @@ def create_dbt_command_function(command_name: str, help_text: str) -> Callable:
             threads=threads,
             vars=vars,
             target=target,
-            analyze_only=analyze_only,
-            disable_smart=disable_smart,
+            force=force,
         )
         execute_dbt_with_smart_selection(params)
 

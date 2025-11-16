@@ -7,45 +7,39 @@ from dbt_toolbox.data_models import DbtExecutionParams
 from dbt_toolbox.mcp._utils import mcp_json_response
 
 
-def build_models(  # noqa: PLR0913
+def build_models(
     model: str | None = None,
     full_refresh: bool = False,
-    threads: int | None = None,
     vars: str | None = None,  # noqa: A002
     target: str | None = None,
-    analyze_only: bool = False,
-    disable_smart: bool = False,
+    force: bool = False,
 ) -> str:
-    """Build dbt models with intelligent cache-based execution.
+    """Build dbt models with validation and intelligent cache-based execution.
 
-    This command provides the same functionality as 'dbt build' with smart execution
-    by default - it analyzes which models need execution based on cache validity
-    and dependency changes, validates lineage references, and only runs those models
-    that actually need updating.
+    This command provides the same functionality as 'dbt build' - it validates
+    lineage references, analyzes which models need execution based on cache validity
+    and dependency changes, and only runs those models that actually need updating.
 
     Args:
         model: Select models to build (same as dbt --select/--model)
         full_refresh: Incremental models only: Will rebuild an incremental model
-        threads: Number of threads to use
         vars: Supply variables to the project (YAML string)
         target: Specify dbt target environment
-        analyze_only: Only analyze which models need execution, don't run dbt
-        disable_smart: Disable the intelligent caching and force a rebuild
+        force: Skip validation and cache analysis, run all selected models
 
-    Smart Execution Features:
+    Features:
+        • Validation: Validates column and model references before execution
         • Cache Analysis: Only rebuilds models with outdated cache or dependency changes
-        • Lineage Validation: Validates column and model references before execution
         • Optimized Selection: Automatically filters to models that need execution
 
     Returns:
         JSON string with execution results, model status information, and any warnings.
 
     Examples:
-        build_models()                               # Smart execution (default)
+        build_models()                               # Validate and run models that need updating
         build_models(model="customers")              # Only run customers if needed
-        build_models(model="customers+", analyze_only=True)  # Show what would be executed
-        build_models(model="customers", disable_smart=True)  # Force run customers
-        build_models(threads=4, target="prod")       # Smart execution with options
+        build_models(model="customers", force=True)  # Force run (skip validation/cache)
+        build_models(target="prod")                  # Run with target option
 
     Instructions:
         -   When applicable try to run e.g. "+my_model+" in order to apply changes
@@ -58,11 +52,9 @@ def build_models(  # noqa: PLR0913
         command_name="build",
         model_selection=model,
         full_refresh=full_refresh,
-        threads=threads,
         vars=vars,
         target=target,
-        analyze_only=analyze_only,
-        disable_smart=disable_smart,
+        force=force,
     )
 
     try:
@@ -75,9 +67,9 @@ def build_models(  # noqa: PLR0913
                 {
                     "status": "validation_failed",
                     "message": (
-                        "Lineage validation failed. Column or model references are invalid. "
-                        "Run analyze_models() to see detailed validation errors, or disable "
-                        "validation with disable_smart=True."
+                        "Validation failed. Column or model references are invalid. "
+                        "Run analyze_models() to see detailed validation errors, or use "
+                        "force=True to skip validation."
                     ),
                     "models_analyzed": [a.model.name for a in plan.analyses],
                     "validation_passed": False,

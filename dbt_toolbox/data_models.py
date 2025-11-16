@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from functools import cached_property
 from hashlib import md5
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import yamlium
 from typing_extensions import Self
@@ -195,21 +195,7 @@ class DbtExecutionParams:
     threads: int | None = None
     vars: str | None = None
     target: str | None = None
-    analyze_only: bool = False
-    disable_smart: bool = False
-
-    def to_execute_kwargs(self, command_name: str | None = None) -> dict[str, Any]:
-        """Convert to kwargs for execute_dbt_with_smart_selection."""
-        return {
-            "command_name": command_name or self.command_name,
-            "model": self.model_selection,
-            "full_refresh": self.full_refresh,
-            "threads": self.threads,
-            "vars": self.vars,
-            "target": self.target,
-            "analyze_only": self.analyze_only,
-            "disable_smart": self.disable_smart,
-        }
+    force: bool = False
 
 
 @dataclass

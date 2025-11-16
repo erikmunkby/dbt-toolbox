@@ -66,7 +66,7 @@ def list_settings_wrapper(target: str | None = None) -> str:
         ),
         (
             "build_models",
-            lambda: tool_build_model.build_models(analyze_only=True),
+            lambda: tool_build_model.build_models(),
             [],
         ),
         (
@@ -74,10 +74,8 @@ def list_settings_wrapper(target: str | None = None) -> str:
             lambda: tool_build_model.build_models(
                 model="customer_orders",
                 full_refresh=False,
-                threads=2,
                 target="dev",
-                analyze_only=True,
-                disable_smart=False,
+                force=False,
             ),
             [],
         ),
@@ -316,10 +314,8 @@ class TestMcpToolsValidationFeedback:
                 """
             )
 
-            # Try to build with smart mode (validation enabled)
-            result = tool_build_model.build_models(
-                model="test_validation_error", disable_smart=False, analyze_only=True
-            )
+            # Try to build (validation enabled by default)
+            result = tool_build_model.build_models(model="test_validation_error", force=False)
             parsed = json.loads(result)
 
             # Should get validation_failed status with clear message
@@ -327,7 +323,7 @@ class TestMcpToolsValidationFeedback:
                 assert "validation_passed" in parsed
                 assert parsed["validation_passed"] is False
                 assert "message" in parsed
-                # Message should guide user to analyze_models or disable_smart
+                # Message should guide user to analyze_models or force=True
                 assert (
                     "analyze_models" in parsed["message"]
                     or "validation failed" in parsed["message"].lower()
@@ -350,7 +346,7 @@ class TestMcpToolsPerformance:
             ("list_dbt_objects", lambda: tool_list_dbt_objects.list_dbt_objects()),
             ("show_docs", lambda: tool_show_docs.show_docs("customer_orders")),
             ("generate_docs", lambda: tool_generate_docs.generate_docs("customer_orders")),
-            ("build_models", lambda: tool_build_model.build_models(analyze_only=True)),
+            ("build_models", lambda: tool_build_model.build_models()),
             ("list_settings", lambda: list_settings_wrapper()),
         ]
 

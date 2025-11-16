@@ -75,7 +75,7 @@ def _validate_lineage_references(
         True if all lineage references are valid, False otherwise.
 
     """
-    if not settings.enforce_lineage_validation:
+    if not settings.enforce_validation:
         return True
 
     # Perform analysis using the unified analyze function
@@ -216,7 +216,7 @@ def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecut
 
 
 def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
-    """Create an execution plan for a dbt command with intelligent model selection.
+    """Create an execution plan for a dbt command with validation and intelligent model selection.
 
     Args:
         params: DbtExecutionParams object containing all execution parameters
@@ -226,13 +226,6 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
 
     """
     dbt_parser = dbtParser(target=params.target)
-
-    # Validate lineage references if smart execution is enabled
-    lineage_valid = True
-    if not params.disable_smart:
-        lineage_valid = _validate_lineage_references(
-            target=params.target, selection_query=params.model_selection, dbt_parser=dbt_parser
-        )
 
     # Start building the dbt command
     dbt_command = ["dbt", params.command_name]
@@ -255,24 +248,29 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
     if params.vars:
         dbt_command.extend(["--vars", params.vars])
 
-    # Handle disabled smart execution or analyze-only mode
-    if params.disable_smart:
+    # If force mode, skip validation and analysis
+    if params.force:
         return ExecutionPlan(
             analyses=[],
             models_to_execute=["all"],  # Placeholder for full execution
             models_to_skip=[],
             dbt_command=dbt_command,
-            lineage_valid=lineage_valid,
+            lineage_valid=True,  # Skip validation in force mode
             params=params,
             _dbt_parser=dbt_parser,
         )
 
-    # Perform intelligent execution analysis (enabled by default)
+    # Validate lineage references (unless force=True)
+    lineage_valid = _validate_lineage_references(
+        target=params.target, selection_query=params.model_selection, dbt_parser=dbt_parser
+    )
+
+    # Perform intelligent execution analysis
     # Pass dbt_parser to avoid creating a new instance and re-parsing selection
     results = analyze(target=params.target, model=params.model_selection, dbt_parser=dbt_parser)
     analyses = results.model_analysis
 
-    # Filter models to only those that need execution (smart execution)
+    # Filter models to only those that need execution
     models_to_execute: list[str] = []
     models_to_skip: list[Model] = []
     for analysis in analyses:
@@ -281,7 +279,7 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
         else:
             models_to_skip.append(analysis.model)
 
-    # Always replace selection with explicit model names in smart mode
+    # Replace selection with explicit model names
     # This ensures we use the resolved model names (e.g., fuzzy-matched or path-resolved)
     # instead of the original query string that may not be valid dbt syntax
     if models_to_execute:

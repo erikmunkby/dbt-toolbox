@@ -148,7 +148,7 @@ class TestBuildRunCommands:
 
         cli_runner = CliRunner()
 
-        result = cli_runner.invoke(app, [command, "--model", "nonexistent", "--disable-smart"])
+        result = cli_runner.invoke(app, [command, "--model", "nonexistent", "--force"])
 
         # Should exit with the same code as dbt
         assert result.exit_code == 2

@@ -5,27 +5,24 @@ from dbt_toolbox.cli._build_run_command_factory import create_dbt_command_functi
 # Create the run command using the shared function factory
 run = create_dbt_command_function(
     command_name="run",
-    help_text="""Run dbt models with intelligent cache-based execution.
+    help_text="""Run dbt models with validation and intelligent cache-based execution.
 
-This command shadows 'dbt run' with smart execution by default - it analyzes
+This command shadows 'dbt run' - it validates lineage references, analyzes
 which models need execution based on cache validity and dependency changes,
-validates lineage references, and only runs those models that actually need updating.
+and only runs those models that actually need updating.
 
-Smart Execution Features:
+Features:
+    • Validation:          Validates column and model references before execution
     • Cache Analysis:      Only rebuilds models with outdated cache or dependency changes
-    • Lineage Validation:  Validates column and model references before execution
     • Optimized Selection: Automatically filters to models that need execution
 
 Options:
-    --analyze:          Show which models need execution without running dbt
-    --disable-smart:    Disable smart execution, lineage validation, and run
-                        all selected models (original dbt behavior)
+    --force:    Skip validation and cache analysis, run all selected models
 
 Usage:
-    dt run [OPTIONS]                     # Smart execution (default)
-    dt run --model customers            # Only run customers if needed
-    dt run --select customers+ --analyze  # Show what would be executed
-    dt run --disable-smart --model customers  # Force run customers (bypass all smart features)
-    dt run --threads 4 --target prod    # Smart execution with target option
+    dt run [OPTIONS]                     # Validate and run only models that need updating
+    dt run --model customers             # Only run customers if needed
+    dt run --force --model customers     # Force run customers (skip validation/cache)
+    dt run --threads 4 --target prod     # Run with target option
 """,
 )

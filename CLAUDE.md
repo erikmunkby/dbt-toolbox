@@ -35,9 +35,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **CLI System (`dbt_toolbox/cli/`)**
 - `main.py` - Main CLI application with Typer, global options, and settings command
-- `_build_run_command_factory.py` - Shared command factory for build and run commands with smart execution
-- `build.py` - Shadows `dbt build` with intelligent execution and enhanced output
-- `run.py` - Shadows `dbt run` with smart cache-based execution
+- `_build_run_command_factory.py` - Shared command factory for build and run commands with validation and intelligent execution
+- `build.py` - Shadows `dbt build` with validation, intelligent execution, and enhanced output
+- `run.py` - Shadows `dbt run` with validation and cache-based execution
 - `_common_options.py` - Shared CLI options and types (Target, etc.)
 - `_dbt_output_parser.py` - Parses dbt command output for execution results
 - `analyze.py` - Cache state analysis command implementation
@@ -92,7 +92,7 @@ This module is NOT tests for the project itself, but helper functions for users 
 
 ### Key Design Patterns
 
-1. **Intelligent Execution**: Smart cache-based execution that analyzes which models need rebuilding
+1. **Intelligent Execution**: Validation and cache-based execution that analyzes which models need rebuilding
 2. **Shared Command Infrastructure**: Common dbt execution logic via `_build_run_command_factory.py` and `dbt_executor.py`
 3. **Instance-based Parser**: dbtParser is instantiated with target parameter for better isolation
 4. **Caching Strategy**: Uses pickle serialization for caching parsed models, macros, and Jinja environments
@@ -108,26 +108,26 @@ This module is NOT tests for the project itself, but helper functions for users 
 
 ### CLI Commands
 
-**`dt build`** - Enhanced dbt build wrapper with intelligent execution
-- Shadows `dbt build` with smart cache-based execution by default
-- **Smart mode features**:
+**`dt build`** - Enhanced dbt build wrapper with validation and intelligent execution
+- Shadows `dbt build` with validation and cache-based execution by default
+- **Features**:
+  - Validates column and model references before execution (configurable)
   - Analyzes which models need execution based on cache validity and dependency changes
-  - **Lineage validation**: Validates column and model references before execution (configurable)
   - Only executes models that actually need to be rebuilt
   - Tracks execution times and models skipped for performance insights
 - Supports common dbt options: `--model`, `--select`, `--full-refresh`, `--threads`, `--target`, `--vars`
-- Special options: `--analyze` (show analysis only), `--disable-smart` (force all models, skip lineage validation)
+- Special option: `--force` (skip validation and cache analysis, run all selected models)
 - Enhanced output with colored progress indicators and execution analysis
 
-**`dt run`** - Enhanced dbt run wrapper with intelligent execution
-- Shadows `dbt run` with smart cache-based execution by default
-- **Smart mode features**:
+**`dt run`** - Enhanced dbt run wrapper with validation and intelligent execution
+- Shadows `dbt run` with validation and cache-based execution by default
+- **Features**:
+  - Validates column and model references before execution (configurable)
   - Analyzes which models need execution based on cache validity and dependency changes
-  - **Lineage validation**: Validates column and model references before execution (configurable)
   - Only executes models that actually need to be rebuilt
   - Tracks execution times and models skipped for performance insights
 - Supports common dbt options: `--model`, `--select`, `--full-refresh`, `--threads`, `--target`, `--vars`
-- Special options: `--analyze` (show analysis only), `--disable-smart` (force all models, skip lineage validation)
+- Special option: `--force` (skip validation and cache analysis, run all selected models)
 - Enhanced output with colored progress indicators and execution analysis
 
 **`dt docs`** - YAML documentation generator
@@ -189,7 +189,7 @@ This module is NOT tests for the project itself, but helper functions for users 
 - `ExecutionReason` enum: `NEVER_BUILT`, `UPSTREAM_MODEL_CHANGED`, `UPSTREAM_MACRO_CHANGED`, `OUTDATED_MODEL`, `LAST_EXECUTION_FAILED`, `CODE_CHANGED`
 - `AnalysisResult` dataclass: Contains model analysis results with `needs_execution` property
 - `DbtExecutionParams` dataclass: Parameters for dbt execution commands with `to_execute_kwargs()` method
-- `ExecutionPlan` class: Manages dbt execution with smart selection and execution tracking
+- `ExecutionPlan` class: Manages dbt execution with intelligent model selection and execution tracking
 - `DbtExecutionResults` class: Handles execution results and logging
 - `ColumnAnalysis`, `ModelAnalysisResult`, `ColumnIssue`, `CTEIssue`: Column validation data structures
 - `RunConfig` class: Manages runtime configuration and dbt profile handling
@@ -217,7 +217,7 @@ This fixture is automatically applied to all tests and do not need to be include
 
 **Available MCP Tools:**
 - `analyze_models()` - Validates all model references, column references, and CTE references
-- `build_models(model, full_refresh, threads, vars, target, analyze_only, disable_smart)` - Builds models with intelligent execution
+- `build_models(model, full_refresh, threads, vars, target, force)` - Builds models with validation and intelligent execution
 
 **Integration Benefits:**
 - Enables dbt-toolbox features in external tools and workflows
@@ -237,7 +237,7 @@ This fixture is automatically applied to all tests and do not need to be include
 - `DBT_TOOLBOX_SKIP_PLACEHOLDER` - Skip placeholder descriptions
 - `DBT_TOOLBOX_PLACEHOLDER_DESCRIPTION` - Custom placeholder text
 - `DBT_TOOLBOX_CACHE_VALIDITY_MINUTES` - Cache validity in minutes (default: 1440)
-- `DBT_TOOLBOX_ENFORCE_LINEAGE_VALIDATION` - Enable/disable lineage validation (default: true)
+- `DBT_TOOLBOX_ENFORCE_VALIDATION` - Enable/disable validation (default: true)
 - `DBT_TOOLBOX_MODELS_IGNORE_VALIDATION` - Comma-separated list of models to ignore during validation
 - `DBT_TOOLBOX_FUZZY_MODEL_MATCHING` - Fuzzy model matching mode: "automatic", "prompt", or "off" (default: "prompt")
 
@@ -251,7 +251,7 @@ dbt_profiles_dir = "path/to/profiles"
 skip_placeholder = false
 placeholder_description = "TODO: PLACEHOLDER"
 cache_validity_minutes = 1440
-enforce_lineage_validation = true
+enforce_validation = true
 models_ignore_validation = ["legacy_model", "staging_temp"]
 fuzzy_model_matching = "prompt"  # Options: "automatic", "prompt", "off"
 ```
