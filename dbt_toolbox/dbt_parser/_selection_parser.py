@@ -351,16 +351,10 @@ class SelectionParser:
         if not self._models:
             return None
 
-        # Normalize query
-        q = query.replace("_", "").lower()
-
-        # Create normalized model mapping
-        normalized_models = {m: m.replace("_", "").lower() for m in self._models}
-
         # Use rapidfuzz to find best match
         results = process.extract(
-            q,
-            normalized_models,
+            query,
+            self._models.keys(),
             scorer=fuzz.WRatio,
             limit=1,
         )
