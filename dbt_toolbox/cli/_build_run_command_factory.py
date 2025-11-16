@@ -7,7 +7,11 @@ import typer
 
 from dbt_toolbox.actions.dbt_executor import create_execution_plan
 from dbt_toolbox.analysees.print_analysis import print_execution_analysis
-from dbt_toolbox.cli._common_options import OptionModelSelection, OptionTarget
+from dbt_toolbox.cli._common_options import (
+    ArgumentModelSelection,
+    OptionModelSelection,
+    OptionTarget,
+)
 from dbt_toolbox.cli._exit_handler import exit_run
 from dbt_toolbox.data_models import DbtExecutionParams, Model
 from dbt_toolbox.utils import _printers
@@ -118,6 +122,7 @@ def create_dbt_command_function(command_name: str, help_text: str) -> Callable:
     """
 
     def dbt_command(  # noqa: PLR0913
+        models: ArgumentModelSelection = None,
         target: OptionTarget = None,
         model: OptionModelSelection = None,
         full_refresh: Annotated[
@@ -141,9 +146,13 @@ def create_dbt_command_function(command_name: str, help_text: str) -> Callable:
         ] = False,
     ) -> None:
         """Dynamically created dbt command with intelligent execution."""
+        # Merge positional models argument with --model option
+        # Positional argument takes precedence if both are provided
+        final_model_selection = models or model
+
         params = DbtExecutionParams(
             command_name=command_name,
-            model_selection=model,
+            model_selection=final_model_selection,
             full_refresh=full_refresh,
             threads=threads,
             vars=vars,

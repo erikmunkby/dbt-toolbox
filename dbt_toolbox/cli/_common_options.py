@@ -22,3 +22,10 @@ OptionModelSelection = Annotated[
         help="Choose specific model (same as dbt --select/--model)",
     ),
 ]
+ArgumentModelSelection = Annotated[
+    str | None,
+    typer.Argument(
+        help="Model selection (same as --select)",
+        show_default=False,
+    ),
+]
