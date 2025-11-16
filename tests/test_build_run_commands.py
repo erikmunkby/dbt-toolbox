@@ -34,7 +34,8 @@ class TestBuildRunCommands:
         # Mock execution plan
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["customers"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -56,7 +57,8 @@ class TestBuildRunCommands:
         # Mock execution plan
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["orders"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -77,7 +79,8 @@ class TestBuildRunCommands:
         # Mock execution plan
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["all"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -98,7 +101,8 @@ class TestBuildRunCommands:
         # Mock execution plan
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["all"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -123,7 +127,8 @@ class TestBuildRunCommands:
         # Mock execution plan that fails
         mock_plan = Mock()
         mock_plan.run.side_effect = SystemExit(1)
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["all"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -141,7 +146,8 @@ class TestBuildRunCommands:
         # Mock execution plan that fails with exit code 2
         mock_plan = Mock()
         mock_plan.run.side_effect = SystemExit(2)
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["nonexistent"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -159,7 +165,8 @@ class TestBuildRunCommands:
         # Mock execution plan that simulates keyboard interrupt
         mock_plan = Mock()
         mock_plan.run.side_effect = SystemExit(130)
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["all"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -177,7 +184,8 @@ class TestBuildRunCommands:
         # Mock execution plan
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["customers"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -202,7 +210,8 @@ class TestBuildRunCommands:
         # Mock execution plan
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["customers"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -233,7 +242,7 @@ class TestBuildSpecificFeatures:
         # Mock execution plan with successful validation
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["customers"]
         mock_plan.models_to_skip = []
         mock_plan.lineage_valid = True  # This indicates validation passed

@@ -132,7 +132,8 @@ class TestDbtExecutor:
         # Mock execution plan with some models needing execution
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["orders"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -160,7 +161,8 @@ class TestDbtExecutor:
         # Mock execution plan with all models needing execution
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["customers", "orders"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -187,8 +189,9 @@ class TestDbtExecutor:
         """Test smart execution when all models are cached."""
         # Mock execution plan with no models needing execution
         mock_plan = Mock()
-        mock_plan.analyses = []
-        mock_plan.models_to_execute = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list (models were analyzed)
+        mock_plan.models_to_execute = []  # But no models need execution (all cached)
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
 
@@ -215,7 +218,8 @@ class TestDbtExecutor:
         # Mock execution plan for force mode
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["all"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
@@ -240,7 +244,8 @@ class TestDbtExecutor:
         # Mock execution plan
         mock_plan = Mock()
         mock_plan.run.return_value.return_code = 0
-        mock_plan.analyses = []
+        mock_plan.lineage_valid = True
+        mock_plan.analyses = [Mock()]  # Non-empty analyses list
         mock_plan.models_to_execute = ["all"]
         mock_plan.models_to_skip = []
         mock_create_plan.return_value = mock_plan
