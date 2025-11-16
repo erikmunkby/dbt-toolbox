@@ -38,6 +38,9 @@ def dbt_project() -> Generator[Path, None, None]:
     )
     os.environ["DBT_PROJECT_DIR"] = str(PROJECT_COPY_PATH)
     os.environ["DBT_TOOLBOX_DEBUG"] = "true"
+    # Disable fuzzy matching by default in tests
+    # Tests that need it can use patch.object on Settings.fuzzy_model_matching
+    os.environ["DBT_TOOLBOX_FUZZY_MODEL_MATCHING"] = "off"
     # Clear the cache
     Cache(dbt_target="dev").clear()
     assert settings.dbt_project_dir == Path().cwd() / PROJECT_COPY_PATH
@@ -48,6 +51,8 @@ def dbt_project() -> Generator[Path, None, None]:
     rmtree(PROJECT_COPY_PATH)
     if "DBT_PROJECT_DIR" in os.environ:
         del os.environ["DBT_PROJECT_DIR"]
+    if "DBT_TOOLBOX_FUZZY_MODEL_MATCHING" in os.environ:
+        del os.environ["DBT_TOOLBOX_FUZZY_MODEL_MATCHING"]
 
 
 @pytest.fixture(scope="session")

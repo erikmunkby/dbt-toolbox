@@ -6,7 +6,11 @@ from typing import Annotated
 import typer
 
 from dbt_toolbox.actions.build_docs import DocsResult, YamlBuilder
-from dbt_toolbox.cli._common_options import OptionModelSelection, OptionTarget
+from dbt_toolbox.cli._common_options import (
+    ArgumentModelSelection,
+    OptionModelSelection,
+    OptionTarget,
+)
 from dbt_toolbox.cli._exit_handler import exit_run
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.utils import _printers
@@ -68,8 +72,9 @@ def _handle_update_mode(result: DocsResult) -> None:
 
 
 def docs(
-    model: OptionModelSelection,
+    models: ArgumentModelSelection = None,
     target: OptionTarget = None,
+    model: OptionModelSelection = None,
     clipboard: Annotated[
         bool,
         typer.Option(
@@ -82,13 +87,23 @@ def docs(
     """Generate documentation for a specific dbt model.
 
     This is a typer command configured in cli/main.py.
+
+    Example: dt docs my_model -t prod
     """
+    # Merge positional models argument with --model option
+    # Positional argument takes precedence if both are provided
+    final_model_selection = models or model
+
+    # Docs command requires a model to be specified
+    if not final_model_selection:
+        exit_run(1, "Model selection is required. Use: dt docs <model> or dt docs --model <model>")
+
     try:
         dbt_parser = dbtParser(target=target)
     except Exception as e:  # noqa: BLE001
         exit_run(1, f"Failed to initialize dbt parser: {e}")
 
-    selection_result = dbt_parser.parse_selection_query(model)
+    selection_result = dbt_parser.parse_selection_query(final_model_selection)
     if len(selection_result.model_names) != 1:
         exit_run(1, "Selection for docs can only be singular models")
     selected_model = selection_result.model_names[0]
@@ -102,7 +117,7 @@ def docs(
             if len(dbt_parser.models) > max_models_to_show:
                 remaining = len(dbt_parser.models) - max_models_to_show
                 _printers.cprint(f"... and {remaining} more", color="bright_black")
-        exit_run(1, f"Model {model} not found")
+        exit_run(1, f"Model {final_model_selection} not found")
 
     try:
         # Use fix_inplace=False when clipboard is True (to get YAML content)

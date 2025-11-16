@@ -60,3 +60,8 @@ models:
       - name: macro_column
         description: "TODO: PLACEHOLDER"
     description: "TODO: PLACEHOLDER"
+  - name: model_with_nonexistant_macro
+    columns:
+      - name: _col_0
+        description: "TODO: PLACEHOLDER"
+    description: "TODO: PLACEHOLDER"
