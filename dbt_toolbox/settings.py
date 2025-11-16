@@ -336,13 +336,13 @@ class Settings:
         return int(self._cache_validity_minutes.value)
 
     @cached_property
-    def _enforce_lineage_validation(self) -> Setting:
-        return _get_bool_setting("enforce_lineage_validation", "true")
+    def _enforce_validation(self) -> Setting:
+        return _get_bool_setting("enforce_validation", "true")
 
     @cached_property
-    def enforce_lineage_validation(self) -> bool:
-        """Whether to enforce lineage validation before running dbt build/run."""
-        return self._enforce_lineage_validation.value
+    def enforce_validation(self) -> bool:
+        """Whether to enforce validation before running dbt build/run."""
+        return self._enforce_validation.value
 
     @cached_property
     def _models_ignore_validation(self) -> Setting:
@@ -391,7 +391,7 @@ class Settings:
                 "skip_placeholders",
                 "placeholder_description",
                 "cache_validity_minutes",
-                "enforce_lineage_validation",
+                "enforce_validation",
                 "models_ignore_validation",
                 "warnings_ignored",
                 "fuzzy_model_matching",
