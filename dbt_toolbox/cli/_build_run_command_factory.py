@@ -39,6 +39,14 @@ def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
     if not plan.lineage_valid:
         exit_run(1, "Validation failed - use --force to skip validation")
 
+    # Check if selection matched no models
+    if not plan.analyses:
+        _printers.cprint(
+            "⚠️  Selection matched no models",
+            color="yellow",
+        )
+        exit_run(0)
+
     # Print analysis results
     print_execution_analysis(plan.analyses)
 
