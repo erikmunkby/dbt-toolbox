@@ -48,17 +48,20 @@ def analyze_models(target: str | None = None, model: str | None = None) -> str:
         analyzed_models = list(dbt_parser.models.values())
 
     # Transform the raw result into a more AI-friendly format
-    transformed_result = _transform_analysis_result_for_ai(result, analyzed_models)
+    transformed_result = _transform_analysis_result_for_ai(result, analyzed_models, dbt_parser)
 
     return mcp_json_response(transformed_result)
 
 
-def _transform_analysis_result_for_ai(result: ColumnAnalysis, analyzed_models: list) -> dict:
+def _transform_analysis_result_for_ai(
+    result: ColumnAnalysis, analyzed_models: list, dbt_parser: dbtParser
+) -> dict:
     """Transform the raw analysis result into a more AI-readable format.
 
     Args:
         result: ColumnAnalysis result from analyze_column_references
         analyzed_models: List of models that were analyzed
+        dbt_parser: dbtParser instance for looking up sources
 
     Returns:
         Transformed result with enhanced structure and metadata
@@ -93,18 +96,33 @@ def _transform_analysis_result_for_ai(result: ColumnAnalysis, analyzed_models: l
 
         # Transform column issues
         for column_issue in model_result.get("column_issues", []):
-            issues.append(  # noqa: PERF401
+            referenced_table = column_issue.get("referenced_table", "unknown")
+
+            # Check if this is a source to provide better guidance
+            is_source = referenced_table in dbt_parser.sources
+
+            if is_source:
+                description = "Referenced columns not found in source YAML definition"
+                recommendation = (
+                    f"Add missing columns to the source YAML definition for "
+                    f"'{referenced_table}' in your schema.yml file"
+                )
+            else:
+                description = "Referenced columns not found in model/seed"
+                recommendation = (
+                    f"Check if columns exist in '{referenced_table}' or update references"
+                )
+
+            issues.append(
                 {
                     "type": "missing_columns",
-                    "description": "Referenced columns not found in source table/model",
+                    "description": description,
                     "details": {
-                        "source_table": column_issue.get("referenced_table", "unknown"),
+                        "source_table": referenced_table,
                         "missing_columns": column_issue.get("missing_columns", []),
+                        "is_source": is_source,
                     },
-                    "recommendation": (
-                        f"Check if columns exist in "
-                        f"'{column_issue.get('referenced_table', 'unknown')}' or update references"
-                    ),
+                    "recommendation": recommendation,
                 }
             )
 

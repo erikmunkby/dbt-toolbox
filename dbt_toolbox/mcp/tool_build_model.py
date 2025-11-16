@@ -68,6 +68,22 @@ def build_models(  # noqa: PLR0913
     try:
         # Execute using the existing CLI infrastructure
         plan = create_execution_plan(params)
+
+        # Check if lineage validation failed
+        if not plan.lineage_valid:
+            return mcp_json_response(
+                {
+                    "status": "validation_failed",
+                    "message": (
+                        "Lineage validation failed. Column or model references are invalid. "
+                        "Run analyze_models() to see detailed validation errors, or disable "
+                        "validation with disable_smart=True."
+                    ),
+                    "models_analyzed": [a.model.name for a in plan.analyses],
+                    "validation_passed": False,
+                }
+            )
+
         result = plan.run()
         output = {
             "status": "success" if result.return_code == 0 else "error",

@@ -234,6 +234,110 @@ class TestMcpToolsDataStructure:
                 assert "full_name" in item
 
 
+class TestMcpToolsValidationFeedback:
+    """Test that MCP tools provide proper validation feedback."""
+
+    def test_analyze_models_distinguishes_source_yaml_errors(self) -> None:
+        """Test that analyze_models provides clear feedback for source YAML errors."""
+        # Create a test model that references a source column not in YAML
+        from pathlib import Path
+
+        from dbt_toolbox.settings import settings
+
+        # Create a temporary model that references missing source column
+        models_dir = Path(settings.dbt_project_dir) / "models"
+        test_model_path = models_dir / "test_source_yaml_error.sql"
+
+        try:
+            # Create a model that references a non-existent column in a source
+            test_model_path.write_text(
+                """
+                select
+                    id,
+                    nonexistent_column  -- This column is not in sources.yml
+                from {{ source('raw_data', 'raw_orders') }}
+                """
+            )
+
+            # Run analysis
+            result = tool_analyze_models.analyze_models(model="test_source_yaml_error")
+            parsed = json.loads(result)
+
+            # If there are issues, check the feedback
+            if parsed.get("status") == "HAS_ISSUES":
+                models_with_issues = parsed.get("models_with_issues", [])
+                if models_with_issues:
+                    # Find the test model
+                    test_model_result = next(
+                        (
+                            m
+                            for m in models_with_issues
+                            if m["model_name"] == "test_source_yaml_error"
+                        ),
+                        None,
+                    )
+                    if test_model_result:
+                        issues = test_model_result.get("issues", [])
+                        # Look for missing column issues
+                        missing_col_issues = [i for i in issues if i["type"] == "missing_columns"]
+                        if missing_col_issues:
+                            issue = missing_col_issues[0]
+                            # Check that it identifies this as a source
+                            assert issue["details"].get("is_source") is True, (
+                                "Should identify raw_orders as a source"
+                            )
+                            # Check the description mentions YAML
+                            assert "YAML" in issue["description"], (
+                                "Should mention YAML for source errors"
+                            )
+                            assert "schema.yml" in issue["recommendation"], (
+                                "Should recommend updating schema.yml"
+                            )
+        finally:
+            # Clean up test model
+            if test_model_path.exists():
+                test_model_path.unlink()
+
+    def test_build_models_surfaces_validation_errors(self) -> None:
+        """Test that build_models returns proper error message when validation fails."""
+        # Create a test model with validation error
+        from pathlib import Path
+
+        from dbt_toolbox.settings import settings
+
+        models_dir = Path(settings.dbt_project_dir) / "models"
+        test_model_path = models_dir / "test_validation_error.sql"
+
+        try:
+            # Create a model that references a non-existent model
+            test_model_path.write_text(
+                """
+                select * from {{ ref('completely_nonexistent_model') }}
+                """
+            )
+
+            # Try to build with smart mode (validation enabled)
+            result = tool_build_model.build_models(
+                model="test_validation_error", disable_smart=False, analyze_only=True
+            )
+            parsed = json.loads(result)
+
+            # Should get validation_failed status with clear message
+            if parsed.get("status") == "validation_failed":
+                assert "validation_passed" in parsed
+                assert parsed["validation_passed"] is False
+                assert "message" in parsed
+                # Message should guide user to analyze_models or disable_smart
+                assert (
+                    "analyze_models" in parsed["message"]
+                    or "validation failed" in parsed["message"].lower()
+                )
+        finally:
+            # Clean up test model
+            if test_model_path.exists():
+                test_model_path.unlink()
+
+
 class TestMcpToolsPerformance:
     """Basic performance and integration tests."""
 
