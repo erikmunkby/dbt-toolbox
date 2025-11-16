@@ -116,6 +116,32 @@ def _find_toml_settings(filename: str = "pyproject.toml") -> tuple[dict, Path | 
 toml, toml_file_path = _find_toml_settings()
 
 
+def _resolve_path_setting(configured_setting: Setting) -> str:
+    """Resolve a path setting with intelligent path resolution.
+
+    Args:
+        configured_setting: The setting to resolve.
+
+    Returns:
+        Resolved absolute path as string.
+
+    """
+    configured_path = Path(configured_setting.value).expanduser()
+
+    # If absolute path (handles /, ~, drive letters, etc.), use as-is
+    if configured_path.is_absolute():
+        return str(configured_path.resolve())
+
+    # If relative path from TOML, resolve from TOML file location
+    if configured_setting.source == "TOML file" and toml_file_path:
+        resolved_path = (toml_file_path.parent / configured_path).resolve()
+    else:
+        # Otherwise, resolve from current working directory
+        resolved_path = (Path.cwd() / configured_path).resolve()
+
+    return str(resolved_path)
+
+
 def _get_env_var(name: str) -> str | None:
     """Get environment variable with dbt_toolbox naming convention.
 
@@ -242,14 +268,8 @@ class Settings:
         configured_setting = _get_setting("dbt_project_dir", None)
 
         if configured_setting.value:
-            # If explicitly configured, resolve the path
-            configured_path = Path(configured_setting.value)
-            if configured_path.is_absolute():
-                return configured_setting
-            # If relative, resolve from current directory
-            resolved_path = Path.cwd() / configured_path
             return Setting(
-                value=str(resolved_path.resolve()),
+                value=_resolve_path_setting(configured_setting),
                 source=configured_setting.source,
                 location=configured_setting.location,
             )
@@ -273,8 +293,22 @@ class Settings:
 
     @cached_property
     def _dbt_profiles_dir(self) -> Setting:
-        """Get dbt profiles directory with default same as dbt_project_dir."""
-        return _get_setting("dbt_profiles_dir", str(self.dbt_project_dir))
+        """Get dbt profiles directory with intelligent path resolution."""
+        configured_setting = _get_setting("dbt_profiles_dir", None)
+
+        if configured_setting.value:
+            return Setting(
+                value=_resolve_path_setting(configured_setting),
+                source=configured_setting.source,
+                location=configured_setting.location,
+            )
+
+        # Default to dbt_project_dir if not configured
+        return Setting(
+            value=str(self.dbt_project_dir),
+            source="default",
+            location=None,
+        )
 
     @cached_property
     def dbt_profiles_dir(self) -> Path:
