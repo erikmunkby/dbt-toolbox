@@ -27,6 +27,9 @@ models:
     description: >
       A model that cleans and standardizes customer data from the raw customers table.
       Transforms basic customer information into a consistent format.
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "1 = 1" # Dummy test for testing
     columns:
       - name: customer_id
         description: Unique identifier for each customer
@@ -43,6 +46,8 @@ models:
     columns:
       - name: customer_id
         description: Unique identifier for each customer
+        data_tests:
+          - not_null
       - name: full_name
         description: Customer's complete name
       - name: order_id

@@ -6,8 +6,13 @@ from dataclasses import dataclass
 
 from dbt_toolbox.analysees import AnalysisResult, analyze
 from dbt_toolbox.analysees.print_analysis import print_column_analysis_results
-from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, _extract_model_info, parse_dbt_output
-from dbt_toolbox.data_models import DbtExecutionParams, Model
+from dbt_toolbox.cli._dbt_output_parser import (
+    DbtParsedLogs,
+    ModelResult,
+    TestResult,
+    parse_dbt_line,
+)
+from dbt_toolbox.data_models import EXECUTION_TIMESTAMP, DbtExecutionParams, Model
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
 from dbt_toolbox.utils import cprint, log
@@ -49,14 +54,10 @@ class ExecutionPlan:
 
         """
         if not self.lineage_valid:
-            return DbtExecutionResults(
-                return_code=1, parsed_logs=DbtParsedLogs(models={}), raw_logs=""
-            )
+            return DbtExecutionResults(return_code=1, parsed_logs=DbtParsedLogs(), raw_logs="")
 
         if not self.models_to_execute:
-            return DbtExecutionResults(
-                return_code=0, parsed_logs=DbtParsedLogs(models={}), raw_logs=""
-            )
+            return DbtExecutionResults(return_code=0, parsed_logs=DbtParsedLogs(), raw_logs="")
 
         return _execute_dbt_raw(dbt_parser=self._dbt_parser, dbt_command=self.dbt_command)
 
@@ -93,20 +94,23 @@ def _validate_lineage_references(
     return False
 
 
-def _stream_process_output(process: subprocess.Popen, dbt_parser: dbtParser) -> list[str]:
-    """Stream process output in real-time and capture for parsing.
-
-    Optionally cache models as they complete if dbt_parser is provided.
+def _stream_process_output(
+    process: subprocess.Popen, dbt_parser: dbtParser
+) -> tuple[str, DbtParsedLogs]:
+    """Stream process output in real-time, cache results, and parse logs.
 
     Args:
         process: The subprocess.Popen object
-        dbt_parser: Optional dbt parser to cache models as they complete
+        dbt_parser: dbt parser to cache models and tests as they complete
 
     Returns:
-        List of captured output lines
+        Tuple of (raw_output, parsed_logs)
 
     """
     captured_output = []
+    model_results: dict[str, ModelResult] = {}
+    test_results: dict[str, TestResult] = {}
+
     if process.stdout:
         while True:
             output = process.stdout.readline()
@@ -116,25 +120,46 @@ def _stream_process_output(process: subprocess.Popen, dbt_parser: dbtParser) -> 
                 # Print to stdout immediately
                 sys.stdout.write(output)
                 sys.stdout.flush()
-                # Capture for later parsing
+                # Capture for later
                 captured_output.append(output)
 
-                # If dbt_parser provided, try to parse and cache completed models
-                model_info = _extract_model_info(output.strip())
-                if model_info and model_info.status in ["OK", "ERROR"]:
-                    # Find the model in dbt_parser and update its status
-                    model = dbt_parser.models.get(model_info.name)
-                    if model:
-                        if model_info.status == "OK":
-                            model.set_build_successful(
-                                compute_time_seconds=model_info.execution_time_seconds or 0
-                            )
-                        elif model_info.status == "ERROR":
-                            model.set_build_failed()
+                # Parse the line
+                result = parse_dbt_line(output)
 
-                        # Cache the model immediately
-                        dbt_parser.cache.cache_model(model=model)
-    return captured_output
+                # Handle model results
+                if isinstance(result, ModelResult):
+                    model_results[result.name] = result
+                    if result.status in ["OK", "ERROR"]:
+                        model = dbt_parser.models.get(result.name)
+                        if model:
+                            if result.status == "OK":
+                                model.set_build_successful(
+                                    compute_time_seconds=result.execution_time_seconds or 0
+                                )
+                            elif result.status == "ERROR":
+                                model.set_build_failed()
+                            # Cache the model immediately
+                            dbt_parser.cache.cache_model(model=model)
+
+                # Handle test results
+                elif isinstance(result, TestResult):
+                    test_results[result.name] = result
+                    if result.status in ["PASS", "FAIL", "WARN"]:
+                        # Find the model by name from TestResult
+                        model = dbt_parser.models.get(result.model_name)
+                        if model:
+                            # Find and update the test status
+                            for test in model.tests:
+                                if test.name == result.name:
+                                    test.status = result.status.lower()  # type: ignore
+                                    test.last_executed = EXECUTION_TIMESTAMP
+                                    # Cache the model with updated test status
+                                    dbt_parser.cache.cache_model(model=model)
+                                    break
+
+    raw_output = "".join(captured_output)
+    parsed_logs = DbtParsedLogs(models=model_results, tests=test_results)
+    return raw_output, parsed_logs
 
 
 def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecutionResults:
@@ -158,7 +183,7 @@ def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecut
 
     # Initialize default values
     dbt_return_code = 1
-    dbt_logs = DbtParsedLogs(models={})
+    dbt_logs = DbtParsedLogs()
     dbt_raw_output = ""
 
     try:
@@ -172,28 +197,18 @@ def _execute_dbt_raw(dbt_parser: dbtParser, dbt_command: list[str]) -> DbtExecut
             universal_newlines=True,
         )
 
-        # Determine if we should enable streaming cache for build/run commands
-        command_name = dbt_command[1] if len(dbt_command) > 1 else ""
-
-        # Stream output in real-time and capture for parsing
-        # Pass dbt_parser only for build/run commands to enable streaming cache
-        captured_output = _stream_process_output(process, dbt_parser)
+        # Stream output in real-time, cache results, and parse logs
+        dbt_raw_output, dbt_logs = _stream_process_output(process, dbt_parser)
 
         # Wait for process to complete and get return code
         dbt_return_code = process.wait()
-        dbt_raw_output = "".join(captured_output)
 
-        # Parse dbt output to identify model results (only for build/run commands)
-        if command_name in ["build", "run"]:
-            # Use captured output for parsing
-            dbt_logs = parse_dbt_output(dbt_raw_output)
-
-            # Handle failed models - mark as failed and clear from cache
-            if dbt_logs.failed_models and dbt_return_code != 0:
-                cprint(
-                    f"🧹 Marking {len(dbt_logs.failed_models)} models as failed...",
-                    color="yellow",
-                )
+        # Handle failed models - mark as failed and clear from cache
+        if dbt_logs.failed_models and dbt_return_code != 0:
+            cprint(
+                f"🧹 Marking {len(dbt_logs.failed_models)} models as failed...",
+                color="yellow",
+            )
 
     except KeyboardInterrupt:
         cprint("❌ Command interrupted by user", color="red")

@@ -19,6 +19,7 @@ class ExecutionReason(Enum):
     OUTDATED_MODEL = "outdated_model"
     LAST_EXECUTION_FAILED = "last_execution_failed"
     CODE_CHANGED = "code_changed"
+    TESTS_NEED_EXECUTION = "tests_need_execution"
 
 
 @dataclass
@@ -39,6 +40,7 @@ class AnalysisResult:
             ExecutionReason.UPSTREAM_MODEL_CHANGED: "Upstream model changed.",
             ExecutionReason.OUTDATED_MODEL: "Model build is outdated.",
             ExecutionReason.LAST_EXECUTION_FAILED: "Last model execution failed.",
+            ExecutionReason.TESTS_NEED_EXECUTION: "Tests need to be executed.",
             None: "",
         }[self.reason]
 

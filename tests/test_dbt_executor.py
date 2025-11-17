@@ -15,12 +15,10 @@ class TestDbtExecutor:
     @patch("dbt_toolbox.actions.dbt_executor._stream_process_output")
     @patch("dbt_toolbox.utils._printers")
     @patch("dbt_toolbox.actions.dbt_executor.settings")
-    @patch("dbt_toolbox.actions.dbt_executor.parse_dbt_output")
     @patch("subprocess.Popen")
     def test_execute_dbt_command_success(
         self,
         mock_popen: Mock,
-        mock_parser: Mock,
         mock_settings: Mock,
         mock_printers: Mock,
         mock_stream: Mock,
@@ -30,8 +28,10 @@ class TestDbtExecutor:
         mock_settings.dbt_project_dir = "/test/project"
         mock_settings.dbt_profiles_dir = "/test/profiles"
 
-        # Mock the streaming function to return some output
-        mock_stream.return_value = ["Success\n"]
+        # Mock the streaming function to return tuple (raw_output, parsed_logs)
+        mock_logs = Mock()
+        mock_logs.failed_models = []
+        mock_stream.return_value = ("Success\n", mock_logs)
 
         mock_process = Mock()
         mock_process.wait.return_value = 0
@@ -41,11 +41,6 @@ class TestDbtExecutor:
         mock_dbt_parser = Mock()
         mock_dbt_parser.models = {}
         mock_dbt_parser.cache = Mock()
-
-        # Mock the parse_dbt_output to return empty logs
-        mock_logs = Mock()
-        mock_logs.failed_models = []
-        mock_parser.return_value = mock_logs
 
         result = _execute_dbt_raw(mock_dbt_parser, ["dbt", "run", "--model", "test"])
 
@@ -60,16 +55,16 @@ class TestDbtExecutor:
         assert "--profiles-dir" in called_args
         assert "/test/profiles" in called_args
 
+    @patch("dbt_toolbox.actions.dbt_executor._stream_process_output")
     @patch("dbt_toolbox.utils._printers")
     @patch("dbt_toolbox.actions.dbt_executor.settings")
-    @patch("dbt_toolbox.actions.dbt_executor.parse_dbt_output")
     @patch("subprocess.Popen")
     def test_execute_dbt_command_failure(
         self,
         mock_popen: Mock,
-        mock_parser: Mock,
         mock_settings: Mock,
         mock_printers: Mock,
+        mock_stream: Mock,
     ) -> None:
         """Test handling of dbt command failure."""
         # Mock settings
@@ -77,15 +72,13 @@ class TestDbtExecutor:
         mock_settings.dbt_profiles_dir = "/test/profiles"
 
         mock_process = Mock()
-        mock_process.stdout.readline.side_effect = ["ERROR\n", ""]
-        mock_process.poll.side_effect = [None, 1]
         mock_process.wait.return_value = 1
         mock_popen.return_value = mock_process
 
-        # Mock the output parser to return failed models
-        mock_execution_result = Mock()
-        mock_execution_result.failed_models = ["test_model"]
-        mock_parser.parse_output.return_value = mock_execution_result
+        # Mock the streaming function to return failed models
+        mock_logs = Mock()
+        mock_logs.failed_models = ["test_model"]
+        mock_stream.return_value = ("ERROR\n", mock_logs)
 
         # Create a mock dbtParser instance
         mock_dbt_parser_instance = Mock()

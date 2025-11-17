@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from functools import cached_property
 from hashlib import md5
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import yamlium
 from typing_extensions import Self
@@ -244,6 +244,15 @@ class YamlDocs:
 
 
 @dataclass
+class DbtTestResult:
+    """Represents a dbt test and its execution status."""
+
+    name: str  # e.g., "unique_orders_order_id"
+    status: Literal["pass", "fail", "never_run"] = "never_run"
+    last_executed: datetime | None = None
+
+
+@dataclass
 class Model(ModelBase):
     """A model object."""
 
@@ -270,6 +279,8 @@ class Model(ModelBase):
     upstream_macros_changed: bool = False
     # Time it took to compute the model. Stored after a build.
     compute_time_seconds: float | None = None
+    # Tests associated with this model
+    tests: list[DbtTestResult] = field(default_factory=list)
 
     def set_build_successful(self, compute_time_seconds: float) -> None:
         """Flag that the model built and everything is fresh."""
@@ -278,6 +289,10 @@ class Model(ModelBase):
         self.code_changed = False
         self.upstream_macros_changed = False
         self.compute_time_seconds = compute_time_seconds
+        # Clear all test results when model is rebuilt
+        for test in self.tests:
+            test.status = "never_run"
+            test.last_executed = None
 
     def set_build_failed(self) -> None:
         """Flag the model as last build failed."""
@@ -324,6 +339,19 @@ class Model(ModelBase):
             or self.cache_outdated
             or self.upstream_macros_changed
         )
+
+    @property
+    def all_tests_pass(self) -> bool:
+        """Check if all tests exist and pass.
+
+        Returns:
+            True if all tests pass or no tests exist.
+            False if any test fails or hasn't been run.
+
+        """
+        if not self.tests:
+            return True
+        return all(test.status == "pass" for test in self.tests)
 
     @cached_property
     def final_columns(self) -> list[str]:

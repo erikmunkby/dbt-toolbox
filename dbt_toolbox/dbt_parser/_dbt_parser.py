@@ -10,6 +10,7 @@ from sqlglot import ParseError
 
 from dbt_toolbox.data_models import (
     ColDocs,
+    DbtTestResult,
     Macro,
     MacroBase,
     Model,
@@ -24,6 +25,7 @@ from dbt_toolbox.dbt_parser._cache import Cache
 from dbt_toolbox.dbt_parser._file_fetcher import read_macros, read_models
 from dbt_toolbox.dbt_parser._jinja_handler import Jinja
 from dbt_toolbox.dbt_parser._selection_parser import SelectionParser
+from dbt_toolbox.dbt_parser._yaml_test_parser import parse_tests_from_yaml
 from dbt_toolbox.graph.dependency_graph import DependencyGraph
 from dbt_toolbox.run_config import RunConfig
 from dbt_toolbox.settings import settings
@@ -141,6 +143,16 @@ class dbtParser:  # noqa: N801
         return result
 
     @cached_property
+    def yaml_tests(self) -> dict[str, list[str]]:
+        """Get all tests defined in schema.yml files.
+
+        Returns:
+            Dictionary mapping model names to lists of test names.
+
+        """
+        return parse_tests_from_yaml(self.model_yaml_paths)
+
+    @cached_property
     def sources(self) -> dict[str, Source]:
         """Get all sources defined in the project."""
         result = {}
@@ -230,6 +242,33 @@ class dbtParser:  # noqa: N801
             built_model.code_changed = True
             return built_model
 
+    def _sync_tests(self, model: Model) -> None:
+        """Sync tests from YAML with model's cached tests.
+
+        Args:
+            model: The model to sync tests for.
+
+        """
+        yaml_test_names = self.yaml_tests.get(model.name, [])
+
+        # Build dict of current tests for easy lookup
+        # Handle old cached models that don't have tests attribute yet
+        current_tests = {test.name: test for test in getattr(model, "tests", [])}
+
+        # New test list
+        synced_tests: list[DbtTestResult] = []
+
+        for test_name in yaml_test_names:
+            if test_name in current_tests:
+                # Keep existing test with its status
+                synced_tests.append(current_tests[test_name])
+            else:
+                # New test - add with never_run status
+                synced_tests.append(DbtTestResult(name=test_name, status="never_run"))
+
+        # Replace model's tests with synced version
+        model.tests = synced_tests
+
     def get_model(self, model_name: str) -> Model | None:
         """Get a model by name."""
         model = self._get_model(model_name=model_name)
@@ -240,6 +279,9 @@ class dbtParser:  # noqa: N801
             if self.macro_changed(macro):
                 model.upstream_macros_changed = True
                 break
+
+        # Sync tests from YAML
+        self._sync_tests(model)
 
         self.cache.cache_model(model=model)
         return model
