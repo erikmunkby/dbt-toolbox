@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.8.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.7.2...v0.8.0) (2025-11-17)
+
+
+### Features
+
+* allow path based selectors ([722713c](https://github.com/erikmunkby/dbt-toolbox/commit/722713cc15da810d640911be2ce29ac145c81f3c))
+* fuzzy model matching ([294c00c](https://github.com/erikmunkby/dbt-toolbox/commit/294c00c2e10f7edf932f17d0e707bc7f69828a8a))
+* improve mcp feedback on analysis failures ([9c8ab3d](https://github.com/erikmunkby/dbt-toolbox/commit/9c8ab3d4c6ddd725348eddb1d1bf0a92b7c5ca2f))
+* model as argument, allowing `dt build +my_model` as well as `--select` ([10c1435](https://github.com/erikmunkby/dbt-toolbox/commit/10c1435bde31f4cb286986d4e2dc84097871b588))
+* simply operations with --force flag ([c80c2b2](https://github.com/erikmunkby/dbt-toolbox/commit/c80c2b2b3d323908929547680f0896673df8edb6))
+
+
+### Bug Fixes
+
+* cache on the go ([5043155](https://github.com/erikmunkby/dbt-toolbox/commit/50431557155431c60e0800bc8d2d6b35abf23416))
+* dbt_profiles_dir in toml now relative to toml ([c3c4014](https://github.com/erikmunkby/dbt-toolbox/commit/c3c4014eb23225d1654e18998defee54edb409d5))
+* function for fetching all docs macros ([1448a63](https://github.com/erikmunkby/dbt-toolbox/commit/1448a63026e73c5bbf77a8236beeaf0a178c3e88))
+* logs and executor msg ([c289a12](https://github.com/erikmunkby/dbt-toolbox/commit/c289a12b176d584680ecda18bed69b94cd92ea3a))
+* missing f-string ([86af0ed](https://github.com/erikmunkby/dbt-toolbox/commit/86af0ed4c6fd9f8d940536d271bafd94c6cc73c7))
+* one cache per dbt target ([d583462](https://github.com/erikmunkby/dbt-toolbox/commit/d58346225b93dde1072e0b6bb1f5c532e9abadbf))
+* selection operators sometimes ignoring models ([35e7799](https://github.com/erikmunkby/dbt-toolbox/commit/35e7799577f0fed65239feab88fb2a88b84f4b26))
+* streamlined analysees module ([cf17b10](https://github.com/erikmunkby/dbt-toolbox/commit/cf17b105834a3acffd6a037c70ac42a3b6476848))
+
 ## [0.7.2](https://github.com/erikmunkby/dbt-toolbox/compare/v0.7.1...v0.7.2) (2025-09-02)
 
 
