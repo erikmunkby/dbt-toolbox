@@ -48,7 +48,7 @@ def execute_dbt_with_smart_selection(params: DbtExecutionParams) -> None:
         exit_run(0)
 
     # Print analysis results
-    print_execution_analysis(plan.analyses)
+    print_execution_analysis(plan.analyses, mode="validation")
 
     # Check if all models are cached
     if not plan.models_to_execute:
