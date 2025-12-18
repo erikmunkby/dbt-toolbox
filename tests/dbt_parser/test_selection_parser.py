@@ -15,7 +15,7 @@ from dbt_toolbox.dbt_parser._selection_parser import SelectionParser
 # All tests in this file are read-only, so they can share the parser instance
 
 # Expected number of models in the sample dbt project
-EXPECTED_MODEL_COUNT = 8
+EXPECTED_MODEL_COUNT = 9
 
 
 @pytest.fixture(scope="session")

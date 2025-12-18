@@ -77,6 +77,7 @@ ignore = [
 [tool.dbt_toolbox]
 debug = false
 fuzzy_model_matching = "automatic"
+dbt_project_dir = "tests/dbt_sample_project"
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore the folllowing rules in test fodler
