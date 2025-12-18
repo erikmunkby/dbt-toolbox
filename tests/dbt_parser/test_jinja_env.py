@@ -89,16 +89,29 @@ def test_python_modules_datetime() -> None:
 def test_python_modules_re() -> None:
     """Test that Python re module is available in Jinja."""
     cache = Cache(dbt_target="dev")
-    result = Jinja(cache=cache).render(
-        '{{ modules.re.sub("[0-9]+", "X", "abc123def456") }}'
-    )
+    result = Jinja(cache=cache).render('{{ modules.re.sub("[0-9]+", "X", "abc123def456") }}')
     assert result == "abcXdefX"
 
 
 def test_python_modules_pytz() -> None:
     """Test that Python pytz module is available in Jinja."""
     cache = Cache(dbt_target="dev")
-    result = Jinja(cache=cache).render(
-        '{{ modules.pytz.timezone("UTC").zone }}'
-    )
+    result = Jinja(cache=cache).render('{{ modules.pytz.timezone("UTC").zone }}')
     assert result == "UTC"
+
+
+def test_this_object() -> None:
+    """Test that {{ this }} object is available in Jinja."""
+    cache = Cache(dbt_target="dev")
+    result = Jinja(cache=cache).render("{{ this.database }}.{{ this.schema }}.{{ this.table }}")
+    assert result == "__database__.__schema__.__table__"
+
+
+def test_this_object_with_adapter() -> None:
+    """Test that {{ this }} works with adapter.get_relation()."""
+    cache = Cache(dbt_target="dev")
+    result = Jinja(cache=cache).render(
+        """{% set relation = adapter.get_relation(this.database, this.schema, this.table) %}
+        {{ relation }}"""
+    )
+    assert "__get_relation__" in result

@@ -33,6 +33,24 @@ class DummyAdapter:
         """Mock implementation of dbt adapter quote method."""
         return "__quote__"
 
+    def get_columns_in_relation(self, *args, **kwargs) -> list:  # noqa: ANN002, ANN003, ARG002
+        """Mock implementation of dbt adapter get_columns_in_relation method."""
+        return []
+
+
+class DummyRelation:
+    """Used in place of the dbt {{ this }} relation object."""
+
+    def __init__(self) -> None:
+        """Initialize the dummy relation with placeholder values."""
+        self.database = "__database__"
+        self.schema = "__schema__"
+        self.table = "__table__"
+
+    def __str__(self) -> str:
+        """Return string representation of the relation."""
+        return f"{self.database}.{self.schema}.{self.table}"
+
 
 class VarsFetcher:
     """Pickleable variable holder for calling objects."""
@@ -185,6 +203,7 @@ def _get_base_env(profile: DbtProfile) -> Environment:
         "is_incremental": _is_incremental,
         "target": profile,
         "adapter": DummyAdapter(),
+        "this": DummyRelation(),
     }
     env.globals.update(_dummy_functions)
     # Python modules as supported in dbt:
