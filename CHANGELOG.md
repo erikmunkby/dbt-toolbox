@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.8.0...v0.8.1) (2025-12-18)
+
+
+### Bug Fixes
+
+* add support for {{ this }} ([4d598ea](https://github.com/erikmunkby/dbt-toolbox/commit/4d598ea069d1a9d795b390fce98bb8a59bb9bd1f))
+* support for jinja python modules ([01d686f](https://github.com/erikmunkby/dbt-toolbox/commit/01d686fde85d3923a487baaaf7d5526bc450aaa7))
+
 ## [0.8.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.7.2...v0.8.0) (2025-11-17)
 
 
