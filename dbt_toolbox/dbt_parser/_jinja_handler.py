@@ -1,8 +1,11 @@
 """Module for the jinja environment builder."""
 
+import datetime
 import pickle
+import re
 from typing import Any, Literal
 
+import pytz
 from jinja2 import Environment, FileSystemBytecodeCache, FileSystemLoader, Undefined
 from jinja2.nodes import Template
 
@@ -184,7 +187,14 @@ def _get_base_env(profile: DbtProfile) -> Environment:
         "adapter": DummyAdapter(),
     }
     env.globals.update(_dummy_functions)
-    dbt_vars = VarsFetcher(settings.dbt_project.rendered_parse(env).get("vars", {}))  # type: ignore
+    # Python modules as supported in dbt:
+    # https://docs.getdbt.com/reference/dbt-jinja-functions/modules
+    env.globals["modules"] = {
+        "datetime": datetime,
+        "pytz": pytz,
+        "re": re,
+    }
+    dbt_vars = VarsFetcher(settings.dbt_project.rendered_parse(env).to_dict().get("vars", {}))  # type: ignore
     env.globals.update(
         {
             "var": dbt_vars,

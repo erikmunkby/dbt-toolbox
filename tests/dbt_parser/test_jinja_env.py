@@ -75,3 +75,30 @@ def test_warnings_ignored_functionality() -> None:
     finally:
         # Restore original warned macros
         warned_cache.write(original_warned)
+
+
+def test_python_modules_datetime() -> None:
+    """Test that Python datetime module is available in Jinja."""
+    cache = Cache(dbt_target="dev")
+    result = Jinja(cache=cache).render(
+        '{{ modules.datetime.datetime.strptime("2025-05-01", "%Y-%m-%d").strftime("%B %d, %Y") }}'
+    )
+    assert result == "May 01, 2025"
+
+
+def test_python_modules_re() -> None:
+    """Test that Python re module is available in Jinja."""
+    cache = Cache(dbt_target="dev")
+    result = Jinja(cache=cache).render(
+        '{{ modules.re.sub("[0-9]+", "X", "abc123def456") }}'
+    )
+    assert result == "abcXdefX"
+
+
+def test_python_modules_pytz() -> None:
+    """Test that Python pytz module is available in Jinja."""
+    cache = Cache(dbt_target="dev")
+    result = Jinja(cache=cache).render(
+        '{{ modules.pytz.timezone("UTC").zone }}'
+    )
+    assert result == "UTC"

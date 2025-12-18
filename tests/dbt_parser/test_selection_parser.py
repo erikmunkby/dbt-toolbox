@@ -14,6 +14,9 @@ from dbt_toolbox.dbt_parser._selection_parser import SelectionParser
 # Note: Using session-scoped 'parser' fixture from conftest.py for performance
 # All tests in this file are read-only, so they can share the parser instance
 
+# Expected number of models in the sample dbt project
+EXPECTED_MODEL_COUNT = 8
+
 
 @pytest.fixture(scope="session")
 def selection_parser(parser: dbtParser) -> SelectionParser:
@@ -39,11 +42,11 @@ def test_direct_selection(selection_parser: SelectionParser) -> None:
 
     # None/empty returns all models
     result = selection_parser.parse(None)
-    assert len(result.model_names) == 7
+    assert len(result.model_names) == EXPECTED_MODEL_COUNT
     assert result.had_path_selection is False
 
     result = selection_parser.parse("")
-    assert len(result.model_names) == 7
+    assert len(result.model_names) == EXPECTED_MODEL_COUNT
     assert result.had_path_selection is False
 
 
@@ -129,9 +132,9 @@ def test_selection_result_properties(selection_parser: SelectionParser) -> None:
 
     # None returns all models
     result = selection_parser.parse(None)
-    assert len(result.models) == 7
+    assert len(result.models) == EXPECTED_MODEL_COUNT
     assert all(hasattr(m, "raw_code") for m in result.models)
-    assert len(result.models_dict) == 7
+    assert len(result.models_dict) == EXPECTED_MODEL_COUNT
 
 
 def test_backward_compatibility(parser: dbtParser) -> None:
