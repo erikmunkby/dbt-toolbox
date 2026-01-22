@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/erikmunkby/dbt-toolbox/compare/v0.8.1...v0.8.2) (2026-01-22)
+
+
+### Bug Fixes
+
+* yaml formatting and cache ([52dd11c](https://github.com/erikmunkby/dbt-toolbox/commit/52dd11cd3c8954e35aa35c7d3fe1210220782a05))
+
 ## [0.8.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.8.0...v0.8.1) (2025-12-18)
 
 
