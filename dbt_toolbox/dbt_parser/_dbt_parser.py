@@ -213,6 +213,8 @@ class dbtParser:  # noqa: N801
                 )
                 return None
         if cached_model.code_hash == raw_model.code_hash:
+            # Refresh yaml_docs from fresh parse (schema.yml may have changed)
+            cached_model.yaml_docs = self.yaml_docs.get(model_name)
             return cached_model
 
         try:
