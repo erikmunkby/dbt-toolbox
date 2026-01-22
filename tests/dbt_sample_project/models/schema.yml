@@ -23,6 +23,7 @@ models:
         description: Tax amount for the order
       - name: order_total
         description: Total order amount including tax
+
   - name: customers
     description: >
       A model that cleans and standardizes customer data from the raw customers table.
@@ -35,10 +36,12 @@ models:
           - not_null
       - name: full_name
         description: Customer's complete name
+
   - name: some_other_model
     description: >
       A simple model that demonstrates the usage of a custom macro.
       This appears to be a test or example model.
+
   - name: customer_orders
     columns:
       - name: customer_id
@@ -60,8 +63,9 @@ models:
       - name: macro_column
         description: "TODO: PLACEHOLDER"
     description: "TODO: PLACEHOLDER"
+
   - name: model_with_nonexistant_macro
+    description: "TODO: PLACEHOLDER"
     columns:
       - name: _col_0
         description: "TODO: PLACEHOLDER"
-    description: "TODO: PLACEHOLDER"

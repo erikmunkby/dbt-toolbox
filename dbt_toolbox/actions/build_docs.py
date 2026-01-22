@@ -8,6 +8,7 @@ import yamlium
 from dbt_toolbox.data_models import ColumnChanges
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
+from dbt_toolbox.utils.yaml_utils import ensure_model_spacing
 
 _DESC = "description"
 _NAME = "name"
@@ -43,17 +44,25 @@ class YamlBuilder:
         self.dbt_parser = dbt_parser
         self.model = dbt_parser.models[model_name]
         self.idx, yml = self.model.load_model_yaml  # type: ignore
-        if yml is None:
-            yml: yamlium.Mapping = yamlium.from_dict(
-                {
-                    _NAME: model_name,
-                    _COLS: [],
-                },
-            )
 
-        # Build the currently existing docs
-        if not settings.skip_placeholders and _DESC not in yml:
-            yml[_DESC] = f'"{settings.placeholder_description}"'
+        if yml is None:
+            # Create new model YAML with proper field order: name, description, columns
+            model_dict = {_NAME: model_name}
+            if not settings.skip_placeholders:
+                model_dict[_DESC] = f'"{settings.placeholder_description}"'
+            model_dict[_COLS] = []
+            yml = yamlium.from_dict(model_dict)
+        elif not settings.skip_placeholders and _DESC not in yml:
+            # Need to add description in the right position (before columns)
+            # Rebuild the YAML mapping with correct field order
+            ordered_dict = {_NAME: yml[_NAME]}
+            ordered_dict[_DESC] = f'"{settings.placeholder_description}"'
+            # Add all other fields except name
+            for key in yml:
+                if key != _NAME:
+                    ordered_dict[key] = yml[key]
+            yml = yamlium.from_dict(ordered_dict)
+
         self.yml = yml
         self.yaml_docs = {c[_NAME]: c for c in self.yml.get("columns", [])}
 
@@ -195,10 +204,11 @@ class YamlBuilder:
                 # Add new model
                 models_list.append(self.yml)
 
+            # Ensure proper spacing between models
+            ensure_model_spacing(models_list)
+
             # Write back to file
-            yml_file.write_text(
-                "\n".join([x for x in existing_yaml.to_yaml().split("\n") if x]) + "\n"
-            )
+            yml_file.write_text(existing_yaml.to_yaml())
         except Exception as e:
             raise ValueError(f"Failed to append to existing YAML file {yml_file}: {e}") from e
         else:
@@ -216,8 +226,9 @@ class YamlBuilder:
         """
         try:
             new_yaml = yamlium.from_dict({"models": [self.yml]})
+            ensure_model_spacing(new_yaml["models"])
 
-            yml_file.write_text("\n".join([x for x in new_yaml.to_yaml().split("\n") if x]) + "\n")
+            yml_file.write_text(new_yaml.to_yaml())
         except Exception as e:
             raise ValueError(f"Failed to create new YAML file {yml_file}: {e}") from e
         else:

@@ -567,7 +567,7 @@ wheels = [
 
 [[package]]
 name = "dbt-toolbox"
-version = "0.7.2"
+version = "0.8.1"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
@@ -604,7 +604,7 @@ requires-dist = [
     { name = "sqlglot", extras = ["rs"], specifier = ">=26.25.3" },
     { name = "tomli", specifier = ">=2.2.1" },
     { name = "typer", specifier = ">=0.16.0" },
-    { name = "yamlium", specifier = ">=0.1.4" },
+    { name = "yamlium", specifier = ">=0.1.7" },
 ]
 provides-extras = ["mcp"]
 
@@ -2542,11 +2542,11 @@ wheels = [
 
 [[package]]
 name = "yamlium"
-version = "0.1.14"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c9/e0/5325e87cf11bc934791631eab761e264a0452da3b78380f57636b1423022/yamlium-0.1.14.tar.gz", hash = "sha256:b3bc99cecc9c2f2f2eb5e03610b1ec7a99c63148dfb1dba61f93763b27dfdcdf", size = 63651 }
+sdist = { url = "https://files.pythonhosted.org/packages/35/b1/a6e1c5c1dc620030d746d3f859450b9e146efd3235ad5e66527e8a6a78e0/yamlium-0.2.0.tar.gz", hash = "sha256:9bc1f852cea0227654f92b3811efb634f6a039151ae1c826cd37dc7fbd4eae0d", size = 94681 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/cd/e6319222062675d542b239d224769e97341943a51d1f3396a5d5a1a50c01/yamlium-0.1.14-py3-none-any.whl", hash = "sha256:3c8189dd9afcf218f3a971b199161642dcbdfcda52bdca7f1ab5dcc7ef68c10b", size = 17878 },
+    { url = "https://files.pythonhosted.org/packages/cc/da/4090f7fba03940d3e9178d10c4f17502a354aa6bfc1efeeabb990c266e43/yamlium-0.2.0-py3-none-any.whl", hash = "sha256:399f226de8d90b3bb83f7ec574bdb6cd18000c29135c10bf35e8ecba3eafb98c", size = 21217 },
 ]
 
 [[package]]

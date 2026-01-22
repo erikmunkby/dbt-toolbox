@@ -47,8 +47,9 @@ def dbt_project() -> Generator[Path, None, None]:
 
     yield PROJECT_COPY_PATH
 
-    # Cleanup
-    rmtree(PROJECT_COPY_PATH)
+    # Cleanup - use ignore_errors to handle race conditions
+    # (e.g., .DS_Store files created by macOS during deletion)
+    rmtree(PROJECT_COPY_PATH, ignore_errors=True)
     if "DBT_PROJECT_DIR" in os.environ:
         del os.environ["DBT_PROJECT_DIR"]
     if "DBT_TOOLBOX_FUZZY_MODEL_MATCHING" in os.environ:

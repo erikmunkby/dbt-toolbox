@@ -14,6 +14,7 @@ from typing_extensions import Self
 
 from dbt_toolbox.constants import EXECUTION_TIMESTAMP
 from dbt_toolbox.settings import settings
+from dbt_toolbox.utils.yaml_utils import ensure_model_spacing
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -411,7 +412,6 @@ class Model(ModelBase):
             *yml_models[self._yaml_docs_index + 1 :],  # type: ignore
         ]
 
+        ensure_model_spacing(yml_models)
         full_yaml["models"] = yml_models
-        self.yaml_docs.path.write_text(
-            "\n".join([x for x in full_yaml.to_yaml().split("\n") if x]) + "\n",
-        )
+        self.yaml_docs.path.write_text(full_yaml.to_yaml())

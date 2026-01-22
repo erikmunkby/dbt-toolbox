@@ -9,7 +9,7 @@ dependencies = [
     "sqlglot[rs]>=26.25.3",
     "tomli>=2.2.1",
     "typer>=0.16.0",
-    "yamlium>=0.1.4",
+    "yamlium>=0.1.7",
 ]
 description = "Productivity, warehous cost and QoL improvements for your dbt development"
 readme = "README.md"
