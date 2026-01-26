@@ -3,6 +3,7 @@
 import datetime
 import pickle
 import re
+from collections.abc import Iterator
 from typing import Any, Literal
 
 import pytz
@@ -78,22 +79,29 @@ class VarsFetcher:
 
 
 class WarnUndefined(Undefined):
-    """Custom Jinja undefined class that warns about unknown macros instead of failing."""
+    """Custom Jinja undefined class that warns about unknown macros instead of failing.
+
+    Warnings are deferred until the undefined is actually used (converted to string,
+    called, or has attributes accessed), not when it's first encountered.
+    """
 
     def __init__(self, hint=None, obj=None, name=None, exc=None) -> None:  # noqa: ANN001
         super().__init__(hint=hint, obj=obj, name=name, exc=exc)
-        # Only warn about the main macro name, not internal Jinja attributes
-        if name and not name.startswith("jinja_"):
-            self._warn_about_unknown_macro(name)
+        self._warned = False
 
-    def _warn_about_unknown_macro(self, macro_name: str) -> None:
+    def _warn_about_unknown_macro(self) -> None:
         """Warn about unknown macro if not already warned and not ignored."""
-        # Check if this warning type is ignored
+        if self._warned:
+            return
+        self._warned = True
+
+        macro_name = self._undefined_name
+        if not macro_name or macro_name.startswith("jinja_"):
+            return
         if "unknown_jinja_macro" in settings.warnings_ignored:
             return
 
         warning_message = f"Unknown macro '{macro_name}' encountered in template. "
-        # Add to warnings collector for MCP/LLM integration
         warnings_collector.add_warning(category="unknown_jinja_macro", message=warning_message)
 
     def _replacement_macro(self, is_called: bool = False) -> str:
@@ -102,20 +110,22 @@ class WarnUndefined(Undefined):
         return super().__str__()
 
     def __str__(self) -> str:
-        # Return the macro as-is when not found
+        self._warn_about_unknown_macro()
         return self._replacement_macro()
 
     def __getattr__(self, name: str) -> "WarnUndefined":
-        # Handle chained attributes like unknown_macro.some_attr
-        # Don't warn about internal jinja attributes
+        # Avoid infinite recursion when accessing _warned
+        if name == "_warned":
+            raise AttributeError(name)
         if name.startswith("jinja_"):
             return WarnUndefined(name=name)
 
+        self._warn_about_unknown_macro()
         full_name = f"{self._undefined_name}.{name}" if self._undefined_name else name
         return WarnUndefined(name=full_name)
 
     def __call__(self, *args, **kwargs) -> str:  # noqa: ANN002, ANN003, ARG002
-        # Handle macro calls with arguments
+        self._warn_about_unknown_macro()
         return self._replacement_macro(is_called=True)
 
 
@@ -139,9 +149,16 @@ def _return(*args) -> Literal[""]:  # noqa: ANN002, ARG001
     return ""
 
 
-def _run_query(*args, **kwargs) -> None:  # noqa: ANN002, ANN003, ARG001
-    """Mock implementation of dbt run_query() function."""
-    return
+class DummyQueryResult:
+    columns = []
+    rows = []
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter([])
+
+
+def _run_query(*args, **kwargs) -> DummyQueryResult:  # noqa: ANN002, ANN003, ARG001
+    return DummyQueryResult()
 
 
 def _is_incremental(*args, **kwargs) -> bool:  # noqa: ANN002, ANN003, ARG001
@@ -204,6 +221,8 @@ def _get_base_env(profile: DbtProfile) -> Environment:
         "target": profile,
         "adapter": DummyAdapter(),
         "this": DummyRelation(),
+        "execute": False,  # Parsing phase flag
+        "flags": type("Flags", (), {"FULL_REFRESH": False})(),
     }
     env.globals.update(_dummy_functions)
     # Python modules as supported in dbt:
