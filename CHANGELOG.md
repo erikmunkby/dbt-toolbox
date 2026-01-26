@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.8.2...v0.9.0) (2026-01-26)
+
+
+### Features
+
+* replace placeholders automatically ([2b228aa](https://github.com/erikmunkby/dbt-toolbox/commit/2b228aad2e45d11a669a53f5de756a7df781c725))
+
 ## [0.8.2](https://github.com/erikmunkby/dbt-toolbox/compare/v0.8.1...v0.8.2) (2026-01-22)
 
 
