@@ -48,11 +48,11 @@ class TestYamlBuilderIntegration:
             # Force some changes by adding a new column to final_columns
             original_load = builder._load_description
 
-            def mock_load_description() -> list[dict[str, str]]:
-                columns = original_load()
+            def mock_load_description() -> tuple[list[dict[str, str]], list[str]]:
+                columns, placeholders_replaced = original_load()
                 # Add a new column to force changes
                 columns.append({"name": "test_new_column", "description": "Test description"})
-                return columns
+                return columns, placeholders_replaced
 
             with patch.object(builder, "_load_description", side_effect=mock_load_description):
                 result = builder.build(fix_inplace=True)
@@ -105,7 +105,7 @@ class TestYamlBuilderIntegration:
             {"name": "col4", "description": "Another real description"},
         ]
 
-        with patch.object(builder, "_load_description", return_value=mock_columns):
+        with patch.object(builder, "_load_description", return_value=(mock_columns, [])):
             result = builder.build(fix_inplace=False)
 
         # Should count 2 placeholders
@@ -192,7 +192,7 @@ class TestYamlBuilderIntegration:
         builder.build(fix_inplace=False)
 
         # Get the original columns first to avoid recursion
-        original_columns = builder._load_description()
+        original_columns, _ = builder._load_description()
 
         # Create modified columns
         modified_columns = original_columns.copy()
@@ -202,7 +202,7 @@ class TestYamlBuilderIntegration:
         if modified_columns:
             modified_columns = modified_columns[1:]
 
-        with patch.object(builder, "_load_description", return_value=modified_columns):
+        with patch.object(builder, "_load_description", return_value=(modified_columns, [])):
             changed_result = builder.build(fix_inplace=False)
 
         # Verify changes were detected
@@ -278,6 +278,31 @@ class TestYamlBuilderIntegration:
         assert update_result.success is True
         assert "workflow_col" in update_result.changes.added
         mock_update.assert_called_once()
+
+    def test_placeholder_replaced_with_upstream_description(
+        self, dbt_project, dbt_parser: dbtParser
+    ) -> None:
+        """Test that placeholder descriptions are replaced with upstream descriptions."""
+        # customer_orders has columns from upstream models (customers, orders)
+        builder = YamlBuilder("customer_orders", dbt_parser)
+
+        # Mock the yaml_docs to have a placeholder for customer_id
+        # which should be replaced with the upstream description from customers
+        placeholder = '"TODO: PLACEHOLDER"'
+        builder.yaml_docs = {
+            "customer_id": {"name": "customer_id", "description": placeholder},
+            "order_id": {"name": "order_id", "description": placeholder},
+            "full_name": {"name": "full_name", "description": "Existing description"},
+        }
+
+        result = builder.build(fix_inplace=False)
+
+        # Verify placeholders were replaced
+        assert result.changes.placeholders_replaced
+        assert "customer_id" in result.changes.placeholders_replaced
+        assert "order_id" in result.changes.placeholders_replaced
+        # full_name already had a real description, shouldn't be in replaced list
+        assert "full_name" not in result.changes.placeholders_replaced
 
     def test_detailed_error_messages_for_different_failure_types(
         self, dbt_project, dbt_parser: dbtParser

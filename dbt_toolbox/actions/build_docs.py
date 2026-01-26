@@ -15,6 +15,13 @@ _NAME = "name"
 _COLS = "columns"
 
 
+def _is_placeholder(description: str | None) -> bool:
+    """Check if a description is the placeholder value."""
+    if description is None:
+        return False
+    return str(description).strip('"') == settings.placeholder_description
+
+
 @dataclass
 class DocsResult:
     """Result of building documentation for a model."""
@@ -66,48 +73,88 @@ class YamlBuilder:
         self.yml = yml
         self.yaml_docs = {c[_NAME]: c for c in self.yml.get("columns", [])}
 
-    def _get_column_description(self, col: str, /) -> dict[str, str] | None:
+    def _get_column_description(self, col: str, /) -> tuple[dict[str, str] | None, bool]:
         """Fetch column description for an individual column.
 
         Using the priority:
-        - existing yaml docs
+        - existing yaml docs (unless it's a placeholder)
         - column macro docs
         - upstream model docs
+        - upstream source docs
+        - placeholder (if not skipped)
+
+        Returns:
+            Tuple of (column dict, was_placeholder_replaced).
+
         """
-        # Existing docs
-        if col in self.yaml_docs:
-            return self.yaml_docs[col]
+        existing_doc = self.yaml_docs.get(col)
+        existing_is_placeholder = existing_doc and _is_placeholder(existing_doc.get(_DESC))
+
+        # Existing docs - return early if not a placeholder
+        if existing_doc and not existing_is_placeholder:
+            return existing_doc, False
+
+        # Search for a better description
+        better_desc = None
 
         # Macro docs
         if col in self.dbt_parser.column_macro_docs:
-            return {_NAME: col, _DESC: f"\"{{{{ doc('{col}') }}}}\""}
+            better_desc = {_NAME: col, _DESC: f"\"{{{{ doc('{col}') }}}}\""}
+
         # Upstream model docs
-        for upstream_model in self.model.upstream.models:
-            if upstream_model not in self.dbt_parser.models:
-                # This happens when upstream model is a seed.
-                # TODO: Build support for seed docs.
-                continue
-            for upstream_col in self.dbt_parser.models[upstream_model].column_descriptions:
-                if col == upstream_col.name:
-                    return {_NAME: col, _DESC: upstream_col.description}  # type: ignore
+        if better_desc is None:
+            for upstream_model in self.model.upstream.models:
+                if upstream_model not in self.dbt_parser.models:
+                    # This happens when upstream model is a seed.
+                    # TODO: Build support for seed docs.
+                    continue
+                for upstream_col in self.dbt_parser.models[upstream_model].column_descriptions:
+                    if col == upstream_col.name:
+                        better_desc = {_NAME: col, _DESC: upstream_col.description}
+                        break
+                if better_desc:
+                    break
 
         # Upstream source docs
-        for upstream_source in self.model.upstream.sources:
-            if upstream_source not in self.dbt_parser.sources:
-                continue
-            for upstream_col in self.dbt_parser.sources[upstream_source].columns:
-                if col == upstream_col.name and upstream_col.description:
-                    return {_NAME: col, _DESC: upstream_col.description}
+        if better_desc is None:
+            for upstream_source in self.model.upstream.sources:
+                if upstream_source not in self.dbt_parser.sources:
+                    continue
+                for upstream_col in self.dbt_parser.sources[upstream_source].columns:
+                    if col == upstream_col.name and upstream_col.description:
+                        better_desc = {_NAME: col, _DESC: upstream_col.description}
+                        break
+                if better_desc:
+                    break
+
+        # If we found a better description and the existing was a placeholder
+        if better_desc and existing_is_placeholder:
+            return better_desc, True
+
+        # If we found a better description (column didn't exist before)
+        if better_desc:
+            return better_desc, False
+
+        # No better description found - return existing placeholder or create new one
+        if existing_doc:
+            return existing_doc, False
+
         if settings.skip_placeholders:
-            return None
+            return None, False
 
-        return {_NAME: col, _DESC: f'"{settings.placeholder_description}"'}
+        return {_NAME: col, _DESC: f'"{settings.placeholder_description}"'}, False
 
-    def _detect_column_changes(self, new_columns: list[dict[str, str]]) -> ColumnChanges:
+    def _detect_column_changes(
+        self, new_columns: list[dict[str, str]], placeholders_replaced: list[str]
+    ) -> ColumnChanges:
         """Detect changes between existing and new columns.
 
+        Args:
+            new_columns: The new column definitions.
+            placeholders_replaced: List of column names where placeholders were replaced.
+
         Returns:
-            ColumnChanges dataclass with added, removed, and reordered information.
+            ColumnChanges dataclass with added, removed, reordered, and placeholders_replaced.
 
         """
         existing_columns = [str(c[_NAME]) for c in self.yml.get("columns", [])]
@@ -125,25 +172,27 @@ class YamlBuilder:
             added=added,
             removed=removed,
             reordered=reordered,
+            placeholders_replaced=placeholders_replaced,
         )
 
-    def _load_description(self) -> list[dict[str, str]]:
+    def _load_description(self) -> tuple[list[dict[str, str]], list[str]]:
         """Load and build the complete model description with columns.
 
         Returns:
-            List of column dictionaries with name and description.
+            Tuple of (column dicts, placeholders_replaced column names).
 
         """
         final_columns = []
-        missing_column_docs = []
+        placeholders_replaced = []
         for c in self.model.final_columns:
-            desc = self._get_column_description(c)
+            desc, was_replaced = self._get_column_description(c)
             if desc is None:
-                missing_column_docs.append(c)
-            else:
-                final_columns.append(desc)
+                continue
+            final_columns.append(desc)
+            if was_replaced:
+                placeholders_replaced.append(c)
 
-        return final_columns
+        return final_columns, placeholders_replaced
 
     def _find_existing_yml_file(self) -> Path | None:
         """Find an existing .yml or .yaml file in the same directory as the model.
@@ -246,7 +295,7 @@ class YamlBuilder:
 
         """
         try:
-            final_columns = self._load_description()
+            final_columns, placeholders_replaced = self._load_description()
         except Exception as e:  # noqa: BLE001
             return DocsResult(
                 model_name=self.model.name,
@@ -261,7 +310,7 @@ class YamlBuilder:
             )
 
         try:
-            changes = self._detect_column_changes(final_columns)
+            changes = self._detect_column_changes(final_columns, placeholders_replaced)
         except Exception as e:  # noqa: BLE001
             return DocsResult(
                 model_name=self.model.name,
@@ -291,10 +340,7 @@ class YamlBuilder:
         mode = None
 
         if fix_inplace:
-            # Check if any changes were made
-            has_changes = changes.added or changes.removed or changes.reordered
-
-            if has_changes:
+            if changes.has_changes:
                 try:
                     # Try to update existing YAML docs first
                     if self.model.yaml_docs is not None:

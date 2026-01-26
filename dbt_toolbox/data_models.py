@@ -184,6 +184,12 @@ class ColumnChanges:
     added: list[str]
     removed: list[str]
     reordered: bool
+    placeholders_replaced: list[str] = field(default_factory=list)
+
+    @property
+    def has_changes(self) -> bool:
+        """Check if any changes were detected."""
+        return bool(self.added or self.removed or self.reordered or self.placeholders_replaced)
 
 
 @dataclass
