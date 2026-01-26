@@ -39,9 +39,7 @@ def _handle_update_mode(result: DocsResult) -> None:
             error_msg += f": {result.error_message}"
         exit_run(1, error_msg)
 
-    has_changes = result.changes.added or result.changes.removed or result.changes.reordered
-
-    if not has_changes:
+    if not result.changes.has_changes:
         _printers.cprint(
             f"ℹ️  No column changes detected for model {result.model_name}",  # noqa: RUF001
             color="bright_black",
@@ -62,6 +60,11 @@ def _handle_update_mode(result: DocsResult) -> None:
         )
     if result.changes.reordered:
         _printers.cprint("   Column order changed", color="bright_black")
+    if result.changes.placeholders_replaced:
+        _printers.cprint(
+            f"   Replaced placeholders: {', '.join(result.changes.placeholders_replaced)}",
+            color="bright_black",
+        )
 
     # Display YAML file operation information in subdued color
     if result.yaml_path and result.mode:

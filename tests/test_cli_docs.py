@@ -44,22 +44,24 @@ class TestYamlBuilder:
         builder = YamlBuilder("customers", dbt_parser)
 
         # customers model should have existing column docs in schema.yml
-        desc = builder._get_column_description("customer_id")
+        desc, was_replaced = builder._get_column_description("customer_id")
 
         assert desc is not None
         assert desc["name"] == "customer_id"
         assert "description" in desc
+        assert was_replaced is False
 
     def test_get_column_description_placeholder(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test getting placeholder description for undocumented column."""
         builder = YamlBuilder("customers", dbt_parser)
 
         # Test with a column that likely doesn't have docs
-        desc = builder._get_column_description("nonexistent_column")
+        desc, was_replaced = builder._get_column_description("nonexistent_column")
 
         assert desc is not None
         assert desc["name"] == "nonexistent_column"
         assert "description" in desc
+        assert was_replaced is False
 
     def test_detect_column_changes_no_changes(self, dbt_project, dbt_parser: dbtParser) -> None:
         """Test column change detection when no changes exist."""
@@ -68,11 +70,12 @@ class TestYamlBuilder:
         # Get current columns
         existing_columns = [{"name": c["name"]} for c in builder.yml.get("columns", [])]
 
-        changes = builder._detect_column_changes(existing_columns)
+        changes = builder._detect_column_changes(existing_columns, [])
 
         assert changes.added == []
         assert changes.removed == []
         assert changes.reordered is False
+        assert changes.placeholders_replaced == []
 
     def test_detect_column_changes_with_additions(
         self, dbt_project, dbt_parser: dbtParser
@@ -84,7 +87,7 @@ class TestYamlBuilder:
         existing_columns = [{"name": c["name"]} for c in builder.yml.get("columns", [])]
         new_columns = [*existing_columns, {"name": "new_column"}]
 
-        changes = builder._detect_column_changes(new_columns)
+        changes = builder._detect_column_changes(new_columns, [])
 
         assert "new_column" in changes.added
         assert changes.removed == []
@@ -99,7 +102,7 @@ class TestYamlBuilder:
             removed_column = existing_columns[0]["name"]
             new_columns = existing_columns[1:]
 
-            changes = builder._detect_column_changes(new_columns)
+            changes = builder._detect_column_changes(new_columns, [])
 
             assert removed_column in changes.removed
             assert changes.added == []
@@ -113,7 +116,7 @@ class TestYamlBuilder:
         if len(existing_columns) > 1:
             reordered_columns = list(reversed(existing_columns))
 
-            changes = builder._detect_column_changes(reordered_columns)
+            changes = builder._detect_column_changes(reordered_columns, [])
 
             assert changes.reordered is True
             assert changes.added == []
