@@ -21,6 +21,7 @@ app.command()(docs)
 app.command()(build)
 app.command()(run)
 app.command()(clean)
+app.command(name="clear", hidden=True)(clean)  # Alias for clean
 app.command(name="analyze")(analyze_command)
 app.command(name="settings")(settings_cmd)
 
