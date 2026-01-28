@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.9.0...v0.10.0) (2026-01-28)
+
+
+### Features
+
+* include column config ([20fa799](https://github.com/erikmunkby/dbt-toolbox/commit/20fa79923512dff54b8bee086477464e527784b6))
+
 ## [0.9.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.8.2...v0.9.0) (2026-01-26)
 
 
