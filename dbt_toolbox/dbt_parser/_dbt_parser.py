@@ -84,14 +84,20 @@ class dbtParser:  # noqa: N801
         """Create ColDocs with macro references replaced by their text.
 
         Args:
-            col_data: Dictionary potentially containing "name" and "description" keys
+            col_data: Dictionary containing column documentation fields
 
         """
-        name = col_data.get("name", "")
         raw_description: str | None = col_data.get("description")
 
+        col_docs = ColDocs(
+            name=col_data.get("name", ""),
+            description=None,
+            raw_description=raw_description,
+            config=col_data.get("config"),
+        )
+
         if not raw_description:
-            return ColDocs(name=name, description=None, raw_description=raw_description)
+            return col_docs
 
         # Replace doc macro references with their actual text
         resolved_description = raw_description
@@ -103,9 +109,8 @@ class dbtParser:  # noqa: N801
             macro_text = self.column_macro_docs.get(macro_name, full_reference)
             resolved_description = resolved_description.replace(full_reference, macro_text)
 
-        return ColDocs(
-            name=name, description=resolved_description, raw_description=raw_description
-        )
+        col_docs.description = resolved_description
+        return col_docs
 
     @cached_property
     def model_paths(self) -> list[Path]:

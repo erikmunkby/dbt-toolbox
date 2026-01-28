@@ -175,6 +175,7 @@ class ColDocs:
     name: str
     description: str | None
     raw_description: str | None
+    config: dict | None = None
 
 
 @dataclass
