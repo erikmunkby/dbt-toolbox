@@ -127,3 +127,19 @@ def test_parse_selection_query_with_unparseable_upstream(
         # Clean up
         if dependent_path.exists():
             dependent_path.unlink()
+
+
+def test_create_column_docs_with_config() -> None:
+    """Test that column config is parsed into ColDocs."""
+    parser = dbtParser()
+
+    col_data = {
+        "name": "my_column",
+        "description": "A test column",
+        "config": {"tags": ["important", "core"]},
+    }
+    result = parser._create_column_docs(col_data)
+
+    assert result.name == "my_column"
+    assert result.description == "A test column"
+    assert result.config == {"tags": ["important", "core"]}
