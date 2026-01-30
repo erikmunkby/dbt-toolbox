@@ -2,6 +2,7 @@
 
 import typer
 
+from dbt_toolbox._context import set_command
 from dbt_toolbox.cli._common_options import OptionModelSelection, OptionTarget
 from dbt_toolbox.dbt_parser import dbtParser
 
@@ -11,6 +12,7 @@ def clean(
     models: OptionModelSelection = None,
 ) -> None:
     """Clean the cache completely or for specific models."""
+    set_command("clean")
     dbt_parser = dbtParser(target=target)
     if models:
         # Clean specific models
