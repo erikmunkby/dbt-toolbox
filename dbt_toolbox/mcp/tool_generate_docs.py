@@ -77,12 +77,7 @@ def generate_docs(
     - Pay attention to "nbr_columns_with_placeholders" for documentation completeness
 
     """
-    try:
-        dbt_parser = dbtParser(target=target)
-    except Exception as e:  # noqa: BLE001
-        return mcp_json_response(
-            {"status": "error", "message": f"Failed to initialize dbt parser: {e!s}"}
-        )
+    dbt_parser = dbtParser(target=target)
 
     if model not in dbt_parser.models:
         max_models_to_show = 5
@@ -95,12 +90,7 @@ def generate_docs(
             {"status": "error", "message": f"Model '{model}' not found. {models_info}"}
         )
 
-    try:
-        builder = YamlBuilder(model, dbt_parser)
-        result = builder.build(fix_inplace=fix_inplace)
+    builder = YamlBuilder(model, dbt_parser)
+    result = builder.build(fix_inplace=fix_inplace)
 
-        return mcp_json_response(asdict(result))
-    except Exception as e:  # noqa: BLE001
-        return mcp_json_response(
-            {"status": "error", "message": f"Unexpected error while generating docs: {e!s}"}
-        )
+    return mcp_json_response(asdict(result))
