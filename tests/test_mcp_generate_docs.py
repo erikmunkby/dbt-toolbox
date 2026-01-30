@@ -6,7 +6,11 @@ from unittest.mock import patch
 from dbt_toolbox.actions.build_docs import DocsResult, YamlBuilder
 from dbt_toolbox.data_models import ColumnChanges
 from dbt_toolbox.dbt_parser import dbtParser
+from dbt_toolbox.mcp._error_handler import handle_mcp_errors
 from dbt_toolbox.mcp.tool_generate_docs import generate_docs
+
+# Wrap with error handler to match MCP registration behavior
+generate_docs_wrapped = handle_mcp_errors(generate_docs)
 
 
 class TestMCPGenerateDocs:
@@ -83,12 +87,13 @@ class TestMCPGenerateDocs:
         with patch(
             "dbt_toolbox.mcp.tool_generate_docs.dbtParser", side_effect=Exception("Parser failed")
         ):
-            result_json = generate_docs("customers")
+            result_json = generate_docs_wrapped("customers")
             result = json.loads(result_json)
 
             assert result["status"] == "error"
-            assert "Failed to initialize dbt parser" in result["message"]
-            assert "Parser failed" in result["message"]
+            assert result["message"] == "Parser failed"
+            assert result["error_type"] == "Exception"
+            assert "traceback" in result
 
     def test_generate_docs_build_error(self, dbt_parser: dbtParser) -> None:
         """Test generate_docs when build operation fails."""
@@ -119,12 +124,13 @@ class TestMCPGenerateDocs:
             mock_parser_class.return_value = dbt_parser
 
             with patch.object(YamlBuilder, "build", side_effect=Exception("Unexpected error")):
-                result_json = generate_docs("customers")
+                result_json = generate_docs_wrapped("customers")
                 result = json.loads(result_json)
 
                 assert result["status"] == "error"
-                assert "Unexpected error while generating docs" in result["message"]
-                assert "Unexpected error" in result["message"]
+                assert result["message"] == "Unexpected error"
+                assert result["error_type"] == "Exception"
+                assert "traceback" in result
 
     def test_generate_docs_with_target_parameter(self, dbt_parser: dbtParser) -> None:
         """Test generate_docs with target parameter."""
