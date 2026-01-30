@@ -2,6 +2,7 @@
 
 from fastmcp import FastMCP
 
+from dbt_toolbox._context import set_mcp_mode
 from dbt_toolbox.actions.all_settings import get_all_settings
 from dbt_toolbox.mcp import (
     tool_analyze_models,
@@ -11,6 +12,8 @@ from dbt_toolbox.mcp import (
     tool_show_docs,
 )
 from dbt_toolbox.mcp._utils import mcp_json_response
+
+set_mcp_mode()
 
 mcp_server = FastMCP("dbt-toolbox")
 

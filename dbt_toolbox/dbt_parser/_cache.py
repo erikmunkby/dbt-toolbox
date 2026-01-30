@@ -9,9 +9,12 @@ from typing import Any
 from loguru import logger
 
 from dbt_toolbox import utils
+from dbt_toolbox._context import get_command, is_mcp_mode
+from dbt_toolbox._version import __version__
 from dbt_toolbox.data_models import MacroBase, Model
 from dbt_toolbox.dbt_parser._file_fetcher import read_macros
 from dbt_toolbox.settings import settings
+from dbt_toolbox.utils._printers import cprint
 
 
 class _CacheHolder:
@@ -92,7 +95,32 @@ class Cache:
     """Caching help tool."""
 
     def __init__(self, dbt_target: str) -> None:
-        self.cache_path = settings.dbt_project_dir / f".dbt_toolbox/{dbt_target}"
+        root_cache_path = settings.dbt_project_dir / ".dbt_toolbox"
+        version_file = root_cache_path / ".version"
+
+        # Check version compatibility
+        if root_cache_path.exists():
+            cached_version = version_file.read_text().strip() if version_file.exists() else None
+            if cached_version != __version__:
+                # If version-clash happens for the MCP, simply clean the cache.
+                if is_mcp_mode():
+                    shutil.rmtree(root_cache_path)
+                elif get_command() != "clean":
+                    # Clean command skips this check - version file updated below
+                    version_display = cached_version or "an older"
+                    cprint(
+                        f"Cache was created with {version_display} version, "
+                        f"current version is {__version__}.",
+                        color="yellow",
+                    )
+                    cprint('Please run "dt clean" to clear the cache.', color="yellow")
+                    raise SystemExit(1)
+
+        # Create dirs and write version file
+        root_cache_path.mkdir(parents=True, exist_ok=True)
+        version_file.write_text(__version__)
+
+        self.cache_path = root_cache_path / dbt_target
         if not self.cache_path.exists():
             self.cache_path.mkdir(parents=True)
 

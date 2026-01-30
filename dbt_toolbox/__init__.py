@@ -1,5 +1,28 @@
-"""."""
+"""dbt-toolbox: Ultra-fast drop-in replacement for dbt executions.
 
+This module provides the public API for programmatic access to dbt project data.
+
+Functions:
+    get_models: Retrieve all parsed dbt models from the project.
+    get_sources: Retrieve all parsed dbt sources from the project.
+    get_macros: Retrieve all parsed dbt macros from the project.
+    get_seeds: Retrieve all parsed dbt seeds from the project.
+
+Classes:
+    Model: Data class representing a dbt model.
+    Source: Data class representing a dbt source.
+    Macro: Data class representing a dbt macro.
+    Seed: Data class representing a dbt seed.
+
+Example:
+    >>> from dbt_toolbox import get_models
+    >>> models = get_models()
+    >>> for name, model in models.items():
+    ...     print(f"{name}: {len(model.columns)} columns")
+
+"""
+
+from dbt_toolbox._version import __version__
 from dbt_toolbox.data_models import Macro, Model, Seed, Source
 from dbt_toolbox.dbt_parser import dbtParser
 
@@ -60,6 +83,7 @@ __all__ = [
     "Macro",
     "Model",
     "Source",
+    "__version__",
     "get_macros",
     "get_models",
     "get_seeds",
