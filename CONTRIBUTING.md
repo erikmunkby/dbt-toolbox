@@ -177,20 +177,7 @@ When creating a PR, include:
 
 ## 🏷️ Release Process
 
-### Versioning
-
-We follow [Semantic Versioning](https://semver.org/):
-- **MAJOR**: Breaking changes
-- **MINOR**: New features (backward compatible)  
-- **PATCH**: Bug fixes (backward compatible)
-
-### Release Checklist
-
-1. Update version in `pyproject.toml`
-2. Update `CHANGELOG.md` with release notes
-3. Create git tag: `git tag v0.1.0`
-4. Push tag: `git push origin v0.1.0` 
-5. Create GitHub release with changelog
+Releases are handled automatically by [release-please](https://github.com/googleapis/release-please). It manages versioning, changelog updates, and GitHub releases based on conventional commit messages.
 
 ## 🐛 Bug Reports and Feature Requests
 

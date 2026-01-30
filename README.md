@@ -138,7 +138,7 @@ For detailed MCP server setup and usage, see [MCP.md](https://github.com/erikmun
 ## 🏗️ Key Features
 
 ### Intelligent Caching System
-dbt-toolbox caches parsed models, macros, and Jinja environments in `.dbt_toolbox/` directory with smart invalidation based on file changes and project configuration.
+dbt-toolbox caches parsed models, macros, and Jinja environments in `.dbt_toolbox/` directory with smart invalidation based on file changes and project configuration. After upgrading dbt-toolbox, run `dt clean` to clear the cache.
 
 ### Smart Execution & Lineage Validation
 - Only executes models that actually need rebuilding based on dependency analysis
