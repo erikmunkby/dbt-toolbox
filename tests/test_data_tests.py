@@ -69,20 +69,26 @@ class TestLogTestParsing:
     """Test parsing test results from dbt build log output."""
 
     def test_parse_build_with_tests_log(self) -> None:
-        """Parse the real dbt_build_with_tests.log file."""
-        log_path = "tests/logs/dbt_build_with_tests.log"
+        """Parse the real dbt output log file that includes test results."""
+        log_path = "tests/dbt_output_log_example.txt"
         with open(log_path) as f:
             output = f.read()
         result = parse_dbt_output(output)
 
-        # Should have 1 model result
+        # Should have model results
         assert "orders" in result.models
         assert result.models["orders"].status == "OK"
+        assert "customers" in result.models
+        assert result.models["customers"].status == "OK"
+        assert "customer_orders" in result.models
+        assert result.models["customer_orders"].status == "OK"
 
-        # Should have 2 test results
-        assert len(result.tests) == 2
+        # Should have 5 test results
+        assert len(result.tests) == 5
         assert "not_null_orders_order_id" in result.tests
         assert "unique_orders_order_id" in result.tests
+        assert "not_null_customers_customer_id" in result.tests
+        assert "unique_customers_customer_id" in result.tests
         assert result.tests["not_null_orders_order_id"].status == "PASS"
         assert result.tests["unique_orders_order_id"].status == "PASS"
         assert result.tests["not_null_orders_order_id"].execution_time_seconds == 0.03
