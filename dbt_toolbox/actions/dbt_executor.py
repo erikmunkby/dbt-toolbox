@@ -4,9 +4,15 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from dbt_toolbox.analysees import AnalysisResult, analyze
+from dbt_toolbox.actions.test_mapper import build_test_lookup, match_log_test_name
+from dbt_toolbox.analysees import AnalysisResult, ExecutionReason, analyze
 from dbt_toolbox.analysees.print_analysis import print_column_analysis_results
-from dbt_toolbox.cli._dbt_output_parser import DbtParsedLogs, _extract_model_info, parse_dbt_output
+from dbt_toolbox.cli._dbt_output_parser import (
+    DbtParsedLogs,
+    _extract_model_info,
+    _extract_test_info,
+    parse_dbt_output,
+)
 from dbt_toolbox.data_models import DbtExecutionParams, Model
 from dbt_toolbox.dbt_parser import dbtParser
 from dbt_toolbox.settings import settings
@@ -96,17 +102,18 @@ def _validate_lineage_references(
 def _stream_process_output(process: subprocess.Popen, dbt_parser: dbtParser) -> list[str]:
     """Stream process output in real-time and capture for parsing.
 
-    Optionally cache models as they complete if dbt_parser is provided.
+    Caches models as they complete and tracks test results to flag models.
 
     Args:
         process: The subprocess.Popen object
-        dbt_parser: Optional dbt parser to cache models as they complete
+        dbt_parser: dbt parser to cache models and track test results
 
     Returns:
         List of captured output lines
 
     """
     captured_output = []
+    test_lookup = build_test_lookup(dbt_parser.models)
     if process.stdout:
         while True:
             output = process.stdout.readline()
@@ -119,10 +126,11 @@ def _stream_process_output(process: subprocess.Popen, dbt_parser: dbtParser) -> 
                 # Capture for later parsing
                 captured_output.append(output)
 
-                # If dbt_parser provided, try to parse and cache completed models
-                model_info = _extract_model_info(output.strip())
+                line = output.strip()
+
+                # Try to parse and cache completed models
+                model_info = _extract_model_info(line)
                 if model_info and model_info.status in ["OK", "ERROR"]:
-                    # Find the model in dbt_parser and update its status
                     model = dbt_parser.models.get(model_info.name)
                     if model:
                         if model_info.status == "OK":
@@ -131,9 +139,21 @@ def _stream_process_output(process: subprocess.Popen, dbt_parser: dbtParser) -> 
                             )
                         elif model_info.status == "ERROR":
                             model.set_build_failed()
-
-                        # Cache the model immediately
                         dbt_parser.cache.cache_model(model=model)
+                    continue
+
+                # Try to parse test results and flag models
+                test_info = _extract_test_info(line)
+                if test_info:
+                    model_name = match_log_test_name(test_info.name, test_lookup)
+                    if model_name:
+                        model = dbt_parser.models.get(model_name)
+                        if model:
+                            if test_info.status in ("FAIL", "ERROR"):
+                                model.set_tests_failed()
+                            else:
+                                model.set_tests_passed()
+                            dbt_parser.cache.cache_model(model=model)
     return captured_output
 
 
@@ -269,6 +289,14 @@ def create_execution_plan(params: DbtExecutionParams) -> ExecutionPlan:
     # Pass dbt_parser to avoid creating a new instance and re-parsing selection
     results = analyze(target=params.target, model=params.model_selection, dbt_parser=dbt_parser)
     analyses = results.model_analysis
+
+    # For 'run' command, ignore test-only reasons (tests only run during 'build')
+    if params.command_name == "run":
+        test_reasons = {ExecutionReason.TESTS_CHANGED, ExecutionReason.LAST_TESTS_FAILED}
+        for a in analyses:
+            if a.reason in test_reasons:
+                a.needs_execution = False
+                a.reason = None
 
     # Filter models to only those that need execution
     models_to_execute: list[str] = []
