@@ -6,10 +6,9 @@ This module contains all functions for displaying analysis results in a formatte
 from collections import defaultdict
 from typing import Literal
 
+from rich import box
 from rich.console import Console
 from rich.table import Table
-
-from dbt_toolbox.utils import _printers
 
 from .data_models import (
     AnalysisResult,
@@ -21,54 +20,56 @@ from .data_models import (
 
 PrintModes = Literal["analysis", "validation"]
 
+NAME_STYLE = "cyan"
+DETAIL_STYLE = "dim"
+MUTED_STYLE = "dim"
 
-def _print_section_header(title: str, status: str) -> None:
-    """Print a standardized section header with title and status.
+TRUNCATE_THRESHOLD = 5
+
+
+def _print_summary_header(
+    title: str, status: str, summary_items: list[tuple[str, str | int]] | None = None
+) -> None:
+    """Print a summary header with indicator and optional inline stats.
 
     Args:
         title: Section title
-        status: Status text (OK, ISSUES_FOUND, etc.)
+        status: Status text (OK, ISSUES_FOUND, UPDATES_NEEDED)
+        summary_items: Optional list of (label, value) tuples for inline stats
 
     """
     console = Console()
-
-    if status == "OK":
-        status_icon = "✅"
-        status_color = "green"
-    elif status == "ISSUES_FOUND":
-        status_icon = "❌"
-        status_color = "red"
-    else:
-        status_icon = "🔶"
-        status_color = "yellow"
-
-    console.print(f"{title} ", style="cyan", end="")
-    console.print(f"({status_icon} {status})", style=status_color)
+    indicators = {
+        "OK": ("green", "[ok]"),
+        "ISSUES_FOUND": ("red", "[!]"),
+        "UPDATES_NEEDED": ("yellow", "[*]"),
+    }
+    color, indicator = indicators.get(status, ("white", ""))
+    console.print(f"\n{indicator} {title}", style=f"bold {color}")
+    if summary_items:
+        parts = [f"{label}: {value}" for label, value in summary_items]
+        console.print("   " + " | ".join(parts), style=MUTED_STYLE)
 
 
-def _print_metadata(items: list[tuple[str, str, str]]) -> None:
-    """Print metadata items in a consistent format.
+def _create_table(columns: list[tuple[str, str]]) -> Table:
+    """Create a consistently styled table.
 
     Args:
-        items: List of (icon, label, value) tuples
+        columns: List of (column_name, style) tuples
 
     """
-    for icon, label, value in items:
-        _printers.cprint(f"   {icon} {label}: {value}")
+    table = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, header_style="bold")
+    for col_name, col_style in columns:
+        table.add_column(col_name, style=col_style, no_wrap=False)
+    return table
 
 
-def _print_table_section(title: str, table: Table, console: Console) -> None:
-    """Print a table section with consistent formatting.
-
-    Args:
-        title: Section title
-        table: Rich table to display
-        console: Rich console instance
-
-    """
-    print()  # noqa: T201
-    _printers.cprint(title, color="red")
-    console.print(table)
+def _truncate_items(items: list[str], threshold: int = TRUNCATE_THRESHOLD) -> str:
+    """Join items with truncation when the list is long."""
+    if len(items) <= threshold:
+        return ", ".join(items)
+    shown = ", ".join(items[:threshold])
+    return f"{shown} [dim](+{len(items) - threshold} more)[/dim]"
 
 
 def _print_execution_details(analyses: list[AnalysisResult], console: Console) -> None:
@@ -106,15 +107,12 @@ def _print_execution_details(analyses: list[AnalysisResult], console: Console) -
         if reason in reasons_to_group and len(models) > group_threshold
     }
 
-    # Build table with individual models (not grouped)
-    table = Table(show_header=True, header_style="bold yellow")
-    table.add_column("Model", style="yellow")
-    table.add_column("Execution Reason", style="white")
+    # Build table
+    table = _create_table([("Model", NAME_STYLE), ("Reason", "")])
 
     # Add individual models (excluding those that will be grouped)
     for reason, models in grouped_by_reason.items():
         if reason in grouped_reasons:
-            # Skip - will be shown as grouped summary
             continue
         for analysis in models:
             table.add_row(analysis.model.name, analysis.reason_description)
@@ -123,15 +121,15 @@ def _print_execution_details(analyses: list[AnalysisResult], console: Console) -
     for reason in [ExecutionReason.NEVER_BUILT, ExecutionReason.OUTDATED_MODEL]:
         if reason in grouped_reasons:
             models = grouped_reasons[reason]
-            # Use the first model's reason_description for consistency
             reason_desc = models[0].reason_description
             table.add_row(
-                f"({len(models)} models)",
-                f"{reason_desc}",
+                f"[{len(models)} models]",
+                reason_desc,
             )
 
     if table.row_count > 0:
-        _print_table_section("Models Requiring Execution:", table, console)
+        console.print()
+        console.print(table)
 
 
 def print_execution_analysis(
@@ -152,13 +150,16 @@ def print_execution_analysis(
     # Determine status
     status = "OK" if models_to_execute == 0 else "UPDATES_NEEDED"
 
-    # Header
-    _print_section_header("Build Execution Analysis", status)
-
-    # Main focus: Models to execute
-    console.print(f"   ✅ Models to execute: {models_to_execute} (of {total_models} total)")
-    if models_to_skip > 0:
-        console.print(f"   ⏭️  Models to skip: {models_to_skip}")
+    # Header with inline summary
+    _print_summary_header(
+        "Build Execution Analysis",
+        status,
+        summary_items=[
+            ("Execute", models_to_execute),
+            ("Skip", models_to_skip),
+            ("Total", total_models),
+        ],
+    )
 
     if mode == "analysis":
         _print_execution_details(analyses=analyses, console=console)
@@ -187,12 +188,7 @@ def print_column_analysis_results(
     # Determine status
     status = "ISSUES_FOUND" if has_issues else "OK"
 
-    # Header
-    title = "Lineage Validation" if mode == "validation" else "Column Reference Analysis"
-
-    _print_section_header(title, status)
-
-    # Metadata
+    # Count issues
     total_issues = 0
     if analysis.non_existent_columns:
         total_issues += sum(len(cols) for cols in analysis.non_existent_columns.values())
@@ -207,56 +203,49 @@ def print_column_analysis_results(
             len(models) for models in analysis.referenced_non_existent_models.values()
         )
 
+    # Header
+    title = "Lineage Validation" if mode == "validation" else "Column Reference Analysis"
+    summary = [("Issues", total_issues)] if has_issues else None
+    _print_summary_header(title, status, summary_items=summary)
+
     if not has_issues:
         return
 
-    metadata = [("🔍", "Total issues found", str(total_issues))]
-    _print_metadata(metadata)
     # Non-existent columns table
     if analysis.non_existent_columns:
-        table = Table(show_header=True, header_style="bold red")
-        table.add_column("Model", style="red")
-        table.add_column("Referenced Model", style="yellow")
-        table.add_column("Missing Columns", style="white")
+        table = _create_table(
+            [("Model", NAME_STYLE), ("Referenced Model", DETAIL_STYLE), ("Missing Columns", "")]
+        )
 
         for model_name, referenced_models in analysis.non_existent_columns.items():
             for referenced_model, missing_columns in referenced_models.items():
-                table.add_row(model_name, referenced_model, ", ".join(missing_columns))
+                table.add_row(model_name, referenced_model, _truncate_items(missing_columns))
 
-        missing_count = sum(len(cols) for cols in analysis.non_existent_columns.values())
-        _print_table_section(f"Non-existent Columns ({missing_count}):", table, console)
+        console.print()
+        console.print(table)
 
     # CTE column issues table
     if analysis.cte_column_issues:
-        table = Table(show_header=True, header_style="bold yellow")
-        table.add_column("Model", style="yellow")
-        table.add_column("CTE Name", style="blue")
-        table.add_column("Missing Columns", style="white")
+        table = _create_table(
+            [("Model", NAME_STYLE), ("CTE Name", DETAIL_STYLE), ("Missing Columns", "")]
+        )
 
         for model_name, cte_issues in analysis.cte_column_issues.items():
             for cte_name, missing_columns in cte_issues.items():
-                table.add_row(model_name, cte_name, ", ".join(missing_columns))
+                table.add_row(model_name, cte_name, _truncate_items(missing_columns))
 
-        cte_count = sum(
-            len(cols)
-            for cte_dict in analysis.cte_column_issues.values()
-            for cols in cte_dict.values()
-        )
-        _print_table_section(f"CTE Column Issues ({cte_count}):", table, console)
+        console.print()
+        console.print(table)
 
     # Referenced non-existent models table
     if analysis.referenced_non_existent_models:
-        table = Table(show_header=True, header_style="bold red")
-        table.add_column("Model", style="red")
-        table.add_column("Non-existent Referenced Models", style="white")
+        table = _create_table([("Model", NAME_STYLE), ("Non-existent Referenced Models", "")])
 
         for model_name, non_existent_models in analysis.referenced_non_existent_models.items():
-            table.add_row(model_name, ", ".join(set(non_existent_models)))
+            table.add_row(model_name, _truncate_items(sorted(set(non_existent_models))))
 
-        model_count = sum(
-            len(models) for models in analysis.referenced_non_existent_models.values()
-        )
-        _print_table_section(f"Referenced Non-existent Models ({model_count}):", table, console)
+        console.print()
+        console.print(table)
 
 
 def print_docs_analysis_results(analysis: DocsAnalysis, mode: PrintModes = "analysis") -> None:
@@ -270,31 +259,25 @@ def print_docs_analysis_results(analysis: DocsAnalysis, mode: PrintModes = "anal
     console = Console()
 
     # Header
-    title = "Docs Macro Analysis"
-    if mode == "validation":
-        title = "Docs Macro Validation"
+    title = "Docs Macro Validation" if mode == "validation" else "Docs Macro Analysis"
 
-    _print_section_header(title, analysis.overall_status)
-
-    # Metadata
     total_duplicates = (
         sum(issue.occurrences - 1 for issue in analysis.duplicate_issues)
         if analysis.duplicate_issues
         else 0
     )
-    metadata = [
-        ("📊", "Total docs macros", str(analysis.total_docs_macros)),
-    ]
+
+    summary_items: list[tuple[str, str | int]] = [("Macros", analysis.total_docs_macros)]
     if total_duplicates:
-        metadata += [("❌", "Duplicate issues", str(total_duplicates))]
-    _print_metadata(metadata)
+        summary_items.append(("Duplicates", total_duplicates))
+
+    _print_summary_header(title, analysis.overall_status, summary_items=summary_items)
 
     # Duplicate docs macros table
     if analysis.duplicate_issues:
-        table = Table(show_header=True, header_style="bold red")
-        table.add_column("Macro Name", style="red")
-        table.add_column("Occurrences", style="yellow")
-        table.add_column("File Paths", style="white")
+        table = _create_table(
+            [("Macro Name", NAME_STYLE), ("Occurrences", DETAIL_STYLE), ("File Paths", "")]
+        )
 
         for issue in analysis.duplicate_issues:
             table.add_row(
@@ -303,9 +286,8 @@ def print_docs_analysis_results(analysis: DocsAnalysis, mode: PrintModes = "anal
                 "\n".join(issue.file_paths),
             )
 
-        _print_table_section(
-            f"Duplicate Docs Macros ({total_duplicates} duplicates):", table, console
-        )
+        console.print()
+        console.print(table)
 
 
 def print_analysis_results(
