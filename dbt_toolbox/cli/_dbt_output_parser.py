@@ -1,10 +1,11 @@
-"""Parser for dbt command output to identify failed models."""
+"""Parser for dbt command output to identify failed models and test results."""
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, NamedTuple
 
 StatusTypes = Literal["OK", "ERROR", "SKIP"]  # OK, ERROR, SKIP, etc.
+TestStatusTypes = Literal["PASS", "FAIL", "WARN", "ERROR"]
 
 
 class ModelResult(NamedTuple):
@@ -16,11 +17,20 @@ class ModelResult(NamedTuple):
     error_message: str | None = None
 
 
+class TestResult(NamedTuple):
+    """Result of a test execution from dbt output."""
+
+    name: str
+    status: TestStatusTypes
+    execution_time_seconds: float | None = None
+
+
 @dataclass
 class DbtParsedLogs:
     """Result of parsing dbt execution output."""
 
     models: dict[str, ModelResult]
+    tests: dict[str, TestResult] = field(default_factory=dict)
 
     def _filter(self, status: StatusTypes, /) -> list[str]:
         return [name for name, m in self.models.items() if m.status == status]
@@ -40,20 +50,32 @@ class DbtParsedLogs:
     def get_model(self, name: str, /) -> ModelResult | None:
         return self.models.get(name)
 
+    def _filter_tests(self, status: TestStatusTypes, /) -> list[str]:
+        return [name for name, t in self.tests.items() if t.status == status]
+
+    @property
+    def passed_tests(self) -> list[str]:
+        return self._filter_tests("PASS")
+
+    @property
+    def failed_tests(self) -> list[str]:
+        return self._filter_tests("FAIL")
+
 
 def parse_dbt_output(output: str) -> DbtParsedLogs:
-    """Parse dbt command output to extract model execution results.
+    """Parse dbt command output to extract model and test execution results.
 
     Args:
         output: Raw output from dbt command execution.
 
     Returns:
-        DbtExecutionResult with categorized model results.
+        DbtParsedLogs with categorized model and test results.
 
     """
     lines = output.split("\n")
 
-    results = {}
+    model_results: dict[str, ModelResult] = {}
+    test_results: dict[str, TestResult] = {}
     for raw_line in lines:
         line = raw_line.strip()
         if not line:
@@ -63,11 +85,18 @@ def parse_dbt_output(output: str) -> DbtParsedLogs:
         if "[RUN]" in line:
             continue
 
-        # Try to extract model information from the line
+        # Try to extract model information first
         model_info = _extract_model_info(line)
         if model_info:
-            results[model_info.name] = model_info
-    return DbtParsedLogs(models=results)
+            model_results[model_info.name] = model_info
+            continue
+
+        # Try to extract test information
+        test_info = _extract_test_info(line)
+        if test_info:
+            test_results[test_info.name] = test_info
+
+    return DbtParsedLogs(models=model_results, tests=test_results)
 
 
 def _extract_model_info(line: str) -> ModelResult | None:
@@ -140,6 +169,75 @@ def _extract_model_info(line: str) -> ModelResult | None:
         )
 
     return None
+
+
+def _extract_test_info(line: str) -> TestResult | None:
+    """Extract test information from a dbt output line.
+
+    Args:
+        line: A line from dbt output.
+
+    Returns:
+        TestResult if test information is found, None otherwise.
+
+    """
+    # Strip ANSI escape codes
+    ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    clean_line = ansi_escape.sub("", line)
+
+    # Test lines look like:
+    #   PASS not_null_orders_order_id ... [PASS in 0.03s]
+    #   FAIL 1 not_null_orders_order_id ... [FAIL 1 in 0.03s]
+    #   WARN 1 not_null_orders_order_id ... [WARN 1 in 0.03s]
+    #   ERROR not_null_orders_order_id ... [ERROR in 0.03s]
+    # They do NOT contain "model schema.name" pattern
+
+    # Skip lines that look like model lines (contain "model <word>.<word>")
+    if re.search(r"model\s+\w+\.\w+", clean_line):
+        return None
+
+    test_name = None
+    status: TestStatusTypes | None = None
+
+    # Match PASS test_name
+    pass_match = re.search(r"\bPASS\s+(\w+)", clean_line)
+    if pass_match:
+        test_name = pass_match.group(1)
+        status = "PASS"
+
+    # Match FAIL N test_name
+    if not test_name:
+        fail_match = re.search(r"\bFAIL\s+\d+\s+(\w+)", clean_line)
+        if fail_match:
+            test_name = fail_match.group(1)
+            status = "FAIL"
+
+    # Match WARN N test_name
+    if not test_name:
+        warn_match = re.search(r"\bWARN\s+\d+\s+(\w+)", clean_line)
+        if warn_match:
+            test_name = warn_match.group(1)
+            status = "WARN"
+
+    # Match ERROR test_name (test errors without count)
+    if not test_name:
+        error_match = re.search(r"\bERROR\s+(\w+)", clean_line)
+        if error_match:
+            test_name = error_match.group(1)
+            status = "ERROR"
+
+    if not test_name or not status:
+        return None
+
+    # Extract execution time from [PASS in X.XXs], [FAIL N in X.XXs], etc.
+    execution_time = None
+    time_match = re.search(
+        r"\[(?:PASS|FAIL\s+\d+|WARN\s+\d+|ERROR)\s+in\s+([\d.]+)s\]", clean_line
+    )
+    if time_match:
+        execution_time = float(time_match.group(1))
+
+    return TestResult(name=test_name, status=status, execution_time_seconds=execution_time)
 
 
 def _extract_error_message(line: str) -> str | None:

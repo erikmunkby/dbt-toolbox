@@ -8,23 +8,29 @@ from dbt_toolbox.dbt_parser import dbtParser
 from .data_models import AnalysisResult, ExecutionReason
 
 
-def _analyze_model(model: Model) -> AnalysisResult:
+def _analyze_model(model: Model) -> AnalysisResult:  # noqa: PLR0911
     """Will analyze the model to see if it needs updating.
 
     Prio order:
     1. Last build failed
-    2. Never built
-    3. Code changed
-    4. Upstream macros changed
-    5. Cache outdated
+    2. Last tests failed
+    3. Never built
+    4. Code changed
+    5. Tests changed
+    6. Upstream macros changed
+    7. Cache outdated
     """
     # Check if the model needs execution
     if model.last_build_failed:
         return AnalysisResult(model=model, reason=ExecutionReason.LAST_EXECUTION_FAILED)
+    if model.last_tests_failed:
+        return AnalysisResult(model=model, reason=ExecutionReason.LAST_TESTS_FAILED)
     if model.last_built is None:
         return AnalysisResult(model=model, reason=ExecutionReason.NEVER_BUILT)
     if model.code_changed:
         return AnalysisResult(model=model, reason=ExecutionReason.CODE_CHANGED)
+    if model.tests_changed:
+        return AnalysisResult(model=model, reason=ExecutionReason.TESTS_CHANGED)
     if model.upstream_macros_changed:
         return AnalysisResult(model=model, reason=ExecutionReason.UPSTREAM_MACRO_CHANGED)
     if model.cache_outdated:

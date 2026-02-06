@@ -58,6 +58,10 @@ models:
         description: Order amount before tax
       - name: tax_paid
         description: Tax amount for the order
+        data_tests:
+          - dbt_utils.accepted_range:
+              max_value: 100000
+              inclusive: true
       - name: order_total
         description: Total order amount including tax
       - name: macro_column

@@ -169,6 +169,16 @@ class ModelBase:
 
 
 @dataclass
+class DataTestDefinition:
+    """A single data test definition from schema.yml."""
+
+    test_name: str
+    model_name: str
+    column_name: str | None = None
+    kwargs: dict = field(default_factory=dict)
+
+
+@dataclass
 class ColDocs:
     """Column documentation."""
 
@@ -176,6 +186,7 @@ class ColDocs:
     description: str | None
     raw_description: str | None
     config: dict | None = None
+    data_tests: list[DataTestDefinition] = field(default_factory=list)
 
 
 @dataclass
@@ -249,6 +260,7 @@ class YamlDocs:
     path: Path
     config: dict
     columns: list[ColDocs] | None
+    data_tests: list[DataTestDefinition] = field(default_factory=list)
 
 
 @dataclass
@@ -276,6 +288,10 @@ class Model(ModelBase):
     code_changed: bool = False
     # Will be set when we discover upstream macro changes
     upstream_macros_changed: bool = False
+    # Will be set when test definitions change in schema.yml
+    tests_changed: bool = False
+    # Tracks whether the last build's tests failed (None = never tested)
+    last_tests_failed: bool | None = None
     # Time it took to compute the model. Stored after a build.
     compute_time_seconds: float | None = None
 
@@ -285,12 +301,23 @@ class Model(ModelBase):
         self.last_build_failed = False
         self.code_changed = False
         self.upstream_macros_changed = False
+        self.tests_changed = False
+        self.last_tests_failed = None
         self.compute_time_seconds = compute_time_seconds
 
     def set_build_failed(self) -> None:
         """Flag the model as last build failed."""
         self.last_built = EXECUTION_TIMESTAMP
         self.last_build_failed = True
+
+    def set_tests_failed(self) -> None:
+        """Flag the model as having failed tests (sticky — not overridden by passes)."""
+        self.last_tests_failed = True
+
+    def set_tests_passed(self) -> None:
+        """Flag the model's tests as passed, unless a failure was already recorded."""
+        if self.last_tests_failed is not True:
+            self.last_tests_failed = False
 
     def copy_attributes(self, other_model: Model) -> Self:
         """Copy attributes not yet set from other model.
@@ -353,6 +380,25 @@ class Model(ModelBase):
         if not self.yaml_docs or not self.yaml_docs.columns:
             return []
         return self.yaml_docs.columns
+
+    @property
+    def all_data_tests(self) -> list[DataTestDefinition]:
+        """All data tests from both model-level and column-level definitions."""
+        if not self.yaml_docs:
+            return []
+        tests: list[DataTestDefinition] = list(self.yaml_docs.data_tests)
+        for col in self.yaml_docs.columns or []:
+            tests.extend(col.data_tests)
+        return tests
+
+    @property
+    def tests_hash(self) -> str:
+        """MD5 hash of sorted test definitions for cache invalidation."""
+        test_strs = sorted(
+            f"{t.test_name}:{t.model_name}:{t.column_name}:{sorted(t.kwargs.items())}"
+            for t in self.all_data_tests
+        )
+        return md5("|".join(test_strs).encode()).hexdigest()[:10]  # noqa: S324
 
     @property
     def documented_columns(self) -> list[str]:

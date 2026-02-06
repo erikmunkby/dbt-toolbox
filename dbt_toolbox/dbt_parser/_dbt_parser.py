@@ -10,6 +10,7 @@ from sqlglot import ParseError
 
 from dbt_toolbox.data_models import (
     ColDocs,
+    DataTestDefinition,
     Macro,
     MacroBase,
     Model,
@@ -39,6 +40,36 @@ _re_find_docs_macro_definitions = re.compile(
 # Find doc macros referenced in descriptions. Example:
 # description: '{{ doc('some_doc_macro')}}'
 _re_find_docs_macro_reference = r'({{\s*doc\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*}})'
+
+
+def _parse_data_tests(
+    tests_raw: list, model_name: str, column_name: str | None = None
+) -> list[DataTestDefinition]:
+    """Parse data_tests from YAML into DataTestDefinition objects.
+
+    Args:
+        tests_raw: List of test entries (strings or dicts) from YAML.
+        model_name: Name of the model the tests belong to.
+        column_name: Column name if column-level tests, None for model-level.
+
+    """
+    results = []
+    for test in tests_raw:
+        if isinstance(test, str):
+            results.append(
+                DataTestDefinition(test_name=test, model_name=model_name, column_name=column_name)
+            )
+        elif isinstance(test, dict):
+            for test_name, kwargs in test.items():
+                results.append(
+                    DataTestDefinition(
+                        test_name=test_name,
+                        model_name=model_name,
+                        column_name=column_name,
+                        kwargs=kwargs if isinstance(kwargs, dict) else {},
+                    )
+                )
+    return results
 
 
 class dbtParser:  # noqa: N801
@@ -80,20 +111,25 @@ class dbtParser:  # noqa: N801
         """Get all docs macros as a dictionary, removing duplicates."""
         return {x["name"]: x["text"] for x in self.column_macro_docs_list}
 
-    def _create_column_docs(self, col_data: dict) -> ColDocs:
+    def _create_column_docs(self, col_data: dict, model_name: str = "") -> ColDocs:
         """Create ColDocs with macro references replaced by their text.
 
         Args:
-            col_data: Dictionary containing column documentation fields
+            col_data: Dictionary containing column documentation fields.
+            model_name: Name of the model this column belongs to.
 
         """
         raw_description: str | None = col_data.get("description")
+        col_name: str = col_data.get("name", "")
 
         col_docs = ColDocs(
-            name=col_data.get("name", ""),
+            name=col_name,
             description=None,
             raw_description=raw_description,
             config=col_data.get("config"),
+            data_tests=_parse_data_tests(
+                col_data.get("data_tests", []), model_name, col_name or None
+            ),
         )
 
         if not raw_description:
@@ -137,11 +173,15 @@ class dbtParser:  # noqa: N801
         for path in self.model_yaml_paths:
             models: list[dict] = yamlium.parse(path).to_dict().get("models", [])  # type: ignore
             for m in models:
-                result[m["name"]] = YamlDocs(
+                model_name = m["name"]
+                result[model_name] = YamlDocs(
                     path=path,
                     model_description=m.get("description"),
                     config=m.get("config", {}),
-                    columns=[self._create_column_docs(c) for c in m.get("columns", [])],
+                    columns=[
+                        self._create_column_docs(c, model_name) for c in m.get("columns", [])
+                    ],
+                    data_tests=_parse_data_tests(m.get("data_tests", []), model_name),
                 )
         return result
 
@@ -161,7 +201,10 @@ class dbtParser:  # noqa: N801
                         source_name=source_name,
                         description=table.get("description"),
                         path=path,
-                        columns=[self._create_column_docs(c) for c in table.get("columns", [])],
+                        columns=[
+                            self._create_column_docs(c, table_name)
+                            for c in table.get("columns", [])
+                        ],
                     )
         return result
 
@@ -219,7 +262,10 @@ class dbtParser:  # noqa: N801
                 return None
         if cached_model.code_hash == raw_model.code_hash:
             # Refresh yaml_docs from fresh parse (schema.yml may have changed)
+            old_tests_hash = cached_model.tests_hash
             cached_model.yaml_docs = self.yaml_docs.get(model_name)
+            if cached_model.tests_hash != old_tests_hash:
+                cached_model.tests_changed = True
             return cached_model
 
         try:

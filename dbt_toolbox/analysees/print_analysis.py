@@ -100,7 +100,11 @@ def _print_execution_details(analyses: list[AnalysisResult], console: Console) -
         grouped_by_reason[analysis.reason].append(analysis)
 
     # Determine which reasons to group (more than group_threshold models)
-    reasons_to_group = {ExecutionReason.NEVER_BUILT, ExecutionReason.OUTDATED_MODEL}
+    reasons_to_group = {
+        ExecutionReason.NEVER_BUILT,
+        ExecutionReason.OUTDATED_MODEL,
+        ExecutionReason.TESTS_CHANGED,
+    }
     grouped_reasons = {
         reason: models
         for reason, models in grouped_by_reason.items()
@@ -118,7 +122,11 @@ def _print_execution_details(analyses: list[AnalysisResult], console: Console) -
             table.add_row(analysis.model.name, analysis.reason_description)
 
     # Add grouped summaries at the end
-    for reason in [ExecutionReason.NEVER_BUILT, ExecutionReason.OUTDATED_MODEL]:
+    for reason in [
+        ExecutionReason.NEVER_BUILT,
+        ExecutionReason.OUTDATED_MODEL,
+        ExecutionReason.TESTS_CHANGED,
+    ]:
         if reason in grouped_reasons:
             models = grouped_reasons[reason]
             reason_desc = models[0].reason_description
