@@ -615,6 +615,32 @@ class TestColumnResolver:
         # Check reference types and resolution status
         _assert_column_references_match(column_refs, expected_refs)
 
+    def test_from_subquery_references_parent_cte(self) -> None:
+        """Test subqueries in FROM can reference parent CTEs."""
+        sql = """
+        with filtered as (
+            select id, name, created_at from source_table
+        ),
+        deduplicated as (
+            select * from (
+                select *, row_number() over (partition by id order by created_at desc) as rn
+                from filtered
+            )
+            where rn = 1
+        )
+        select id, name from deduplicated
+        """
+
+        parsed = sqlglot.parse_one(sql, dialect="duckdb")
+        column_refs = resolve_column_lineage(parsed)
+
+        # Key assertion: 'filtered' should be CTE type, not EXTERNAL
+        filtered_refs = [r for r in column_refs if r.table == "filtered"]
+        assert filtered_refs, "Expected references to 'filtered' CTE"
+        assert all(r.reference_type == TableType.CTE for r in filtered_refs), (
+            f"Expected CTE type, got: {[(r.table, r.reference_type) for r in filtered_refs]}"
+        )
+
     def test_multi_subquery_cte_same_name(self) -> None:
         """Test multiple ctes with the same name."""
         sql = """

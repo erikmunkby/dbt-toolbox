@@ -127,7 +127,9 @@ def _recursive_resolve(
         if isinstance(from_clause.this, expr.Subquery):
             results.extend(
                 _recursive_resolve(
-                    select_stmt=from_clause.this.this, context=[*context, "from_subquery"]
+                    select_stmt=from_clause.this.this,
+                    context=[*context, "from_subquery"],
+                    ctes=ctes,
                 )
             )
 
@@ -151,7 +153,9 @@ def _recursive_resolve(
         # Resolve any subqueries
         if isinstance(col, expr.Subquery):
             results.extend(
-                _recursive_resolve(col.this, context=[*context, f"sub#{subq_id}"], tables=tables)
+                _recursive_resolve(
+                    col.this, context=[*context, f"sub#{subq_id}"], tables=tables, ctes=ctes
+                )
             )
             subq_id += 1
         # Resolve normal columns
