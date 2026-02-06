@@ -1,44 +1,54 @@
-16:36:54  Running with dbt=1.10.5
-16:36:54  Registered adapter: duckdb=1.9.4
-16:36:54  Found 6 seeds, 5 models, 2 sources, 550 macros
-16:36:54  
-16:36:54  Concurrency: 4 threads (target='dev')
-16:36:54  
-16:36:54  3 of 11 START seed file dev_seeds.raw_customers ................................ [RUN]
-16:36:54  1 of 11 START sql view model dev.macro_change_detection_model .................. [RUN]
-16:36:54  4 of 11 START seed file dev_seeds.raw_items .................................... [RUN]
-16:36:54  2 of 11 START sql view model dev.some_other_model .............................. [RUN]
-16:36:55  1 of 11 OK created sql view model dev.macro_change_detection_model ............. [OK in 0.29s]
-16:36:55  2 of 11 OK created sql view model dev.some_other_model ......................... [OK in 0.29s]
-16:36:55  5 of 11 START seed file dev_seeds.raw_orders ................................... [RUN]
-16:36:55  3 of 11 OK loaded seed file dev_seeds.raw_customers ............................ [INSERT 930 in 0.29s]
-16:36:55  6 of 11 START seed file dev_seeds.raw_products ................................. [RUN]
-16:36:55  7 of 11 START seed file dev_seeds.raw_stores ................................... [RUN]
-16:36:55  4 of 11 OK loaded seed file dev_seeds.raw_items ................................ [INSERT 90183 in 0.54s]
-16:36:55  8 of 11 START seed file dev_seeds.raw_supplies ................................. [RUN]
-16:36:55  6 of 11 OK loaded seed file dev_seeds.raw_products ............................. [INSERT 10 in 0.50s]
-16:36:55  7 of 11 OK loaded seed file dev_seeds.raw_stores ............................... [INSERT 6 in 0.56s]
-16:36:55  9 of 11 START sql view model dev.customers ..................................... [RUN]
-16:36:56  8 of 11 OK loaded seed file dev_seeds.raw_supplies ............................. [INSERT 65 in 0.62s]
-16:36:56  9 of 11 OK created sql view model dev.customers ................................ [OK in 0.44s]
-16:36:56  5 of 11 OK loaded seed file dev_seeds.raw_orders ............................... [INSERT 63148 in 1.21s]
-16:36:56  10 of 11 START sql view model dev.orders ....................................... [RUN]
-16:36:56  10 of 11 OK created sql view model dev.orders .................................. [OK in 0.14s]
-16:36:56  11 of 11 START sql view model dev.customer_orders .............................. [RUN]
-16:36:56  11 of 11 ERROR creating sql view model dev.customer_orders ..................... [ERROR in 0.02s]
-16:36:56  
-16:36:56  Finished running 6 seeds, 5 view models in 0 hours 0 minutes and 1.81 seconds (1.81s).
-16:36:56  
-16:36:56  Completed with 1 error, 0 partial successes, and 0 warnings:
-16:36:56  
-16:36:56  Failure in model customer_orders (models/customer_orders.sql)
-16:36:56    Runtime Error in model customer_orders (models/customer_orders.sql)
-  Binder Error: Referenced column "x" not found in FROM clause!
-  Candidate bindings: "tax_paid"
-  
-  LINE 15:         x,
-                   ^
-16:36:56  
-16:36:56    compiled code at target/compiled/dbt_ci_testing/models/customer_orders.sql
-16:36:56  
-16:36:56  Done. PASS=10 WARN=0 ERROR=1 SKIP=0 NO-OP=0 TOTAL=11
+19:42:26  Running with dbt=1.11.2
+19:42:26  Registered adapter: duckdb=1.10.0
+19:42:26  Found 9 models, 5 seeds, 5 data tests, 2 sources, 593 macros
+19:42:26  
+19:42:26  Concurrency: 4 threads (target='dev')
+19:42:26  
+19:42:27  1 of 19 START sql view model dev.macro_change_detection_model .................. [RUN]
+19:42:27  2 of 19 START sql view model dev.model_with_nonexistant_macro .................. [RUN]
+19:42:27  3 of 19 START sql view model dev.python_modules_test ........................... [RUN]
+19:42:27  4 of 19 START sql view model dev.some_other_model .............................. [RUN]
+19:42:27  2 of 19 ERROR creating sql view model dev.model_with_nonexistant_macro ......... [ERROR in 0.08s]
+19:42:27  5 of 19 START sql table model dev.subfolder_model .............................. [RUN]
+19:42:27  4 of 19 OK created sql view model dev.some_other_model ......................... [OK in 0.10s]
+19:42:27  3 of 19 OK created sql view model dev.python_modules_test ...................... [OK in 0.10s]
+19:42:27  1 of 19 OK created sql view model dev.macro_change_detection_model ............. [OK in 0.10s]
+19:42:27  6 of 19 START sql table model dev.this_reference_test .......................... [RUN]
+19:42:27  7 of 19 START seed file dev_seeds.raw_customers ................................ [RUN]
+19:42:27  8 of 19 START seed file dev_seeds.raw_orders ................................... [RUN]
+19:42:27  7 of 19 OK loaded seed file dev_seeds.raw_customers ............................ [INSERT 930 in 0.18s]
+19:42:27  5 of 19 OK created sql table model dev.subfolder_model ......................... [OK in 0.19s]
+19:42:27  9 of 19 START seed file dev_seeds.raw_products ................................. [RUN]
+19:42:27  10 of 19 START seed file dev_seeds.raw_stores .................................. [RUN]
+19:42:27  8 of 19 OK loaded seed file dev_seeds.raw_orders ............................... [INSERT 2165 in 0.14s]
+19:42:27  11 of 19 START seed file dev_seeds.raw_supplies ................................ [RUN]
+19:42:27  6 of 19 OK created sql table model dev.this_reference_test ..................... [OK in 0.22s]
+19:42:27  12 of 19 START sql view model dev.customers .................................... [RUN]
+19:42:27  10 of 19 OK loaded seed file dev_seeds.raw_stores .............................. [INSERT 6 in 0.05s]
+19:42:27  9 of 19 OK loaded seed file dev_seeds.raw_products ............................. [INSERT 10 in 0.05s]
+19:42:27  13 of 19 START sql view model dev.orders ....................................... [RUN]
+19:42:27  11 of 19 OK loaded seed file dev_seeds.raw_supplies ............................ [INSERT 65 in 0.04s]
+19:42:27  12 of 19 OK created sql view model dev.customers ............................... [OK in 0.09s]
+19:42:27  14 of 19 START test not_null_customers_customer_id ............................. [RUN]
+19:42:27  15 of 19 START test unique_customers_customer_id ............................... [RUN]
+19:42:27  13 of 19 OK created sql view model dev.orders .................................. [OK in 0.11s]
+19:42:28  16 of 19 START test not_null_orders_order_id ................................... [RUN]
+19:42:28  17 of 19 START test unique_orders_order_id ..................................... [RUN]
+19:42:28  15 of 19 PASS unique_customers_customer_id ..................................... [PASS in 0.05s]
+19:42:28  14 of 19 PASS not_null_customers_customer_id ................................... [PASS in 0.05s]
+19:42:28  16 of 19 PASS not_null_orders_order_id ......................................... [PASS in 0.03s]
+19:42:28  17 of 19 PASS unique_orders_order_id ........................................... [PASS in 0.03s]
+19:42:28  18 of 19 START sql table model dev.customer_orders ............................. [RUN]
+19:42:28  18 of 19 OK created sql table model dev.customer_orders ........................ [OK in 0.03s]
+19:42:28  19 of 19 START test dbt_utils_accepted_range_customer_orders_tax_paid__True__100000  [RUN]
+19:42:28  19 of 19 PASS dbt_utils_accepted_range_customer_orders_tax_paid__True__100000 .. [PASS in 0.01s]
+19:42:28  
+19:42:28  Finished running 5 seeds, 3 table models, 5 data tests, 6 view models in 0 hours 0 minutes and 1.27 seconds (1.27s).
+19:42:28  
+19:42:28  Completed with 1 error, 0 partial successes, and 0 warnings:
+19:42:28  
+19:42:28  Failure in model model_with_nonexistant_macro (models/model_with_nonexistant_macro.sql)
+19:42:28    Compilation Error in model model_with_nonexistant_macro (models/model_with_nonexistant_macro.sql)
+  'non_existant_macro' is undefined. This can happen when calling a macro that does not exist. Check for typos and/or install package dependencies with "dbt deps".
+19:42:28  
+19:42:28  Done. PASS=18 WARN=0 ERROR=1 SKIP=0 NO-OP=0 TOTAL=19
