@@ -3,7 +3,11 @@
     ".": {
       "release-type": "python",
       "extra-files": [
-        "dbt_toolbox/_version.py"
+        {
+          "type": "generic",
+          "path": "dbt_toolbox/_version.py",
+          "glob": false
+        }
       ]
     }
   }
