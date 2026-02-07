@@ -1,4 +1,4 @@
-name: Test
+name: 🚀 Release & Publish
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   build-release:
-    name: Build release
+    name: 📋 Build release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,7 +15,7 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - name: Release Please
+      - name: 🏷️ Release Please
         uses: googleapis/release-please-action@v4
         id: release
         with:
@@ -24,7 +24,7 @@ jobs:
           manifest-file: .github/.release-please-manifest.json
 
   upload-artifacts:
-    name: Upload artifacts
+    name: 📦 Upload artifacts
     runs-on: ubuntu-latest
     needs: [build-release]
     # Will only run if a release was created
@@ -35,13 +35,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
+      - name: 📦 Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Build artifacts
+      - name: 🔨 Build artifacts
         run: uv build
 
-      - name: Upload build artifacts
+      - name: ⬆️ Upload build artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -50,5 +50,5 @@ jobs:
             gh release upload ${{ needs.build-release.outputs.tag_name }} "$f"
           done
 
-      - name: PyPI publish
+      - name: 🐍 PyPI publish
         uses: pypa/gh-action-pypi-publish@release/v1
