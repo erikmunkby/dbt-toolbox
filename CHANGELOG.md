@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.11.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.10.1...v0.11.0) (2026-02-07)
+
+
+### Features
+
+* improve CTE column resolver ([2c660c7](https://github.com/erikmunkby/dbt-toolbox/commit/2c660c79e33693bcbdf38e1a47d8090bd0fb60b0))
+* models now depend on test status for build ([c9bbc05](https://github.com/erikmunkby/dbt-toolbox/commit/c9bbc05a80aef5a826dd6fcabbd3ec4f18c2c8fb))
+* streamlined analysis output ([d049afb](https://github.com/erikmunkby/dbt-toolbox/commit/d049afbe870a35e467c13cfb2d16ac18b4859815))
+* test matching works with packages ([aab8bd2](https://github.com/erikmunkby/dbt-toolbox/commit/aab8bd25b2db453f2ffc3aa6562d10b9cc8638b4))
+* version drift warning ([5743e59](https://github.com/erikmunkby/dbt-toolbox/commit/5743e59ccbffb07c2afe41e142ce3642ff5110d0))
+
+
+### Documentation
+
+* update docs ([9b21da1](https://github.com/erikmunkby/dbt-toolbox/commit/9b21da1116e7a3b25819df5571de09d52f662f9e))
+
 ## [0.10.1](https://github.com/erikmunkby/dbt-toolbox/compare/v0.10.0...v0.10.1) (2026-01-28)
 
 
