@@ -60,6 +60,7 @@ models:
         description: Tax amount for the order
         data_tests:
           - dbt_utils.accepted_range:
+              min_value: 1
               max_value: 100000
               inclusive: true
       - name: order_total
