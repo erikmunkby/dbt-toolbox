@@ -20,10 +20,9 @@ def build_expected_test_name(test_def: DataTestDefinition) -> str:
             -> "accepted_range_customer_orders_tax_paid"
 
     """
-    # Strip package prefix (e.g., "dbt_utils." -> just the test name after the dot)
-    test_name = test_def.test_name
-    if "." in test_name:
-        test_name = test_name.rsplit(".", maxsplit=1)[1]
+    # Replace package separator with underscore to match dbt log output
+    # e.g. "dbt_utils.accepted_range" -> "dbt_utils_accepted_range"
+    test_name = test_def.test_name.replace(".", "_")
 
     parts = [test_name, test_def.model_name]
     if test_def.column_name:

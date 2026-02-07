@@ -35,7 +35,7 @@ class TestYamlDataTestParsing:
         assert t.test_name == "dbt_utils.accepted_range"
         assert t.column_name == "tax_paid"
         assert t.model_name == "customer_orders"
-        assert t.kwargs == {"max_value": 100000, "inclusive": True}
+        assert t.kwargs == {"min_value": 1, "max_value": 100000, "inclusive": True}
 
     def test_customers_has_two_tests(self, parser: dbtParser) -> None:
         """Verify customers model has unique and not_null tests on customer_id."""
@@ -167,7 +167,7 @@ class TestTestMapper:
             column_name="tax_paid",
             kwargs={"max_value": 100000, "inclusive": True},
         )
-        assert build_expected_test_name(td) == "accepted_range_customer_orders_tax_paid"
+        assert build_expected_test_name(td) == "dbt_utils_accepted_range_customer_orders_tax_paid"
 
     def test_build_expected_name_model_level(self) -> None:
         """Build name from model-level test (no column)."""
@@ -181,8 +181,8 @@ class TestTestMapper:
         assert lookup["unique_orders_order_id"] == "orders"
         assert "not_null_orders_order_id" in lookup
         assert lookup["not_null_orders_order_id"] == "orders"
-        assert "accepted_range_customer_orders_tax_paid" in lookup
-        assert lookup["accepted_range_customer_orders_tax_paid"] == "customer_orders"
+        assert "dbt_utils_accepted_range_customer_orders_tax_paid" in lookup
+        assert lookup["dbt_utils_accepted_range_customer_orders_tax_paid"] == "customer_orders"
 
     def test_build_test_lookup_sorted_longest_first(self, parser: dbtParser) -> None:
         """Verify lookup keys are sorted by length descending."""
@@ -197,11 +197,11 @@ class TestTestMapper:
         assert match_log_test_name("not_null_orders_order_id", lookup) == "orders"
         assert match_log_test_name("unique_orders_order_id", lookup) == "orders"
 
-    def test_match_log_test_name_with_package_suffix(self, parser: dbtParser) -> None:
-        """Match test name with dbt-appended kwargs suffix."""
+    def test_match_log_test_name_with_package_prefix(self, parser: dbtParser) -> None:
+        """Match test name with package prefix and dbt-appended kwargs suffix."""
         lookup = build_test_lookup(parser.models)
         result = match_log_test_name(
-            "accepted_range_customer_orders_tax_paid__True__100000", lookup
+            "dbt_utils_accepted_range_customer_orders_tax_paid__True__100000", lookup
         )
         assert result == "customer_orders"
 
@@ -209,7 +209,7 @@ class TestTestMapper:
         """Longest match wins: 'customer_orders' matches before 'orders'."""
         lookup = build_test_lookup(parser.models)
         result = match_log_test_name(
-            "accepted_range_customer_orders_tax_paid__True__100000", lookup
+            "dbt_utils_accepted_range_customer_orders_tax_paid__True__100000", lookup
         )
         assert result == "customer_orders"
 
@@ -388,7 +388,10 @@ class TestStreamingTestResultProcessing:
         """A package test line with kwargs suffix matches the correct model."""
         test_lookup = build_test_lookup(parser.models)
 
-        line = "FAIL 1 accepted_range_customer_orders_tax_paid__True__100000 ... [FAIL 1 in 0.02s]"
+        line = (
+            "FAIL 1 dbt_utils_accepted_range_customer_orders_tax_paid"
+            "__True__100000 ... [FAIL 1 in 0.02s]"
+        )
         test_info = _extract_test_info(line)
         assert test_info is not None
 

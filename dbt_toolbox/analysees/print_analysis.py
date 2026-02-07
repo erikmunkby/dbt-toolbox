@@ -217,6 +217,7 @@ def print_column_analysis_results(
     _print_summary_header(title, status, summary_items=summary)
 
     if not has_issues:
+        console.print("   All column references are valid.", style=MUTED_STYLE)
         return
 
     # Non-existent columns table
@@ -264,6 +265,9 @@ def print_docs_analysis_results(analysis: DocsAnalysis, mode: PrintModes = "anal
         mode: Print mode - "analysis" for analyze command, "validation" for build command
 
     """
+    if analysis.total_docs_macros == 0:
+        return
+
     console = Console()
 
     # Header

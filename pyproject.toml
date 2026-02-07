@@ -39,6 +39,7 @@ dev = [
     "pytest-cov>=6.2.1",
     "pytest-env>=1.1.5",
     "ruff>=0.11.11",
+    "sqlfluff>=4.0.0",
 ]
 
 [build-system]
