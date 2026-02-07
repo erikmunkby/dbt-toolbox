@@ -68,7 +68,7 @@ def _build_col(
     return ColumnReference(
         id=col_id,
         name=col.name,
-        reference_type=t.type if t.type else TableType.AMBIGUOUS,
+        reference_type=t.type or TableType.AMBIGUOUS,
         table=t.name,
         resolved=resolved,
         context=context,

@@ -326,7 +326,7 @@ class dbtParser:  # noqa: N801
     def macros(self) -> dict[str, Macro]:
         """Fetch all available macros, prioritizing cache if valid."""
         macro_cache = self.cache.cache_macros.read()
-        cached_macros: dict[str, Macro] = macro_cache if macro_cache else {}
+        cached_macros: dict[str, Macro] = macro_cache or {}
         final_macros: dict[str, Macro] = {}
 
         for macro_list in read_macros().values():
@@ -345,7 +345,7 @@ class dbtParser:  # noqa: N801
     def changed_macros(self) -> dict[str, bool]:
         """Get a comprehensive dict of all macros, and whether they've changed."""
         macro_cache = self.cache.cache_macros.read()
-        cached_macros: dict[str, Macro] = macro_cache if macro_cache else {}
+        cached_macros: dict[str, Macro] = macro_cache or {}
         results = {}
         for macro_list in self.list_raw_macros.values():
             for m in macro_list:

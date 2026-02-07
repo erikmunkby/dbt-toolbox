@@ -102,9 +102,7 @@ def _format_time(time_seconds: float) -> str:
 
 def _print_compute_time(skipped_models: list[Model]) -> None:
     """Print the compute time saved in console."""
-    time_seconds = sum(
-        [m.compute_time_seconds if m.compute_time_seconds else 0 for m in skipped_models]
-    )
+    time_seconds = sum([m.compute_time_seconds or 0 for m in skipped_models])
 
     if skipped_models:
         time_display = _format_time(time_seconds)

@@ -265,7 +265,7 @@ class Jinja:
     """Jinja class holder."""
 
     def __init__(self, cache: Cache, profile: DbtProfile | None = None) -> None:
-        self.env = _build_jinja_env(profile=profile if profile else DbtProfile(), cache=cache)
+        self.env = _build_jinja_env(profile=profile or DbtProfile(), cache=cache)
 
     def render(self, sql: str) -> str:
         """Render a model using macros."""

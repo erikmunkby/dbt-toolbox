@@ -43,9 +43,7 @@ class ExecutionPlan:
     @property
     def compute_time_saved_seconds(self) -> float:
         """Get the total compute time saved due to skipping models."""
-        return sum(
-            [m.compute_time_seconds if m.compute_time_seconds else 0 for m in self.models_to_skip]
-        )
+        return sum([m.compute_time_seconds or 0 for m in self.models_to_skip])
 
     def run(self) -> DbtExecutionResults:
         """Execute the planned dbt command.
