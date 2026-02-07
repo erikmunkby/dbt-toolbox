@@ -1,0 +1,10 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "extra-files": [
+        "dbt_toolbox/_version.py"
+      ]
+    }
+  }
+}
