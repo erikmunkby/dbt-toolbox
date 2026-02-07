@@ -5,8 +5,7 @@
       "extra-files": [
         {
           "type": "generic",
-          "path": "dbt_toolbox/_version.py",
-          "glob": false
+          "path": "dbt_toolbox/_version.py"
         }
       ]
     }
