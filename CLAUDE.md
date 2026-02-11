@@ -45,6 +45,7 @@ dbt_toolbox/
 - Test first: Write minimal test, then minimal code to pass
 - Keep it simple: Only add what's explicitly needed
 - Update docs: README.md (users), CLI.md (CLI reference), CONTRIBUTING.md (contributors)
+- Logging: Always use `utils.log` (from `dbt_toolbox.utils._printers`) for logging, never import loguru directly
 
 ## Progressive Disclosure
 

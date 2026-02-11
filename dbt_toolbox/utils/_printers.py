@@ -5,6 +5,7 @@ from typing import Literal
 import typer
 from loguru import logger
 
+from dbt_toolbox._context import is_verbose
 from dbt_toolbox.settings import settings
 
 
@@ -65,7 +66,7 @@ class Logger:
 
     def debug(self, msg: str, *args: object) -> None:
         """Log a debug message. Only shows when debug mode is enabled."""
-        if settings.debug:
+        if settings.debug or is_verbose():
             logger.debug(msg, *args)
 
     def info(self, msg: str, *args: object) -> None:
