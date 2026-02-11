@@ -1,3 +1,8 @@
+{{
+    config(
+        tags=["daily", "finance"],
+    )
+}}
 with orders as (
     select id as order_id,
     customer as customer_id,
