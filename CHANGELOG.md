@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.11.0...v0.12.0) (2026-02-11)
+
+
+### Features
+
+* command verbose flag ([97f39c8](https://github.com/erikmunkby/dbt-toolbox/commit/97f39c8f3e5c10dbc8ed7deceac89d6a600fea9a))
+
+
+### Bug Fixes
+
+* ignoring jinja lists ([6adaa27](https://github.com/erikmunkby/dbt-toolbox/commit/6adaa27907cb02fac9b34596b7a25c51097570da))
+
 ## [0.11.0](https://github.com/erikmunkby/dbt-toolbox/compare/v0.10.1...v0.11.0) (2026-02-07)
 
 
