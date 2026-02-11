@@ -2,13 +2,15 @@
 
 import sqlglot.expressions as expr
 
+from dbt_toolbox._context import is_verbose
 from dbt_toolbox.constants import TABLE_REF_SEP
 from dbt_toolbox.data_models import ColumnReference, Table, TableType
-from dbt_toolbox.settings import settings
 from dbt_toolbox.utils._printers import cprint
 
 
 def _debug_print(col: expr.Column, tables: dict[str, Table], context: list[str]) -> None:
+    if not is_verbose():
+        return
     cprint("column", col.name, str(context), highlight_idx=1)
     for name, t in tables.items():
         p = (
@@ -34,8 +36,7 @@ def _build_col(
     col_id = hash(str(col) + str(col.parent))
     if isinstance(col.this, expr.Star) or col_id in [c.id for c in existing_cols]:
         return None
-    if settings.debug:
-        _debug_print(col=col, tables=tables, context=context)
+    _debug_print(col=col, tables=tables, context=context)
     if col.table:
         t = tables.get(col.table)
         if not t:

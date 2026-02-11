@@ -6,8 +6,6 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from loguru import logger
-
 from dbt_toolbox import utils
 from dbt_toolbox._context import get_command, is_mcp_mode
 from dbt_toolbox._version import __version__
@@ -130,8 +128,7 @@ class Cache:
         self.cache_path.mkdir(parents=True)
         # Ensure models subdirectory is created
         self.cache_models_path.mkdir(exist_ok=True)
-        if settings.debug:
-            logger.debug(f"Cleared cache at {self.cache_path}")
+        utils.log.debug(f"Cleared cache at {self.cache_path}")
 
     def clear_model_cache(self, model_name: str) -> bool:
         """Clear cache for a specific model.
@@ -146,8 +143,7 @@ class Cache:
         cache_handler = self.get_model_cache(model_name)
         if cache_handler.exists():
             cache_handler.clear()
-            if settings.debug:
-                logger.debug(f"Cleared cache for model: {model_name}")
+            utils.log.debug(f"Cleared cache for model: {model_name}")
             return True
         return False
 

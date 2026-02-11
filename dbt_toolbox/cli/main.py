@@ -1,8 +1,11 @@
 """Main cli module."""
 
+from typing import Annotated
+
 import typer
 
 from dbt_toolbox import utils
+from dbt_toolbox._context import set_verbose
 from dbt_toolbox.cli.analyze import analyze_command
 from dbt_toolbox.cli.build import build
 from dbt_toolbox.cli.clean import clean
@@ -15,6 +18,18 @@ app = typer.Typer(
     help="dbt-toolbox CLI - Tools for working with dbt projects",
     pretty_exceptions_show_locals=False,
 )
+
+
+@app.callback(invoke_without_command=True)
+def main_callback(
+    ctx: typer.Context,  # noqa: ARG001
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable debug logging.")
+    ] = False,
+) -> None:
+    """Dbt-toolbox CLI - Tools for working with dbt projects."""
+    if verbose:
+        set_verbose()
 
 
 app.command()(docs)
