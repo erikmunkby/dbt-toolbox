@@ -5,6 +5,8 @@ models:
       A model that transforms raw order data into a clean, standardized format.
       Includes order details such as customer ID, order date, store ID, and financial
       information including subtotal, tax, and total amount.
+    config:
+      tags: ["nightly"]
     columns:
       - name: order_id
         description: Unique identifier for each order
@@ -28,6 +30,8 @@ models:
     description: >
       A model that cleans and standardizes customer data from the raw customers table.
       Transforms basic customer information into a consistent format.
+    config:
+      tags: ["core", "staging"]
     columns:
       - name: customer_id
         description: Unique identifier for each customer

@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from jinja2.nodes import Call, Const, Dict, Keyword, Output
+from jinja2.nodes import Call, Const, Dict, Keyword, List, Output
 from sqlglot import parse_one
 from sqlglot.optimizer import optimize
 
@@ -99,6 +99,8 @@ def _parse_config_kwargs(obj: Any) -> Any:  # noqa: ANN401
         return {obj.key: _parse_config_kwargs(obj.value)}
     if isinstance(obj, list):
         return [_parse_config_kwargs(x) for x in obj]
+    if isinstance(obj, List):
+        return [_parse_config_kwargs(item) for item in obj.items]
     if isinstance(obj, Dict):
         return {pair.key.value: _parse_config_kwargs(pair.value) for pair in obj.items}  # type: ignore
     return None

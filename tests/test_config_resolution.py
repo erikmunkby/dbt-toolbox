@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from dbt_toolbox.dbt_parser._builders import _resolve_model_config
+from dbt_toolbox.dbt_parser._builders import _parse_config_kwargs, _resolve_model_config
 
 
 class TestResolveModelConfig:
@@ -355,3 +355,60 @@ class TestResolveModelConfig:
         result = _resolve_model_config(model_path, config_kwargs, dbt_project_dict, yaml_docs)
 
         assert result == {"materialized": "table", "tags": ["project_tag"]}
+
+
+class TestParseConfigKwargs:
+    """Test Jinja config block AST parsing."""
+
+    def test_list_values_parsed_from_jinja_ast(self) -> None:
+        """Test that list values in Jinja config are parsed correctly."""
+        from jinja2 import Environment
+
+        env = Environment(autoescape=True)
+        template_ast = env.parse('{{ config(tags=["daily", "finance"]) }}')
+        # Extract the Call node's kwargs
+        call_node = template_ast.body[0].nodes[0]  # Output -> Call
+        result = _parse_config_kwargs(call_node.kwargs)
+        assert result == [{"tags": ["daily", "finance"]}]
+
+    def test_single_string_value_parsed(self) -> None:
+        """Test that single string values in Jinja config are parsed correctly."""
+        from jinja2 import Environment
+
+        env = Environment(autoescape=True)
+        template_ast = env.parse('{{ config(materialized="table") }}')
+        call_node = template_ast.body[0].nodes[0]
+        result = _parse_config_kwargs(call_node.kwargs)
+        assert result == [{"materialized": "table"}]
+
+    def test_mixed_scalar_and_list_values(self) -> None:
+        """Test config with both scalar and list values."""
+        from jinja2 import Environment
+
+        env = Environment(autoescape=True)
+        template_ast = env.parse(
+            '{{ config(materialized="incremental", tags=["daily", "finance"],'
+            ' unique_key=["id", "date"]) }}'
+        )
+        call_node = template_ast.body[0].nodes[0]
+        result = _parse_config_kwargs(call_node.kwargs)
+        assert {"tags": ["daily", "finance"]} in result
+        assert {"materialized": "incremental"} in result
+        assert {"unique_key": ["id", "date"]} in result
+
+
+class TestConfigTagsIntegration:
+    """Integration tests for tags config through the parser."""
+
+    def test_sql_config_tags_override_yaml_tags(self, parser) -> None:
+        """Test that SQL config tags take precedence over YAML tags."""
+        orders = parser.models["orders"]
+        # SQL has tags=["daily", "finance"], YAML has tags=["nightly"]
+        # SQL should win
+        assert orders.config.get("tags") == ["daily", "finance"]
+
+    def test_yaml_config_tags_when_no_sql_config(self, parser) -> None:
+        """Test that YAML tags appear when no SQL config tags exist."""
+        customers = parser.models["customers"]
+        # Only YAML has tags=["core", "staging"], no SQL config
+        assert customers.config.get("tags") == ["core", "staging"]
